@@ -13,6 +13,7 @@ namespace tlp
         Started,
         Counted,
         Duplicate,
+        TooFast,
         MissedFrame,
         Invalid
     }
@@ -48,7 +49,7 @@ namespace tlp
         }
 
         private readonly LaneRuntime[] _lanes;
-        private readonly LapRaceOptions _options;
+        private LapRaceOptions _options;
         private readonly object _gate = new();
 
         public LapRace(LapRaceOptions? options = null)
@@ -57,6 +58,25 @@ namespace tlp
             _lanes = Enumerable.Range(0, LapProtocolParser.LaneCount)
                 .Select(i => new LaneRuntime(i))
                 .ToArray();
+        }
+
+        public LapRaceOptions Options
+        {
+            get
+            {
+                lock (_gate)
+                {
+                    return _options;
+                }
+            }
+        }
+
+        public void SetOptions(LapRaceOptions options)
+        {
+            lock (_gate)
+            {
+                _options = options;
+            }
         }
 
         public Lane GetLane(int laneIndex)
@@ -121,7 +141,7 @@ namespace tlp
                 uint elapsed = unchecked(edge.TimestampMillis - lane.LastAcceptedTimestamp.Value);
                 if (elapsed < _options.MinLapMilliseconds)
                 {
-                    return new LapUpdate(LapUpdateKind.Duplicate, edge.LaneIndex, null, lane.MissedFrames, $"ignored {elapsed} ms edge");
+                    return new LapUpdate(LapUpdateKind.TooFast, edge.LaneIndex, (int)elapsed, lane.MissedFrames, $"ignored {elapsed} ms lap below minimum {_options.MinLapMilliseconds} ms");
                 }
 
                 if (elapsed > _options.MaxLapMilliseconds || elapsed > int.MaxValue)

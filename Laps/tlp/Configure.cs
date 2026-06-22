@@ -7,15 +7,21 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace tlp
 {
     public partial class Configure : Form
     {
-        public Configure()
+        public int MinLapMilliseconds { get; private set; }
+        public bool SoundOnTooFastLap { get; private set; }
+
+        public Configure(int minLapMilliseconds, bool soundOnTooFastLap)
         {
             InitializeComponent();
+            MinLapMilliseconds = minLapMilliseconds;
+            SoundOnTooFastLap = soundOnTooFastLap;
+            nudMinLapMilliseconds.Value = Math.Clamp(minLapMilliseconds, (int)nudMinLapMilliseconds.Minimum, (int)nudMinLapMilliseconds.Maximum);
+            cbSoundOnTooFastLap.Checked = soundOnTooFastLap;
         }
 
         private void listBox1_SelectedIndexChanged(object sender, EventArgs e)
@@ -36,6 +42,20 @@ namespace tlp
                 //textBox1.Font = fontDialog1.Font;
                 //textBox1.ForeColor = fontDialog1.Color;
             }
+        }
+
+        private void bOK_Click(object sender, EventArgs e)
+        {
+            MinLapMilliseconds = (int)nudMinLapMilliseconds.Value;
+            SoundOnTooFastLap = cbSoundOnTooFastLap.Checked;
+            DialogResult = DialogResult.OK;
+            Close();
+        }
+
+        private void bCancel_Click(object sender, EventArgs e)
+        {
+            DialogResult = DialogResult.Cancel;
+            Close();
         }
     }
 }

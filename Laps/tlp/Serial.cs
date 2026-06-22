@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.IO.Ports;
+using System.Media;
 using Microsoft.Data.Sqlite;
 
 namespace tlp
@@ -29,8 +30,16 @@ namespace tlp
             _mph = new[] { form.mph0, form.mph1, form.mph2, form.mph3, form.mph4, form.mph5, form.mph6, form.mph7 };
 
             Init();
+            ApplySettings();
             EnsurePortSelected();
             _readerTask = Task.Run(ReadLoopAsync);
+        }
+
+        public void ApplySettings()
+        {
+            LapRaceOptions options = _race.Options;
+            _race.SetOptions(options with { MinLapMilliseconds = _form.MinLapMilliseconds });
+            _log.Info($"minimum lap time set to {_form.MinLapMilliseconds} ms; sound on too-fast laps is {_form.SoundOnTooFastLap}");
         }
 
         public void Init()
@@ -180,6 +189,17 @@ namespace tlp
         private void HandleEdge(LapEdge edge)
         {
             LapUpdate update = _race.Process(edge);
+            if (update.Kind == LapUpdateKind.TooFast)
+            {
+                if (_form.SoundOnTooFastLap)
+                {
+                    SystemSounds.Beep.Play();
+                }
+
+                _log.Info($"lane {edge.LaneIndex}: {update.Detail}");
+                return;
+            }
+
             if (update.Kind == LapUpdateKind.Started || update.Kind == LapUpdateKind.Duplicate || update.Kind == LapUpdateKind.Invalid)
             {
                 _log.Info($"lane {edge.LaneIndex}: {update.Detail}");

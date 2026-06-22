@@ -1,4 +1,4 @@
-﻿using tlp;
+using tlp;
 
 static void Assert(bool condition, string message)
 {
@@ -35,7 +35,8 @@ LapUpdate started = race.Process(new LapEdge(0, 1, 1000));
 Assert(started.Kind == LapUpdateKind.Started, "first edge should establish baseline");
 
 LapUpdate duplicate = race.Process(new LapEdge(0, 2, 1500));
-Assert(duplicate.Kind == LapUpdateKind.Duplicate, "short edge should be rejected as duplicate");
+Assert(duplicate.Kind == LapUpdateKind.TooFast, "short edge should be rejected as too fast");
+Assert(duplicate.LapMilliseconds == 500, "too-fast update should report ignored lap duration");
 
 LapUpdate counted = race.Process(new LapEdge(0, 3, 3500));
 Assert(counted.Kind == LapUpdateKind.Counted, "valid edge should count lap");

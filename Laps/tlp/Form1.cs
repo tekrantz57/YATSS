@@ -10,6 +10,8 @@ namespace tlp
     {
         static Serial s;
         public string port = "";
+        public int MinLapMilliseconds { get; private set; } = LapRaceOptions.Default.MinLapMilliseconds;
+        public bool SoundOnTooFastLap { get; private set; } = true;
         public static SqliteConnection conn = new SqliteConnection(@"Data Source=c:\sqlite\data\laps.db");
 
         public MKTS()
@@ -357,8 +359,13 @@ namespace tlp
 
         private void configureToolStripMenuItem1_Click(object sender, EventArgs e)
         {
-            Configure config = new Configure();
-            config.ShowDialog();
+            using Configure config = new Configure(MinLapMilliseconds, SoundOnTooFastLap);
+            if (config.ShowDialog(this) == DialogResult.OK)
+            {
+                MinLapMilliseconds = config.MinLapMilliseconds;
+                SoundOnTooFastLap = config.SoundOnTooFastLap;
+                s.ApplySettings();
+            }
         }
 
         private void contextMenuStrip1_Opening(object sender, System.ComponentModel.CancelEventArgs e)
