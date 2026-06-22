@@ -28,7 +28,7 @@ namespace tlp
 
         private void bOK_Click(object sender, EventArgs e)
         {
-            port = listBox1.GetItemText(listBox1.SelectedItem);
+            port = listBox1.SelectedItem == null ? string.Empty : listBox1.GetItemText(listBox1.SelectedItem) ?? string.Empty;
             this.Close();
         }
 

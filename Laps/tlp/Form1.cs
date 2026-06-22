@@ -8,7 +8,7 @@ namespace tlp
 {
     public partial class MKTS : Form
     {
-        static Serial s;
+        static Serial s = null!;
         public string port = "";
         public int MinLapMilliseconds { get; private set; } = LapRaceOptions.Default.MinLapMilliseconds;
         public bool SoundOnTooFastLap { get; private set; } = true;
@@ -159,9 +159,9 @@ namespace tlp
             contextMenuStrip1.Show(Cursor.Position);
         }
 
-        private void name7ContextMenuStrip1_Click(object sender, ToolStripItemClickedEventArgs e)
+        private void name7ContextMenuStrip1_Click(object? sender, ToolStripItemClickedEventArgs e)
         {
-            name7.Text = e.ClickedItem.Text;
+            name7.Text = e.ClickedItem?.Text ?? string.Empty;
         }
 
         private void name6_Click(object sender, EventArgs e)
@@ -186,9 +186,9 @@ namespace tlp
 
         }
 
-        private void name6ContextMenuStrip1_Click(object sender, ToolStripItemClickedEventArgs e)
+        private void name6ContextMenuStrip1_Click(object? sender, ToolStripItemClickedEventArgs e)
         {
-            name6.Text = e.ClickedItem.Text;
+            name6.Text = e.ClickedItem?.Text ?? string.Empty;
         }
 
         private void name5_Click(object sender, EventArgs e)
@@ -214,9 +214,9 @@ namespace tlp
 
         }
 
-        private void name5ContextMenuStrip1_Click(object sender, ToolStripItemClickedEventArgs e)
+        private void name5ContextMenuStrip1_Click(object? sender, ToolStripItemClickedEventArgs e)
         {
-            name5.Text = e.ClickedItem.Text;
+            name5.Text = e.ClickedItem?.Text ?? string.Empty;
         }
 
         private void name4_Click(object sender, EventArgs e)
@@ -242,9 +242,9 @@ namespace tlp
 
         }
 
-        private void name4ContextMenuStrip1_Click(object sender, ToolStripItemClickedEventArgs e)
+        private void name4ContextMenuStrip1_Click(object? sender, ToolStripItemClickedEventArgs e)
         {
-            name4.Text = e.ClickedItem.Text;
+            name4.Text = e.ClickedItem?.Text ?? string.Empty;
         }
         private void name3_Click(object sender, EventArgs e)
         {
@@ -269,9 +269,9 @@ namespace tlp
 
         }
 
-        private void name3ContextMenuStrip1_Click(object sender, ToolStripItemClickedEventArgs e)
+        private void name3ContextMenuStrip1_Click(object? sender, ToolStripItemClickedEventArgs e)
         {
-            name3.Text = e.ClickedItem.Text;
+            name3.Text = e.ClickedItem?.Text ?? string.Empty;
         }
 
         private void name2_Click(object sender, EventArgs e)
@@ -297,9 +297,9 @@ namespace tlp
 
         }
 
-        private void name2ContextMenuStrip1_Click(object sender, ToolStripItemClickedEventArgs e)
+        private void name2ContextMenuStrip1_Click(object? sender, ToolStripItemClickedEventArgs e)
         {
-            name2.Text = e.ClickedItem.Text;
+            name2.Text = e.ClickedItem?.Text ?? string.Empty;
         }
 
         private void name1_Click(object sender, EventArgs e)
@@ -325,9 +325,9 @@ namespace tlp
 
         }
 
-        private void name1ContextMenuStrip1_Click(object sender, ToolStripItemClickedEventArgs e)
+        private void name1ContextMenuStrip1_Click(object? sender, ToolStripItemClickedEventArgs e)
         {
-            name1.Text = e.ClickedItem.Text;
+            name1.Text = e.ClickedItem?.Text ?? string.Empty;
         }
 
         private void name0_Click(object sender, EventArgs e)
@@ -352,9 +352,9 @@ namespace tlp
             contextMenuStrip1.Show(Cursor.Position);
 
         }
-        private void name0ContextMenuStrip1_Click(object sender, ToolStripItemClickedEventArgs e)
+        private void name0ContextMenuStrip1_Click(object? sender, ToolStripItemClickedEventArgs e)
         {
-            name0.Text = e.ClickedItem.Text;
+            name0.Text = e.ClickedItem?.Text ?? string.Empty;
         }
 
         private void configureToolStripMenuItem1_Click(object sender, EventArgs e)

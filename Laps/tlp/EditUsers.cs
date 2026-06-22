@@ -30,10 +30,17 @@ namespace tlp
                 {
                     while (reader.Read())
                     {
-                        cbUsers.Items.Add(reader[0].ToString().Trim());
+                        string? name = reader[0].ToString();
+                        if (!string.IsNullOrWhiteSpace(name))
+                        {
+                            cbUsers.Items.Add(name.Trim());
+                        }
                     }
 
-                    cbUsers.SelectedIndex = 0;
+                    if (cbUsers.Items.Count > 0)
+                    {
+                        cbUsers.SelectedIndex = 0;
+                    }
                 }
             }
         }
@@ -52,7 +59,7 @@ namespace tlp
             {
                 command = MKTS.conn.CreateCommand();
                 command.CommandText = @"INSERT INTO users (name) values ($name)";
-                command.Parameters.AddWithValue("$name", item.ToString());
+                command.Parameters.AddWithValue("$name", item?.ToString() ?? string.Empty);
                 command.ExecuteNonQuery();
             }
 
@@ -87,8 +94,16 @@ namespace tlp
 
         private void bDeleteUser_Click(object sender, EventArgs e)
         {
+            if (cbUsers.SelectedItem == null)
+            {
+                return;
+            }
+
             cbUsers.Items.Remove(cbUsers.SelectedItem);
-            cbUsers.SelectedIndex = 0;
+            if (cbUsers.Items.Count > 0)
+            {
+                cbUsers.SelectedIndex = 0;
+            }
         }
     }
 }
