@@ -88,7 +88,9 @@ void publishQueuedEdges() {
       return;
     }
 
-    event = queue[queueTail];
+    event.lane = queue[queueTail].lane;
+    event.sequence = queue[queueTail].sequence;
+    event.timestampMillis = queue[queueTail].timestampMillis;
     queueTail = (byte)((queueTail + 1) % QueueSize);
     interrupts();
 
