@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Data;
 using System.Drawing;
 using System.Linq;
+using System.IO.Ports;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -14,14 +15,33 @@ namespace tlp
     {
         public int MinLapMilliseconds { get; private set; }
         public bool SoundOnTooFastLap { get; private set; }
+        public string SelectedPort { get; private set; } = "";
 
-        public Configure(int minLapMilliseconds, bool soundOnTooFastLap)
+        public Configure(int minLapMilliseconds, bool soundOnTooFastLap, string selectedPort)
         {
             InitializeComponent();
             MinLapMilliseconds = minLapMilliseconds;
             SoundOnTooFastLap = soundOnTooFastLap;
+            SelectedPort = selectedPort;
             nudMinLapMilliseconds.Value = Math.Clamp(minLapMilliseconds, (int)nudMinLapMilliseconds.Minimum, (int)nudMinLapMilliseconds.Maximum);
             cbSoundOnTooFastLap.Checked = soundOnTooFastLap;
+            LoadSerialPorts(selectedPort);
+        }
+
+        private void LoadSerialPorts(string selectedPort)
+        {
+            cbSerialPort.Items.Clear();
+            foreach (string portName in SerialPort.GetPortNames().OrderBy(p => p))
+            {
+                cbSerialPort.Items.Add(portName);
+            }
+
+            if (!string.IsNullOrWhiteSpace(selectedPort) && !cbSerialPort.Items.Contains(selectedPort))
+            {
+                cbSerialPort.Items.Add(selectedPort);
+            }
+
+            cbSerialPort.Text = selectedPort;
         }
 
         private void listBox1_SelectedIndexChanged(object sender, EventArgs e)
@@ -48,6 +68,7 @@ namespace tlp
         {
             MinLapMilliseconds = (int)nudMinLapMilliseconds.Value;
             SoundOnTooFastLap = cbSoundOnTooFastLap.Checked;
+            SelectedPort = cbSerialPort.Text.Trim();
             DialogResult = DialogResult.OK;
             Close();
         }

@@ -42,6 +42,20 @@ namespace tlp
             _log.Info($"minimum lap time set to {_form.MinLapMilliseconds} ms; sound on too-fast laps is {_form.SoundOnTooFastLap}");
         }
 
+        public void SetPort(string portName)
+        {
+            portName = portName.Trim();
+            if (string.Equals(_form.port, portName, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            _form.port = portName;
+            SavePort(portName);
+            _log.Info(string.IsNullOrWhiteSpace(portName) ? "serial port cleared" : $"serial port set to {portName}");
+            CloseActivePort();
+        }
+
         public void Init()
         {
             _race.Reset();

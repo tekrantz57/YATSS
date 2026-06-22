@@ -39,10 +39,13 @@ namespace tlp
             nudMinLapMilliseconds = new NumericUpDown();
             bOK = new Button();
             bCancel = new Button();
+            groupBox4 = new GroupBox();
+            cbSerialPort = new ComboBox();
             groupBox1.SuspendLayout();
             groupBox2.SuspendLayout();
             groupBox3.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)nudMinLapMilliseconds).BeginInit();
+            groupBox4.SuspendLayout();
             SuspendLayout();
             //
             // cbNumLanes
@@ -138,22 +141,40 @@ namespace tlp
             nudMinLapMilliseconds.TabIndex = 0;
             nudMinLapMilliseconds.Value = new decimal(new int[] { 1000, 0, 0, 0 });
             //
+            // groupBox4
+            //
+            groupBox4.Controls.Add(cbSerialPort);
+            groupBox4.Location = new Point(12, 181);
+            groupBox4.Name = "groupBox4";
+            groupBox4.Size = new Size(399, 53);
+            groupBox4.TabIndex = 4;
+            groupBox4.TabStop = false;
+            groupBox4.Text = "Serial Port";
+            //
+            // cbSerialPort
+            //
+            cbSerialPort.FormattingEnabled = true;
+            cbSerialPort.Location = new Point(11, 21);
+            cbSerialPort.Name = "cbSerialPort";
+            cbSerialPort.Size = new Size(166, 23);
+            cbSerialPort.TabIndex = 0;
+            //
             // bOK
             //
-            bOK.Location = new Point(255, 186);
+            bOK.Location = new Point(255, 252);
             bOK.Name = "bOK";
             bOK.Size = new Size(75, 23);
-            bOK.TabIndex = 4;
+            bOK.TabIndex = 5;
             bOK.Text = "OK";
             bOK.UseVisualStyleBackColor = true;
             bOK.Click += bOK_Click;
             //
             // bCancel
             //
-            bCancel.Location = new Point(336, 186);
+            bCancel.Location = new Point(336, 252);
             bCancel.Name = "bCancel";
             bCancel.Size = new Size(75, 23);
-            bCancel.TabIndex = 5;
+            bCancel.TabIndex = 6;
             bCancel.Text = "Cancel";
             bCancel.UseVisualStyleBackColor = true;
             bCancel.Click += bCancel_Click;
@@ -164,9 +185,10 @@ namespace tlp
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             CancelButton = bCancel;
-            ClientSize = new Size(428, 225);
+            ClientSize = new Size(428, 291);
             Controls.Add(bCancel);
             Controls.Add(bOK);
+            Controls.Add(groupBox4);
             Controls.Add(groupBox3);
             Controls.Add(groupBox2);
             Controls.Add(groupBox1);
@@ -181,6 +203,7 @@ namespace tlp
             groupBox3.ResumeLayout(false);
             groupBox3.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)nudMinLapMilliseconds).EndInit();
+            groupBox4.ResumeLayout(false);
             ResumeLayout(false);
         }
 
@@ -197,5 +220,7 @@ namespace tlp
         private NumericUpDown nudMinLapMilliseconds;
         private Button bOK;
         private Button bCancel;
+        private GroupBox groupBox4;
+        private ComboBox cbSerialPort;
     }
 }

@@ -28,7 +28,7 @@ namespace tlp
 
         private void Write(string level, string message)
         {
-            string line = $"{DateTimeOffset.Now:O} [{level}] {message}";
+            string line = $"{DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss.fff zzz} [{level}] {message}";
             Trace.WriteLine(line);
             lock (_gate)
             {

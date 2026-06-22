@@ -359,12 +359,13 @@ namespace tlp
 
         private void configureToolStripMenuItem1_Click(object sender, EventArgs e)
         {
-            using Configure config = new Configure(MinLapMilliseconds, SoundOnTooFastLap);
+            using Configure config = new Configure(MinLapMilliseconds, SoundOnTooFastLap, port);
             if (config.ShowDialog(this) == DialogResult.OK)
             {
                 MinLapMilliseconds = config.MinLapMilliseconds;
                 SoundOnTooFastLap = config.SoundOnTooFastLap;
                 s.ApplySettings();
+                s.SetPort(config.SelectedPort);
             }
         }
 
