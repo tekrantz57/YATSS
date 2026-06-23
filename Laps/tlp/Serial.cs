@@ -148,11 +148,17 @@ namespace tlp
                         {
                             continue;
                         }
+                        catch (Exception ex) when (ex is IOException || ex is InvalidOperationException || ex is NullReferenceException)
+                        {
+                            _log.Error(ex, $"serial read failed on {portName}");
+                            _form.SetStatusMessage($"Serial disconnected from {portName}");
+                            break;
+                        }
 
                         HandleLine(line);
                     }
                 }
-                catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is InvalidOperationException)
+                catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is InvalidOperationException || ex is NullReferenceException)
                 {
                     _log.Error(ex, $"serial disconnected from {portName}");
                     _form.SetStatusMessage($"Serial disconnected from {portName}");
