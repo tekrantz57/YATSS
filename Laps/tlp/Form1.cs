@@ -22,6 +22,7 @@ namespace tlp
         public string port = "";
         public int MinLapMilliseconds { get; private set; } = LapRaceOptions.Default.MinLapMilliseconds;
         public bool SoundOnTooFastLap { get; private set; } = true;
+        public string SpeechVoiceName { get; private set; } = "";
         public static SqliteConnection conn = new SqliteConnection(@"Data Source=c:\sqlite\data\laps.db");
 
         public MKTS()
@@ -365,11 +366,12 @@ namespace tlp
 
         private void configureToolStripMenuItem1_Click(object sender, EventArgs e)
         {
-            using Configure config = new Configure(MinLapMilliseconds, SoundOnTooFastLap, port);
+            using Configure config = new Configure(MinLapMilliseconds, SoundOnTooFastLap, port, SpeechVoiceName);
             if (config.ShowDialog(this) == DialogResult.OK)
             {
                 MinLapMilliseconds = config.MinLapMilliseconds;
                 SoundOnTooFastLap = config.SoundOnTooFastLap;
+                SpeechVoiceName = config.SelectedSpeechVoice;
                 s.ApplySettings();
                 s.SetPort(config.SelectedPort);
             }

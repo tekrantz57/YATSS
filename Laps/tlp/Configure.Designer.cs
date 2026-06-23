@@ -41,11 +41,14 @@ namespace tlp
             bCancel = new Button();
             groupBox4 = new GroupBox();
             cbSerialPort = new ComboBox();
+            groupBox5 = new GroupBox();
+            cbSpeechVoice = new ComboBox();
             groupBox1.SuspendLayout();
             groupBox2.SuspendLayout();
             groupBox3.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)nudMinLapMilliseconds).BeginInit();
             groupBox4.SuspendLayout();
+            groupBox5.SuspendLayout();
             SuspendLayout();
             //
             // cbNumLanes
@@ -159,9 +162,28 @@ namespace tlp
             cbSerialPort.Size = new Size(166, 23);
             cbSerialPort.TabIndex = 0;
             //
+            // groupBox5
+            //
+            groupBox5.Controls.Add(cbSpeechVoice);
+            groupBox5.Location = new Point(12, 247);
+            groupBox5.Name = "groupBox5";
+            groupBox5.Size = new Size(399, 53);
+            groupBox5.TabIndex = 7;
+            groupBox5.TabStop = false;
+            groupBox5.Text = "Voice";
+            //
+            // cbSpeechVoice
+            //
+            cbSpeechVoice.DropDownStyle = ComboBoxStyle.DropDownList;
+            cbSpeechVoice.FormattingEnabled = true;
+            cbSpeechVoice.Location = new Point(11, 21);
+            cbSpeechVoice.Name = "cbSpeechVoice";
+            cbSpeechVoice.Size = new Size(370, 23);
+            cbSpeechVoice.TabIndex = 0;
+            //
             // bOK
             //
-            bOK.Location = new Point(255, 252);
+            bOK.Location = new Point(255, 318);
             bOK.Name = "bOK";
             bOK.Size = new Size(75, 23);
             bOK.TabIndex = 5;
@@ -171,7 +193,7 @@ namespace tlp
             //
             // bCancel
             //
-            bCancel.Location = new Point(336, 252);
+            bCancel.Location = new Point(336, 318);
             bCancel.Name = "bCancel";
             bCancel.Size = new Size(75, 23);
             bCancel.TabIndex = 6;
@@ -185,9 +207,10 @@ namespace tlp
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             CancelButton = bCancel;
-            ClientSize = new Size(428, 291);
+            ClientSize = new Size(428, 357);
             Controls.Add(bCancel);
             Controls.Add(bOK);
+            Controls.Add(groupBox5);
             Controls.Add(groupBox4);
             Controls.Add(groupBox3);
             Controls.Add(groupBox2);
@@ -204,6 +227,7 @@ namespace tlp
             groupBox3.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)nudMinLapMilliseconds).EndInit();
             groupBox4.ResumeLayout(false);
+            groupBox5.ResumeLayout(false);
             ResumeLayout(false);
         }
 
@@ -222,5 +246,7 @@ namespace tlp
         private Button bCancel;
         private GroupBox groupBox4;
         private ComboBox cbSerialPort;
+        private GroupBox groupBox5;
+        private ComboBox cbSpeechVoice;
     }
 }

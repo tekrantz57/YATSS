@@ -16,16 +16,19 @@ namespace tlp
         public int MinLapMilliseconds { get; private set; }
         public bool SoundOnTooFastLap { get; private set; }
         public string SelectedPort { get; private set; } = "";
+        public string SelectedSpeechVoice { get; private set; } = "";
 
-        public Configure(int minLapMilliseconds, bool soundOnTooFastLap, string selectedPort)
+        public Configure(int minLapMilliseconds, bool soundOnTooFastLap, string selectedPort, string selectedSpeechVoice)
         {
             InitializeComponent();
             MinLapMilliseconds = minLapMilliseconds;
             SoundOnTooFastLap = soundOnTooFastLap;
             SelectedPort = selectedPort;
+            SelectedSpeechVoice = selectedSpeechVoice;
             nudMinLapMilliseconds.Value = Math.Clamp(minLapMilliseconds, (int)nudMinLapMilliseconds.Minimum, (int)nudMinLapMilliseconds.Maximum);
             cbSoundOnTooFastLap.Checked = soundOnTooFastLap;
             LoadSerialPorts(selectedPort);
+            LoadSpeechVoices(selectedSpeechVoice);
         }
 
         private void LoadSerialPorts(string selectedPort)
@@ -42,6 +45,18 @@ namespace tlp
             }
 
             cbSerialPort.Text = selectedPort;
+        }
+
+        private void LoadSpeechVoices(string selectedSpeechVoice)
+        {
+            cbSpeechVoice.Items.Clear();
+            cbSpeechVoice.Items.Add("");
+            foreach (string voiceName in SpeechAnnouncer.GetInstalledVoices())
+            {
+                cbSpeechVoice.Items.Add(voiceName);
+            }
+
+            cbSpeechVoice.Text = selectedSpeechVoice;
         }
 
         private void listBox1_SelectedIndexChanged(object sender, EventArgs e)
@@ -69,6 +84,7 @@ namespace tlp
             MinLapMilliseconds = (int)nudMinLapMilliseconds.Value;
             SoundOnTooFastLap = cbSoundOnTooFastLap.Checked;
             SelectedPort = cbSerialPort.Text.Trim();
+            SelectedSpeechVoice = cbSpeechVoice.Text.Trim();
             DialogResult = DialogResult.OK;
             Close();
         }
