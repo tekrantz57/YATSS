@@ -26,6 +26,7 @@ namespace tlp
         public MKTS()
         {
             InitializeComponent();
+            Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? Icon;
             ConfigureBoardLayout();
             conn.Open();
             var command = conn.CreateCommand();
