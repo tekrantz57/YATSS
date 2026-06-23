@@ -30,6 +30,7 @@ namespace tlp
             InitializeComponent();
             Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? Icon;
             KeyPreview = true;
+            SpeechAnnouncer.WarmUpAsync(SpeechVoiceName);
             ConfigureBoardLayout();
             conn.Open();
             var command = conn.CreateCommand();
@@ -372,6 +373,7 @@ namespace tlp
                 MinLapMilliseconds = config.MinLapMilliseconds;
                 SoundOnTooFastLap = config.SoundOnTooFastLap;
                 SpeechVoiceName = config.SelectedSpeechVoice;
+                SpeechAnnouncer.WarmUpAsync(SpeechVoiceName);
                 s.ApplySettings();
                 s.SetPort(config.SelectedPort);
             }
