@@ -12,6 +12,7 @@ namespace tlp
         private readonly SerialLog _log = new();
         private readonly CancellationTokenSource _stop = new();
         private readonly object _portGate = new();
+        private readonly Label[] _names;
         private readonly Label[] _laps;
         private readonly Label[] _lastLap;
         private readonly Label[] _bestLap;
@@ -19,10 +20,12 @@ namespace tlp
         private readonly Label[] _mph;
         private Task? _readerTask;
         private SerialPort? _port;
+        private const string EmptyRacerName = "          ";
 
         public Serial(MKTS form)
         {
             _form = form;
+            _names = new[] { form.name0, form.name1, form.name2, form.name3, form.name4, form.name5, form.name6, form.name7 };
             _laps = new[] { form.laps0, form.laps1, form.laps2, form.laps3, form.laps4, form.laps5, form.laps6, form.laps7 };
             _lastLap = new[] { form.ll0, form.ll1, form.ll2, form.ll3, form.ll4, form.ll5, form.ll6, form.ll7 };
             _bestLap = new[] { form.bl0, form.bl1, form.bl2, form.bl3, form.bl4, form.bl5, form.bl6, form.bl7 };
@@ -62,6 +65,7 @@ namespace tlp
             {
                 for (int i = 0; i < LapProtocolParser.LaneCount; i++)
                 {
+                    _names[i].Text = EmptyRacerName;
                     _laps[i].Text = "0";
                     _lastLap[i].Text = "0.000";
                     _bestLap[i].Text = "0.000";
