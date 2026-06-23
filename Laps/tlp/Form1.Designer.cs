@@ -141,6 +141,9 @@ namespace tlp
             resetToolStripMenuItem = new ToolStripMenuItem();
             editUsersToolStripMenuItem = new ToolStripMenuItem();
             exitToolStripMenuItem = new ToolStripMenuItem();
+            modeToolStripMenuItem = new ToolStripMenuItem();
+            practiceToolStripMenuItem = new ToolStripMenuItem();
+            heatRaceToolStripMenuItem = new ToolStripMenuItem();
             menuStrip1 = new MenuStrip();
             contextMenuStrip1 = new ContextMenuStrip(components);
             tableLayoutPanel1.SuspendLayout();
@@ -1404,10 +1407,33 @@ namespace tlp
             exitToolStripMenuItem.Size = new Size(127, 22);
             exitToolStripMenuItem.Text = "Exit";
             exitToolStripMenuItem.Click += exitToolStripMenuItem_Click;
-            // 
+            //
+            // modeToolStripMenuItem
+            //
+            modeToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { practiceToolStripMenuItem, heatRaceToolStripMenuItem });
+            modeToolStripMenuItem.Name = "modeToolStripMenuItem";
+            modeToolStripMenuItem.Size = new Size(50, 20);
+            modeToolStripMenuItem.Text = "Mode";
+            //
+            // practiceToolStripMenuItem
+            //
+            practiceToolStripMenuItem.Checked = true;
+            practiceToolStripMenuItem.CheckState = CheckState.Checked;
+            practiceToolStripMenuItem.Name = "practiceToolStripMenuItem";
+            practiceToolStripMenuItem.Size = new Size(180, 22);
+            practiceToolStripMenuItem.Text = "Practice";
+            practiceToolStripMenuItem.Click += practiceToolStripMenuItem_Click;
+            //
+            // heatRaceToolStripMenuItem
+            //
+            heatRaceToolStripMenuItem.Name = "heatRaceToolStripMenuItem";
+            heatRaceToolStripMenuItem.Size = new Size(180, 22);
+            heatRaceToolStripMenuItem.Text = "Heat Race";
+            heatRaceToolStripMenuItem.Click += heatRaceToolStripMenuItem_Click;
+            //
             // menuStrip1
             // 
-            menuStrip1.Items.AddRange(new ToolStripItem[] { fileToolStripMenuItem });
+            menuStrip1.Items.AddRange(new ToolStripItem[] { fileToolStripMenuItem, modeToolStripMenuItem });
             menuStrip1.Location = new Point(0, 0);
             menuStrip1.Name = "menuStrip1";
             menuStrip1.Size = new Size(800, 24);
@@ -1653,5 +1679,8 @@ namespace tlp
         private ContextMenuStrip contextMenuStrip1;
         private ToolStripMenuItem configureToolStripMenuItem;
         private ToolStripMenuItem configureToolStripMenuItem1;
+        private ToolStripMenuItem modeToolStripMenuItem;
+        private ToolStripMenuItem practiceToolStripMenuItem;
+        private ToolStripMenuItem heatRaceToolStripMenuItem;
     }
 }

@@ -55,6 +55,28 @@ namespace tlp
             s.ResetRace(resetArduino: true);
         }
 
+        private void practiceToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            SetPracticeMode();
+        }
+
+        private void heatRaceToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            SetPracticeMode();
+            MessageBox.Show(
+                this,
+                "Not yet implemented",
+                "Heat Race",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+        }
+
+        private void SetPracticeMode()
+        {
+            practiceToolStripMenuItem.Checked = true;
+            heatRaceToolStripMenuItem.Checked = false;
+        }
+
         private void WireBestLapResetClicks()
         {
             Label[] bestLapLabels = { bl0, bl1, bl2, bl3, bl4, bl5, bl6, bl7 };
