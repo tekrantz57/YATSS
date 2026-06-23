@@ -74,12 +74,8 @@ namespace tlp
         private void heatRaceToolStripMenuItem_Click(object sender, EventArgs e)
         {
             SetPracticeMode();
-            MessageBox.Show(
-                this,
-                "Not yet implemented",
-                "Heat Race",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Information);
+            using HeatRaceSetup heatRaceSetup = new();
+            heatRaceSetup.ShowDialog(this);
         }
 
         private void SetPracticeMode()
