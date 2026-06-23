@@ -16,6 +16,8 @@ namespace tlp
         private TaskCompletionSource _reconnectNow = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private Task? _readerTask;
         private SerialPort? _port;
+        private static readonly TimeSpan ControllerPingInterval = TimeSpan.FromSeconds(3);
+        private static readonly TimeSpan ControllerPingTimeout = TimeSpan.FromSeconds(3);
 
         public Serial(MKTS form)
         {
@@ -136,6 +138,9 @@ namespace tlp
 
                     _log.Info($"serial connected on {portName}");
                     _form.SetStatusMessage($"Serial connected on {portName}");
+                    DateTime lastLineReceived = DateTime.UtcNow;
+                    DateTime lastPingSent = DateTime.MinValue;
+                    bool waitingForPingReply = false;
 
                     while (!_stop.IsCancellationRequested && port.IsOpen)
                     {
@@ -146,6 +151,11 @@ namespace tlp
                         }
                         catch (TimeoutException)
                         {
+                            if (CheckControllerResponse(portName, ref lastLineReceived, ref lastPingSent, ref waitingForPingReply))
+                            {
+                                break;
+                            }
+
                             continue;
                         }
                         catch (Exception ex) when (ex is IOException || ex is InvalidOperationException || ex is NullReferenceException)
@@ -155,6 +165,8 @@ namespace tlp
                             break;
                         }
 
+                        lastLineReceived = DateTime.UtcNow;
+                        waitingForPingReply = false;
                         HandleLine(line);
                     }
                 }
@@ -182,6 +194,32 @@ namespace tlp
                 RtsEnable = true
             };
 
+        private bool CheckControllerResponse(
+            string portName,
+            ref DateTime lastLineReceived,
+            ref DateTime lastPingSent,
+            ref bool waitingForPingReply)
+        {
+            DateTime now = DateTime.UtcNow;
+            if (waitingForPingReply && now - lastPingSent >= ControllerPingTimeout)
+            {
+                _log.Warn($"no controller response on {portName}");
+                _form.SetStatusMessage($"No response from controller on {portName}");
+                RequestReconnect();
+                return true;
+            }
+
+            if (now - lastLineReceived >= ControllerPingInterval && now - lastPingSent >= ControllerPingInterval)
+            {
+                _form.SetStatusMessage($"Checking controller on {portName}");
+                WriteLine("PING");
+                lastPingSent = now;
+                waitingForPingReply = true;
+            }
+
+            return false;
+        }
+
         private void HandleLine(string line)
         {
             string trimmed = line.Trim();
@@ -197,7 +235,10 @@ namespace tlp
                     }
                     break;
                 case LapProtocolMessageKind.Hello:
-                    _form.SetStatusMessage(message.Detail);
+                    _form.SetStatusMessage(
+                        message.Detail.Contains("RESETTING", StringComparison.OrdinalIgnoreCase)
+                            ? message.Detail
+                            : $"Controller responding on {_form.port}");
                     _log.Info(message.Detail);
                     break;
                 case LapProtocolMessageKind.Error:
