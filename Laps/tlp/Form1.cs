@@ -11,6 +11,13 @@ namespace tlp
         static Serial s = null!;
         private Label[] _boardValueLabels = Array.Empty<Label>();
         private Label[] _boardHeaderLabels = Array.Empty<Label>();
+        private Label[] _nameLabels = Array.Empty<Label>();
+        private Label[] _lapLabels = Array.Empty<Label>();
+        private Label[] _lastLapLabels = Array.Empty<Label>();
+        private Label[] _bestLapLabels = Array.Empty<Label>();
+        private Label[] _medianLapLabels = Array.Empty<Label>();
+        private Label[] _mphLabels = Array.Empty<Label>();
+        private const string EmptyRacerName = "          ";
         public string port = "";
         public int MinLapMilliseconds { get; private set; } = LapRaceOptions.Default.MinLapMilliseconds;
         public bool SoundOnTooFastLap { get; private set; } = true;
@@ -82,12 +89,11 @@ namespace tlp
 
         private void WireBestLapResetClicks()
         {
-            Label[] bestLapLabels = { bl0, bl1, bl2, bl3, bl4, bl5, bl6, bl7 };
-            for (int i = 0; i < bestLapLabels.Length; i++)
+            for (int i = 0; i < _bestLapLabels.Length; i++)
             {
-                bestLapLabels[i].Tag = i;
-                bestLapLabels[i].Cursor = Cursors.Hand;
-                bestLapLabels[i].MouseClick += bestLapLabel_MouseClick;
+                _bestLapLabels[i].Tag = i;
+                _bestLapLabels[i].Cursor = Cursors.Hand;
+                _bestLapLabels[i].MouseClick += bestLapLabel_MouseClick;
             }
         }
 
@@ -104,6 +110,12 @@ namespace tlp
         private void ConfigureBoardLayout()
         {
             _boardHeaderLabels = new[] { label2, label4, label6, label8, label10, label12 };
+            _nameLabels = new[] { name0, name1, name2, name3, name4, name5, name6, name7 };
+            _lapLabels = new[] { laps0, laps1, laps2, laps3, laps4, laps5, laps6, laps7 };
+            _lastLapLabels = new[] { ll0, ll1, ll2, ll3, ll4, ll5, ll6, ll7 };
+            _bestLapLabels = new[] { bl0, bl1, bl2, bl3, bl4, bl5, bl6, bl7 };
+            _medianLapLabels = new[] { ml0, ml1, ml2, ml3, ml4, ml5, ml6, ml7 };
+            _mphLabels = new[] { mph0, mph1, mph2, mph3, mph4, mph5, mph6, mph7 };
             _boardValueLabels = new[]
             {
                 name0, laps0, ll0, bl0, ml0, mph0,
@@ -152,6 +164,80 @@ namespace tlp
             }
 
             SetFontSize(labelMKTS, labelMKTS.Height * 0.4f);
+        }
+
+        public void ResetBoardDisplay(bool clearRacers)
+        {
+            RunOnUiThread(() =>
+            {
+                for (int i = 0; i < LapProtocolParser.LaneCount; i++)
+                {
+                    ResetLaneDisplayCore(i, clearRacers);
+                }
+            });
+        }
+
+        public void ResetLaneDisplay(int laneIndex, bool clearRacer)
+        {
+            if (laneIndex < 0 || laneIndex >= LapProtocolParser.LaneCount)
+            {
+                return;
+            }
+
+            RunOnUiThread(() => ResetLaneDisplayCore(laneIndex, clearRacer));
+        }
+
+        public void UpdateLaneDisplay(
+            int laneIndex,
+            int lapCount,
+            string lastLap,
+            string bestLap,
+            string medianLap,
+            string milesPerHour)
+        {
+            if (laneIndex < 0 || laneIndex >= LapProtocolParser.LaneCount)
+            {
+                return;
+            }
+
+            RunOnUiThread(() =>
+            {
+                _lapLabels[laneIndex].Text = lapCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                _lastLapLabels[laneIndex].Text = lastLap;
+                _bestLapLabels[laneIndex].Text = bestLap;
+                _medianLapLabels[laneIndex].Text = medianLap;
+                _mphLabels[laneIndex].Text = milesPerHour;
+            });
+        }
+
+        private void ResetLaneDisplayCore(int laneIndex, bool clearRacer)
+        {
+            if (clearRacer)
+            {
+                _nameLabels[laneIndex].Text = EmptyRacerName;
+            }
+
+            _lapLabels[laneIndex].Text = "0";
+            _lastLapLabels[laneIndex].Text = "0.000";
+            _bestLapLabels[laneIndex].Text = "0.000";
+            _medianLapLabels[laneIndex].Text = "0.000";
+            _mphLabels[laneIndex].Text = "0.0";
+        }
+
+        private void RunOnUiThread(Action action)
+        {
+            if (IsDisposed)
+            {
+                return;
+            }
+
+            if (InvokeRequired)
+            {
+                BeginInvoke(action);
+                return;
+            }
+
+            action();
         }
 
         private static void SetFontSize(Label label, float requestedSize)

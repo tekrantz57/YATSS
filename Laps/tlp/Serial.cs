@@ -12,26 +12,12 @@ namespace tlp
         private readonly SerialLog _log = new();
         private readonly CancellationTokenSource _stop = new();
         private readonly object _portGate = new();
-        private readonly Label[] _names;
-        private readonly Label[] _laps;
-        private readonly Label[] _lastLap;
-        private readonly Label[] _bestLap;
-        private readonly Label[] _medianLap;
-        private readonly Label[] _mph;
         private Task? _readerTask;
         private SerialPort? _port;
-        private const string EmptyRacerName = "          ";
 
         public Serial(MKTS form)
         {
             _form = form;
-            _names = new[] { form.name0, form.name1, form.name2, form.name3, form.name4, form.name5, form.name6, form.name7 };
-            _laps = new[] { form.laps0, form.laps1, form.laps2, form.laps3, form.laps4, form.laps5, form.laps6, form.laps7 };
-            _lastLap = new[] { form.ll0, form.ll1, form.ll2, form.ll3, form.ll4, form.ll5, form.ll6, form.ll7 };
-            _bestLap = new[] { form.bl0, form.bl1, form.bl2, form.bl3, form.bl4, form.bl5, form.bl6, form.bl7 };
-            _medianLap = new[] { form.ml0, form.ml1, form.ml2, form.ml3, form.ml4, form.ml5, form.ml6, form.ml7 };
-            _mph = new[] { form.mph0, form.mph1, form.mph2, form.mph3, form.mph4, form.mph5, form.mph6, form.mph7 };
-
             Init();
             ApplySettings();
             _readerTask = Task.Run(ReadLoopAsync);
@@ -61,18 +47,7 @@ namespace tlp
         public void Init()
         {
             _race.Reset();
-            RunOnUiThread(() =>
-            {
-                for (int i = 0; i < LapProtocolParser.LaneCount; i++)
-                {
-                    _names[i].Text = EmptyRacerName;
-                    _laps[i].Text = "0";
-                    _lastLap[i].Text = "0.000";
-                    _bestLap[i].Text = "0.000";
-                    _medianLap[i].Text = "0.000";
-                    _mph[i].Text = "0.0";
-                }
-            });
+            _form.ResetBoardDisplay(clearRacers: true);
             _log.Info("race state reset");
         }
 
@@ -93,14 +68,7 @@ namespace tlp
             }
 
             _race.ResetLane(laneIndex);
-            RunOnUiThread(() =>
-            {
-                _laps[laneIndex].Text = "0";
-                _lastLap[laneIndex].Text = "0.000";
-                _bestLap[laneIndex].Text = "0.000";
-                _medianLap[laneIndex].Text = "0.000";
-                _mph[laneIndex].Text = "0.0";
-            });
+            _form.ResetLaneDisplay(laneIndex, clearRacer: false);
             _log.Info($"lane {laneIndex}: lane state reset");
         }
 
@@ -255,14 +223,7 @@ namespace tlp
             string medianSeconds = FormatSeconds(lane.getMedian());
             string mph = _race.CalculateMilesPerHour(lapMilliseconds).ToString("F1", CultureInfo.InvariantCulture);
 
-            RunOnUiThread(() =>
-            {
-                _laps[laneIndex].Text = lane.getCount().ToString(CultureInfo.InvariantCulture);
-                _lastLap[laneIndex].Text = lapSeconds;
-                _bestLap[laneIndex].Text = bestSeconds;
-                _medianLap[laneIndex].Text = medianSeconds;
-                _mph[laneIndex].Text = mph;
-            });
+            _form.UpdateLaneDisplay(laneIndex, lane.getCount(), lapSeconds, bestSeconds, medianSeconds, mph);
 
             _log.Info($"lane {laneIndex}: lap {lapSeconds}s, count {lane.getCount()}, {update.Detail}");
         }
@@ -288,22 +249,6 @@ namespace tlp
             {
                 // Port persistence is helpful, but losing it should not stop timing.
             }
-        }
-
-        private void RunOnUiThread(Action action)
-        {
-            if (_form.IsDisposed)
-            {
-                return;
-            }
-
-            if (_form.InvokeRequired)
-            {
-                _form.BeginInvoke(action);
-                return;
-            }
-
-            action();
         }
 
         private async Task DelayReconnectAsync()
