@@ -20,8 +20,11 @@ namespace tlp
         private readonly ListBox _selectedRacers = new();
         private readonly DataGridView _laneGrid = new();
         private readonly Label _queueLabel = new();
+        private readonly NumericUpDown _heatLengthMinutes = new();
         private readonly Random _random = new();
         private readonly List<string> _selectedNames = new();
+
+        public int HeatLengthMinutes => (int)_heatLengthMinutes.Value;
 
         public HeatRaceSetup()
         {
@@ -110,22 +113,45 @@ namespace tlp
             TableLayoutPanel heatLayout = new()
             {
                 Dock = DockStyle.Fill,
-                RowCount = 2,
+                RowCount = 3,
                 Padding = new Padding(8)
             };
+            heatLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42F));
             heatLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 70F));
             heatLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 30F));
             heatGroup.Controls.Add(heatLayout);
 
+            FlowLayoutPanel heatSettings = new()
+            {
+                Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false
+            };
+            heatLayout.Controls.Add(heatSettings, 0, 0);
+
+            Label heatLengthLabel = new()
+            {
+                Text = "Heat length (minutes)",
+                AutoSize = true,
+                Margin = new Padding(0, 6, 8, 0)
+            };
+            heatSettings.Controls.Add(heatLengthLabel);
+
+            _heatLengthMinutes.Minimum = 1;
+            _heatLengthMinutes.Maximum = 60;
+            _heatLengthMinutes.Value = 3;
+            _heatLengthMinutes.Width = 64;
+            heatSettings.Controls.Add(_heatLengthMinutes);
+
             ConfigureLaneGrid();
-            heatLayout.Controls.Add(_laneGrid, 0, 0);
+            heatLayout.Controls.Add(_laneGrid, 0, 1);
 
             GroupBox selectedGroup = new()
             {
                 Text = "Rotation Queue",
                 Dock = DockStyle.Fill
             };
-            heatLayout.Controls.Add(selectedGroup, 0, 1);
+            heatLayout.Controls.Add(selectedGroup, 0, 2);
 
             _selectedRacers.Dock = DockStyle.Fill;
             selectedGroup.Controls.Add(_selectedRacers);
