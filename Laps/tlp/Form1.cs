@@ -210,6 +210,11 @@ namespace tlp
             });
         }
 
+        public void SetStatusMessage(string message)
+        {
+            RunOnUiThread(() => statusMessageLabel.Text = message);
+        }
+
         private void ResetLaneDisplayCore(int laneIndex, bool clearRacer)
         {
             if (clearRacer)

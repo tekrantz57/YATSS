@@ -145,6 +145,8 @@ namespace tlp
             practiceToolStripMenuItem = new ToolStripMenuItem();
             heatRaceToolStripMenuItem = new ToolStripMenuItem();
             menuStrip1 = new MenuStrip();
+            statusStrip1 = new StatusStrip();
+            statusMessageLabel = new ToolStripStatusLabel();
             contextMenuStrip1 = new ContextMenuStrip(components);
             tableLayoutPanel1.SuspendLayout();
             tableLayoutPanel2.SuspendLayout();
@@ -197,6 +199,7 @@ namespace tlp
             panel2.SuspendLayout();
             panel1.SuspendLayout();
             menuStrip1.SuspendLayout();
+            statusStrip1.SuspendLayout();
             SuspendLayout();
             // 
             // tableLayoutPanel1
@@ -213,7 +216,7 @@ namespace tlp
             tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Percent, 80F));
             tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Percent, 20F));
             tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Absolute, 20F));
-            tableLayoutPanel1.Size = new Size(800, 514);
+            tableLayoutPanel1.Size = new Size(800, 492);
             tableLayoutPanel1.TabIndex = 0;
             // 
             // tableLayoutPanel2
@@ -1439,6 +1442,21 @@ namespace tlp
             menuStrip1.Size = new Size(800, 24);
             menuStrip1.TabIndex = 1;
             menuStrip1.Text = "menuStrip1";
+            //
+            // statusStrip1
+            //
+            statusStrip1.Items.AddRange(new ToolStripItem[] { statusMessageLabel });
+            statusStrip1.Location = new Point(0, 516);
+            statusStrip1.Name = "statusStrip1";
+            statusStrip1.Size = new Size(800, 22);
+            statusStrip1.TabIndex = 2;
+            statusStrip1.Text = "statusStrip1";
+            //
+            // statusMessageLabel
+            //
+            statusMessageLabel.Name = "statusMessageLabel";
+            statusMessageLabel.Size = new Size(39, 17);
+            statusMessageLabel.Text = "Ready";
             // 
             // contextMenuStrip1
             // 
@@ -1452,6 +1470,7 @@ namespace tlp
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(800, 538);
             Controls.Add(tableLayoutPanel1);
+            Controls.Add(statusStrip1);
             Controls.Add(menuStrip1);
             MainMenuStrip = menuStrip1;
             Name = "MKTS";
@@ -1560,6 +1579,8 @@ namespace tlp
             panel1.PerformLayout();
             menuStrip1.ResumeLayout(false);
             menuStrip1.PerformLayout();
+            statusStrip1.ResumeLayout(false);
+            statusStrip1.PerformLayout();
             ResumeLayout(false);
             PerformLayout();
         }
@@ -1682,5 +1703,7 @@ namespace tlp
         private ToolStripMenuItem modeToolStripMenuItem;
         private ToolStripMenuItem practiceToolStripMenuItem;
         private ToolStripMenuItem heatRaceToolStripMenuItem;
+        private StatusStrip statusStrip1;
+        private ToolStripStatusLabel statusMessageLabel;
     }
 }

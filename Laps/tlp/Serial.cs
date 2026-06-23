@@ -28,6 +28,7 @@ namespace tlp
             LapRaceOptions options = _race.Options;
             _race.SetOptions(options with { MinLapMilliseconds = _form.MinLapMilliseconds });
             _log.Info($"minimum lap time set to {_form.MinLapMilliseconds} ms; sound on too-fast laps is {_form.SoundOnTooFastLap}");
+            _form.SetStatusMessage($"Minimum lap time {_form.MinLapMilliseconds} ms");
         }
 
         public void SetPort(string portName)
@@ -41,6 +42,7 @@ namespace tlp
             _form.port = portName;
             SavePort(portName);
             _log.Info(string.IsNullOrWhiteSpace(portName) ? "serial port cleared" : $"serial port set to {portName}");
+            _form.SetStatusMessage(string.IsNullOrWhiteSpace(portName) ? "No serial port configured" : $"Serial port set to {portName}");
             CloseActivePort();
         }
 
@@ -49,6 +51,7 @@ namespace tlp
             _race.Reset();
             _form.ResetBoardDisplay(clearRacers: true);
             _log.Info("race state reset");
+            _form.SetStatusMessage("Practice reset");
         }
 
         public void ResetRace(bool resetArduino)
@@ -70,6 +73,7 @@ namespace tlp
             _race.ResetLane(laneIndex);
             _form.ResetLaneDisplay(laneIndex, clearRacer: false);
             _log.Info($"lane {laneIndex}: lane state reset");
+            _form.SetStatusMessage($"Lane {laneIndex + 1} reset");
         }
 
         public void Write(string value) => WriteLine(value);
@@ -85,6 +89,7 @@ namespace tlp
             if (port == null || !port.IsOpen)
             {
                 _log.Warn($"serial write skipped because port is closed: {value}");
+                _form.SetStatusMessage("Serial port disconnected");
                 return;
             }
 
@@ -97,6 +102,7 @@ namespace tlp
             catch (Exception ex) when (ex is IOException || ex is InvalidOperationException || ex is TimeoutException)
             {
                 _log.Error(ex, "serial write failed");
+                _form.SetStatusMessage("Serial write failed");
                 CloseActivePort();
             }
         }
@@ -109,6 +115,7 @@ namespace tlp
                 if (string.IsNullOrWhiteSpace(portName))
                 {
                     _log.Warn("no serial port configured");
+                    _form.SetStatusMessage("No serial port configured");
                     await DelayReconnectAsync();
                     continue;
                 }
@@ -125,6 +132,7 @@ namespace tlp
                     }
 
                     _log.Info($"serial connected on {portName}");
+                    _form.SetStatusMessage($"Serial connected on {portName}");
 
                     while (!_stop.IsCancellationRequested && port.IsOpen)
                     {
@@ -144,6 +152,7 @@ namespace tlp
                 catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is InvalidOperationException)
                 {
                     _log.Error(ex, $"serial disconnected from {portName}");
+                    _form.SetStatusMessage($"Serial disconnected from {portName}");
                 }
                 finally
                 {
@@ -179,13 +188,18 @@ namespace tlp
                     }
                     break;
                 case LapProtocolMessageKind.Hello:
+                    _form.SetStatusMessage(message.Detail);
+                    _log.Info(message.Detail);
+                    break;
                 case LapProtocolMessageKind.Error:
+                    _form.SetStatusMessage(message.Detail);
                     _log.Info(message.Detail);
                     break;
                 case LapProtocolMessageKind.Ignored:
                     break;
                 default:
                     _log.Warn($"rejected serial line '{message.RawLine}': {message.Detail}");
+                    _form.SetStatusMessage($"Rejected serial line: {message.Detail}");
                     break;
             }
         }
@@ -201,12 +215,17 @@ namespace tlp
                 }
 
                 _log.Info($"lane {edge.LaneIndex}: {update.Detail}");
+                _form.SetStatusMessage($"Lane {edge.LaneIndex + 1}: {update.Detail}");
                 return;
             }
 
             if (update.Kind == LapUpdateKind.Started || update.Kind == LapUpdateKind.Duplicate || update.Kind == LapUpdateKind.Invalid)
             {
                 _log.Info($"lane {edge.LaneIndex}: {update.Detail}");
+                if (update.Kind == LapUpdateKind.Invalid)
+                {
+                    _form.SetStatusMessage($"Lane {edge.LaneIndex + 1}: {update.Detail}");
+                }
                 return;
             }
 
@@ -226,6 +245,7 @@ namespace tlp
             _form.UpdateLaneDisplay(laneIndex, lane.getCount(), lapSeconds, bestSeconds, medianSeconds, mph);
 
             _log.Info($"lane {laneIndex}: lap {lapSeconds}s, count {lane.getCount()}, {update.Detail}");
+            _form.SetStatusMessage($"Lane {laneIndex + 1}: lap {lapSeconds}s");
         }
 
         private static string FormatSeconds(int milliseconds) =>
