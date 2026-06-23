@@ -12,6 +12,8 @@ namespace tlp
         private readonly SerialLog _log = new();
         private readonly CancellationTokenSource _stop = new();
         private readonly object _portGate = new();
+        private readonly object _reconnectGate = new();
+        private TaskCompletionSource _reconnectNow = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private Task? _readerTask;
         private SerialPort? _port;
 
@@ -43,7 +45,7 @@ namespace tlp
             SavePort(portName);
             _log.Info(string.IsNullOrWhiteSpace(portName) ? "serial port cleared" : $"serial port set to {portName}");
             _form.SetStatusMessage(string.IsNullOrWhiteSpace(portName) ? "No serial port configured" : $"Serial port set to {portName}");
-            CloseActivePort();
+            RequestReconnect();
         }
 
         public void Init()
@@ -60,6 +62,7 @@ namespace tlp
             if (resetArduino)
             {
                 WriteLine("RESET");
+                RequestReconnect("Waiting for controller after reset");
             }
         }
 
@@ -103,7 +106,7 @@ namespace tlp
             {
                 _log.Error(ex, "serial write failed");
                 _form.SetStatusMessage("Serial write failed");
-                CloseActivePort();
+                RequestReconnect();
             }
         }
 
@@ -275,11 +278,36 @@ namespace tlp
         {
             try
             {
-                await Task.Delay(TimeSpan.FromSeconds(2), _stop.Token);
+                Task reconnectNow;
+                lock (_reconnectGate)
+                {
+                    reconnectNow = _reconnectNow.Task;
+                }
+
+                Task delay = Task.Delay(TimeSpan.FromSeconds(2), _stop.Token);
+                await Task.WhenAny(delay, reconnectNow);
             }
             catch (OperationCanceledException)
             {
             }
+        }
+
+        private void RequestReconnect(string? statusMessage = null)
+        {
+            if (!string.IsNullOrWhiteSpace(statusMessage))
+            {
+                _form.SetStatusMessage(statusMessage);
+            }
+
+            CloseActivePort();
+            TaskCompletionSource reconnectNow;
+            lock (_reconnectGate)
+            {
+                reconnectNow = _reconnectNow;
+                _reconnectNow = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            }
+
+            reconnectNow.TrySetResult();
         }
 
         private void CloseActivePort()
