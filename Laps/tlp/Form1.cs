@@ -163,7 +163,7 @@ namespace tlp
                 SetFontSize(label, label.Height * 0.48f);
             }
 
-            SetFontSize(labelMKTS, labelMKTS.Height * 0.4f);
+            SetFontSizeToFit(labelMKTS, labelMKTS.Height * 0.4f);
         }
 
         public void ResetBoardDisplay(bool clearRacers)
@@ -254,6 +254,34 @@ namespace tlp
             }
 
             label.Font = new Font(label.Font.FontFamily, size, label.Font.Style);
+        }
+
+        private static void SetFontSizeToFit(Label label, float requestedSize)
+        {
+            if (label.Height <= 0 || label.Width <= 0 || string.IsNullOrWhiteSpace(label.Text))
+            {
+                return;
+            }
+
+            const float minimumSize = 10f;
+            float size = Math.Clamp(requestedSize, minimumSize, 72f);
+            Size available = new(Math.Max(1, label.ClientSize.Width - label.Padding.Horizontal - 8),
+                Math.Max(1, label.ClientSize.Height - label.Padding.Vertical - 4));
+
+            using Graphics graphics = label.CreateGraphics();
+            while (size > minimumSize)
+            {
+                using Font testFont = new(label.Font.FontFamily, size, label.Font.Style);
+                SizeF measured = graphics.MeasureString(label.Text, testFont);
+                if (measured.Width <= available.Width && measured.Height <= available.Height)
+                {
+                    break;
+                }
+
+                size -= 1f;
+            }
+
+            SetFontSize(label, size);
         }
 
         private void editUsersToolStripMenuItem_Click(object sender, EventArgs e)
