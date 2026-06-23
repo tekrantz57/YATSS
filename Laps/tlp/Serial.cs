@@ -82,6 +82,25 @@ namespace tlp
             }
         }
 
+        public void ResetLane(int laneIndex)
+        {
+            if (laneIndex < 0 || laneIndex >= LapProtocolParser.LaneCount)
+            {
+                return;
+            }
+
+            _race.ResetLane(laneIndex);
+            RunOnUiThread(() =>
+            {
+                _laps[laneIndex].Text = "0";
+                _lastLap[laneIndex].Text = "0.000";
+                _bestLap[laneIndex].Text = "0.000";
+                _medianLap[laneIndex].Text = "0.000";
+                _mph[laneIndex].Text = "0.0";
+            });
+            _log.Info($"lane {laneIndex}: lane state reset");
+        }
+
         public void Write(string value) => WriteLine(value);
 
         public void WriteLine(string value)

@@ -1388,7 +1388,7 @@ namespace tlp
             // 
             resetToolStripMenuItem.Name = "resetToolStripMenuItem";
             resetToolStripMenuItem.Size = new Size(127, 22);
-            resetToolStripMenuItem.Text = "Reset";
+            resetToolStripMenuItem.Text = "Practice Reset";
             resetToolStripMenuItem.Click += resetToolStripMenuItem_Click;
             // 
             // editUsersToolStripMenuItem

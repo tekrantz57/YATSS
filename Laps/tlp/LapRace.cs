@@ -98,6 +98,19 @@ namespace tlp
             }
         }
 
+        public void ResetLane(int laneIndex)
+        {
+            if (laneIndex < 0 || laneIndex >= _lanes.Length)
+            {
+                return;
+            }
+
+            lock (_gate)
+            {
+                _lanes[laneIndex].Reset(laneIndex);
+            }
+        }
+
         public LapUpdate Process(LapEdge edge)
         {
             if (edge.LaneIndex < 0 || edge.LaneIndex >= _lanes.Length)

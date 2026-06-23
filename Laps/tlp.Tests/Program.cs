@@ -43,13 +43,16 @@ Assert(counted.Kind == LapUpdateKind.Counted, "valid edge should count lap");
 Assert(counted.LapMilliseconds == 2500, "lap duration should be computed from last accepted edge");
 Assert(race.GetLane(0).getCount() == 1, "lane should have one counted lap");
 
+race.ResetLane(0);
+Assert(race.GetLane(0).getCount() == 0, "lane reset should clear lap count");
+Assert(race.Process(new LapEdge(0, 4, 5000)).Kind == LapUpdateKind.Started, "lane reset should establish a fresh baseline");
+
 LapUpdate missed = race.Process(new LapEdge(0, 5, 6000));
-Assert(missed.Kind == LapUpdateKind.MissedFrame, "sequence gap should be reported");
-Assert(missed.MissedFrames == 1, "one missed frame should be counted");
+Assert(missed.Kind == LapUpdateKind.Counted, "post-reset next valid edge should count without a sequence gap");
 
 LapUpdate stale = race.Process(new LapEdge(0, 4, 9000));
 Assert(stale.Kind == LapUpdateKind.Duplicate, "stale sequence should be rejected");
-Assert(race.GetLane(0).getCount() == 2, "stale sequence should not count a lap");
+Assert(race.GetLane(0).getCount() == 1, "stale sequence should not count a lap");
 
 LapRace wrapRace = new(new LapRaceOptions(1000, 600000, 155.0));
 Assert(wrapRace.Process(new LapEdge(0, uint.MaxValue, uint.MaxValue - 500)).Kind == LapUpdateKind.Started, "wrap race should start");

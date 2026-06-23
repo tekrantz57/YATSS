@@ -30,6 +30,7 @@ namespace tlp
             }
 
             s = new Serial(this);
+            WireBestLapResetClicks();
             FormClosed += (_, _) => s.Dispose();
         }
 
@@ -50,8 +51,29 @@ namespace tlp
 
         private void resetToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            Trace.WriteLine("sending reset");
+            Trace.WriteLine("practice reset");
             s.ResetRace(resetArduino: true);
+        }
+
+        private void WireBestLapResetClicks()
+        {
+            Label[] bestLapLabels = { bl0, bl1, bl2, bl3, bl4, bl5, bl6, bl7 };
+            for (int i = 0; i < bestLapLabels.Length; i++)
+            {
+                bestLapLabels[i].Tag = i;
+                bestLapLabels[i].Cursor = Cursors.Hand;
+                bestLapLabels[i].MouseClick += bestLapLabel_MouseClick;
+            }
+        }
+
+        private void bestLapLabel_MouseClick(object? sender, MouseEventArgs e)
+        {
+            if (e.Button != MouseButtons.Left || sender is not Label { Tag: int laneIndex })
+            {
+                return;
+            }
+
+            s.ResetLane(laneIndex);
         }
 
         private int _lastFormSize = 0;
