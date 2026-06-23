@@ -6,6 +6,7 @@ namespace tlp
     {
         Edge,
         Hello,
+        Heartbeat,
         Error,
         Ignored,
         Invalid
@@ -52,6 +53,11 @@ namespace tlp
             if (command == "HELLO")
             {
                 return new LapProtocolMessage(LapProtocolMessageKind.Hello, null, rawLine, body);
+            }
+
+            if (command == "HEARTBEAT")
+            {
+                return new LapProtocolMessage(LapProtocolMessageKind.Heartbeat, null, rawLine, body);
             }
 
             if (command == "ERR")

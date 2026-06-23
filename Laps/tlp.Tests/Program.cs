@@ -19,6 +19,9 @@ Assert(corrupt.Kind == LapProtocolMessageKind.Invalid, "bad checksum should be r
 LapProtocolMessage boot = LapProtocolParser.Parse(LapProtocolParser.EncodeFrame("HELLO:LAPS_REDUX:2:8"));
 Assert(boot.Kind == LapProtocolMessageKind.Hello, "HELLO should parse");
 
+LapProtocolMessage heartbeat = LapProtocolParser.Parse(LapProtocolParser.EncodeFrame("HEARTBEAT:12345"));
+Assert(heartbeat.Kind == LapProtocolMessageKind.Heartbeat, "HEARTBEAT should parse");
+
 LapProtocolMessage badLane = LapProtocolParser.Parse(LapProtocolParser.EncodeFrame("EDGE:8:1:100"));
 Assert(badLane.Kind == LapProtocolMessageKind.Invalid, "Lane 8 should be rejected");
 

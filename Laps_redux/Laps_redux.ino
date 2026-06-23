@@ -7,6 +7,7 @@
 
   Protocol frames are ASCII lines:
     HELLO:LAPS_REDUX:2:<lane-count>*XX
+    HEARTBEAT:<millis>*XX
     EDGE:<zero-based-lane>:<per-lane-sequence>:<millis>*XX
     ERR:QUEUE_FULL:<dropped-count>*XX
 
@@ -16,6 +17,7 @@
 const byte LaneCount = 8;
 const byte QueueSize = 32;
 const unsigned long SerialBaud = 115200;
+const unsigned long HeartbeatIntervalMillis = 1000;
 #define EDGE_DEBOUNCE_MILLIS 20UL
 
 const byte sensorPins[LaneCount] = { 2, 3, 4, 5, 6, 7, 8, 9 };
@@ -32,6 +34,7 @@ volatile byte queueTail = 0;
 volatile unsigned long laneSequences[LaneCount] = { 0, 0, 0, 0, 0, 0, 0, 0 };
 volatile unsigned long lastEdgeMillis[LaneCount] = { 0, 0, 0, 0, 0, 0, 0, 0 };
 volatile unsigned long droppedEvents = 0;
+unsigned long lastHeartbeatMillis = 0;
 
 void enqueueEdge(byte lane) {
   unsigned long now = millis();
@@ -83,6 +86,7 @@ void setup() {
 void loop() {
   publishQueuedEdges();
   publishDroppedEvents();
+  publishHeartbeat();
   handleCommands();
 }
 
@@ -117,6 +121,16 @@ void publishDroppedEvents() {
   if (dropped > 0) {
     sendFrame(String(F("ERR:QUEUE_FULL:")) + dropped);
   }
+}
+
+void publishHeartbeat() {
+  unsigned long now = millis();
+  if (now - lastHeartbeatMillis < HeartbeatIntervalMillis) {
+    return;
+  }
+
+  lastHeartbeatMillis = now;
+  sendFrame(String(F("HEARTBEAT:")) + now);
 }
 
 void handleCommands() {

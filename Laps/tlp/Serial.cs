@@ -136,8 +136,8 @@ namespace tlp
                         _port = port;
                     }
 
-                    _log.Info($"serial connected on {portName}");
-                    _form.SetStatusMessage($"Serial connected on {portName}");
+                    _log.Info($"serial port open on {portName}");
+                    _form.SetStatusMessage($"Serial open on {portName}; waiting for controller");
                     DateTime lastLineReceived = DateTime.UtcNow;
                     DateTime lastPingSent = DateTime.MinValue;
                     bool waitingForPingReply = false;
@@ -240,6 +240,9 @@ namespace tlp
                             ? message.Detail
                             : $"Controller responding on {_form.port}");
                     _log.Info(message.Detail);
+                    break;
+                case LapProtocolMessageKind.Heartbeat:
+                    _form.SetStatusMessage($"Controller responding on {_form.port}");
                     break;
                 case LapProtocolMessageKind.Error:
                     _form.SetStatusMessage(message.Detail);
