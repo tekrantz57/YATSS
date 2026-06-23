@@ -136,7 +136,6 @@ namespace tlp
             label2 = new Label();
             labelMKTS = new Label();
             fileToolStripMenuItem = new ToolStripMenuItem();
-            configureToolStripMenuItem = new ToolStripMenuItem();
             configureToolStripMenuItem1 = new ToolStripMenuItem();
             resetToolStripMenuItem = new ToolStripMenuItem();
             editUsersToolStripMenuItem = new ToolStripMenuItem();
@@ -1371,17 +1370,11 @@ namespace tlp
             // 
             // fileToolStripMenuItem
             // 
-            fileToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { configureToolStripMenuItem, configureToolStripMenuItem1, resetToolStripMenuItem, editUsersToolStripMenuItem, exitToolStripMenuItem });
+            fileToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { configureToolStripMenuItem1, resetToolStripMenuItem, editUsersToolStripMenuItem, exitToolStripMenuItem });
             fileToolStripMenuItem.Name = "fileToolStripMenuItem";
             fileToolStripMenuItem.Size = new Size(37, 20);
             fileToolStripMenuItem.Text = "File";
             fileToolStripMenuItem.Click += fileToolStripMenuItem_Click;
-            // 
-            // configureToolStripMenuItem
-            // 
-            configureToolStripMenuItem.Name = "configureToolStripMenuItem";
-            configureToolStripMenuItem.Size = new Size(127, 22);
-            configureToolStripMenuItem.Text = "Configure";
             // 
             // configureToolStripMenuItem1
             // 
@@ -1698,7 +1691,6 @@ namespace tlp
         public Label mph1;
         private ToolStripMenuItem editUsersToolStripMenuItem;
         private ContextMenuStrip contextMenuStrip1;
-        private ToolStripMenuItem configureToolStripMenuItem;
         private ToolStripMenuItem configureToolStripMenuItem1;
         private ToolStripMenuItem modeToolStripMenuItem;
         private ToolStripMenuItem practiceToolStripMenuItem;
