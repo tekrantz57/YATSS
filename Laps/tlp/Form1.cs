@@ -9,6 +9,8 @@ namespace tlp
     public partial class MKTS : Form
     {
         static Serial s = null!;
+        private Label[] _boardValueLabels = Array.Empty<Label>();
+        private Label[] _boardHeaderLabels = Array.Empty<Label>();
         public string port = "";
         public int MinLapMilliseconds { get; private set; } = LapRaceOptions.Default.MinLapMilliseconds;
         public bool SoundOnTooFastLap { get; private set; } = true;
@@ -17,6 +19,7 @@ namespace tlp
         public MKTS()
         {
             InitializeComponent();
+            ConfigureBoardLayout();
             conn.Open();
             var command = conn.CreateCommand();
             command.CommandText = @"SELECT name FROM comports limit 1";
@@ -98,79 +101,73 @@ namespace tlp
             s.ResetLane(laneIndex);
         }
 
-        private int _lastFormSize = 0;
+        private void ConfigureBoardLayout()
+        {
+            _boardHeaderLabels = new[] { label2, label4, label6, label8, label10, label12 };
+            _boardValueLabels = new[]
+            {
+                name0, laps0, ll0, bl0, ml0, mph0,
+                name1, laps1, ll1, bl1, ml1, mph1,
+                name2, laps2, ll2, bl2, ml2, mph2,
+                name3, laps3, ll3, bl3, ml3, mph3,
+                name4, laps4, ll4, bl4, ml4, mph4,
+                name5, laps5, ll5, bl5, ml5, mph5,
+                name6, laps6, ll6, bl6, ml6, mph6,
+                name7, laps7, ll7, bl7, ml7, mph7
+            };
+
+            foreach (Label label in _boardHeaderLabels.Concat(_boardValueLabels))
+            {
+                label.AutoSize = false;
+                label.Dock = DockStyle.Fill;
+                label.Margin = Padding.Empty;
+                label.TextAlign = ContentAlignment.MiddleCenter;
+            }
+
+            labelMKTS.AutoSize = false;
+            labelMKTS.TextAlign = ContentAlignment.MiddleCenter;
+            ApplyBoardFonts();
+        }
 
         private void MKTS_Load(object sender, EventArgs e)
         {
-            _lastFormSize = this.Size.Width; // GetArea(this.Size);
+            ApplyBoardFonts();
         }
 
         private void MKTS_Resize(object sender, EventArgs e)
         {
-            int formSize = this.Size.Width;
-            float scaleFactor = ((float)(formSize) / (float)(_lastFormSize));
-            name0.Font = new Font(name0.Font.FontFamily.Name, name0.Font.Size * scaleFactor);
-            name1.Font = new Font(name1.Font.FontFamily.Name, name1.Font.Size * scaleFactor);
-            name2.Font = new Font(name2.Font.FontFamily.Name, name2.Font.Size * scaleFactor);
-            name3.Font = new Font(name3.Font.FontFamily.Name, name3.Font.Size * scaleFactor);
-            name4.Font = new Font(name4.Font.FontFamily.Name, name4.Font.Size * scaleFactor);
-            name5.Font = new Font(name5.Font.FontFamily.Name, name5.Font.Size * scaleFactor);
-            name6.Font = new Font(name6.Font.FontFamily.Name, name6.Font.Size * scaleFactor);
-            name7.Font = new Font(name7.Font.FontFamily.Name, name7.Font.Size * scaleFactor);
-
-            laps0.Font = new Font(laps0.Font.FontFamily.Name, laps0.Font.Size * scaleFactor);
-            laps1.Font = new Font(laps1.Font.FontFamily.Name, laps1.Font.Size * scaleFactor);
-            laps2.Font = new Font(laps2.Font.FontFamily.Name, laps2.Font.Size * scaleFactor);
-            laps3.Font = new Font(laps3.Font.FontFamily.Name, laps3.Font.Size * scaleFactor);
-            laps4.Font = new Font(laps4.Font.FontFamily.Name, laps4.Font.Size * scaleFactor);
-            laps5.Font = new Font(laps5.Font.FontFamily.Name, laps5.Font.Size * scaleFactor);
-            laps6.Font = new Font(laps6.Font.FontFamily.Name, laps6.Font.Size * scaleFactor);
-            laps7.Font = new Font(laps7.Font.FontFamily.Name, laps7.Font.Size * scaleFactor);
-
-            bl0.Font = new Font(bl0.Font.FontFamily.Name, bl0.Font.Size * scaleFactor);
-            bl1.Font = new Font(bl1.Font.FontFamily.Name, bl1.Font.Size * scaleFactor);
-            bl2.Font = new Font(bl2.Font.FontFamily.Name, bl2.Font.Size * scaleFactor);
-            bl3.Font = new Font(bl3.Font.FontFamily.Name, bl3.Font.Size * scaleFactor);
-            bl4.Font = new Font(bl4.Font.FontFamily.Name, bl4.Font.Size * scaleFactor);
-            bl5.Font = new Font(bl5.Font.FontFamily.Name, bl5.Font.Size * scaleFactor);
-            bl6.Font = new Font(bl6.Font.FontFamily.Name, bl6.Font.Size * scaleFactor);
-            bl7.Font = new Font(bl7.Font.FontFamily.Name, bl7.Font.Size * scaleFactor);
-
-            ll0.Font = new Font(ll0.Font.FontFamily.Name, ll0.Font.Size * scaleFactor);
-            ll1.Font = new Font(ll1.Font.FontFamily.Name, ll1.Font.Size * scaleFactor);
-            ll2.Font = new Font(ll2.Font.FontFamily.Name, ll2.Font.Size * scaleFactor);
-            ll3.Font = new Font(ll3.Font.FontFamily.Name, ll3.Font.Size * scaleFactor);
-            ll4.Font = new Font(ll4.Font.FontFamily.Name, ll4.Font.Size * scaleFactor);
-            ll5.Font = new Font(ll5.Font.FontFamily.Name, ll5.Font.Size * scaleFactor);
-            ll6.Font = new Font(ll6.Font.FontFamily.Name, ll6.Font.Size * scaleFactor);
-            ll7.Font = new Font(ll7.Font.FontFamily.Name, ll7.Font.Size * scaleFactor);
-
-            ml0.Font = new Font(ml0.Font.FontFamily.Name, ml0.Font.Size * scaleFactor);
-            ml1.Font = new Font(ml1.Font.FontFamily.Name, ml1.Font.Size * scaleFactor);
-            ml2.Font = new Font(ml2.Font.FontFamily.Name, ml2.Font.Size * scaleFactor);
-            ml3.Font = new Font(ml3.Font.FontFamily.Name, ml3.Font.Size * scaleFactor);
-            ml4.Font = new Font(ml4.Font.FontFamily.Name, ml4.Font.Size * scaleFactor);
-            ml5.Font = new Font(ml5.Font.FontFamily.Name, ml5.Font.Size * scaleFactor);
-            ml6.Font = new Font(ml6.Font.FontFamily.Name, ml6.Font.Size * scaleFactor);
-            ml7.Font = new Font(ml7.Font.FontFamily.Name, ml7.Font.Size * scaleFactor);
-
-            mph0.Font = new Font(mph0.Font.FontFamily.Name, mph0.Font.Size * scaleFactor);
-            mph1.Font = new Font(mph1.Font.FontFamily.Name, mph1.Font.Size * scaleFactor);
-            mph2.Font = new Font(mph2.Font.FontFamily.Name, mph2.Font.Size * scaleFactor);
-            mph3.Font = new Font(mph3.Font.FontFamily.Name, mph3.Font.Size * scaleFactor);
-            mph4.Font = new Font(mph4.Font.FontFamily.Name, mph4.Font.Size * scaleFactor);
-            mph5.Font = new Font(mph5.Font.FontFamily.Name, mph5.Font.Size * scaleFactor);
-            mph6.Font = new Font(mph6.Font.FontFamily.Name, mph6.Font.Size * scaleFactor);
-            mph7.Font = new Font(mph7.Font.FontFamily.Name, mph7.Font.Size * scaleFactor);
-
-            labelMKTS.Font = new Font(labelMKTS.Font.FontFamily.Name, labelMKTS.Font.Size * scaleFactor);
-
-            _lastFormSize = this.Size.Width; // GetArea(this.Size);
+            ApplyBoardFonts();
         }
 
-        private int GetArea(Size size)
+        private void ApplyBoardFonts()
         {
-            return size.Height * size.Width;
+            foreach (Label label in _boardHeaderLabels)
+            {
+                SetFontSize(label, label.Height * 0.45f);
+            }
+
+            foreach (Label label in _boardValueLabels)
+            {
+                SetFontSize(label, label.Height * 0.48f);
+            }
+
+            SetFontSize(labelMKTS, labelMKTS.Height * 0.4f);
+        }
+
+        private static void SetFontSize(Label label, float requestedSize)
+        {
+            if (label.Height <= 0)
+            {
+                return;
+            }
+
+            float size = Math.Clamp(requestedSize, 10f, 72f);
+            if (Math.Abs(label.Font.Size - size) < 0.5f)
+            {
+                return;
+            }
+
+            label.Font = new Font(label.Font.FontFamily, size, label.Font.Style);
         }
 
         private void editUsersToolStripMenuItem_Click(object sender, EventArgs e)
