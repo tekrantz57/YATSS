@@ -85,6 +85,7 @@ namespace tlp
         {
             string command = enabled ? "TRACK_POWER:ON" : "TRACK_POWER:OFF";
             WriteLine(command);
+            SpeechAnnouncer.SpeakAsync(enabled ? "Let's go" : "Track call");
             _log.Info(enabled ? "track power restore requested" : "track power cut requested");
             _form.SetStatusMessage(enabled ? "Track power restore requested" : "Track power cut requested");
         }
