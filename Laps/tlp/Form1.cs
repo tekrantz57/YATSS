@@ -292,224 +292,54 @@ namespace tlp
             }
         }
 
-        private void name7_Click(object sender, EventArgs e)
+        private void nameLabel_Click(object sender, EventArgs e)
         {
-            contextMenuStrip1 = new ContextMenuStrip();
-
-            var command = MKTS.conn.CreateCommand();
-            command.CommandText = @"SELECT name FROM users";
-
-            using (var reader = command.ExecuteReader())
+            if (sender is Label nameLabel)
             {
-                if (reader.HasRows)
-                {
-                    while (reader.Read())
-                    {
-                        contextMenuStrip1.Items.Add(reader[0].ToString());
-                    }
-                }
+                ShowRacerMenu(nameLabel);
+            }
+        }
+
+        private void ShowRacerMenu(Label nameLabel)
+        {
+            contextMenuStrip1 = new ContextMenuStrip
+            {
+                Tag = nameLabel
+            };
+
+            foreach (string racerName in LoadRacerNames())
+            {
+                contextMenuStrip1.Items.Add(racerName);
             }
 
-            contextMenuStrip1.ItemClicked += new ToolStripItemClickedEventHandler(name7ContextMenuStrip1_Click);
+            contextMenuStrip1.ItemClicked += racerNameMenu_ItemClicked;
             contextMenuStrip1.Show(Cursor.Position);
         }
 
-        private void name7ContextMenuStrip1_Click(object? sender, ToolStripItemClickedEventArgs e)
+        private static List<string> LoadRacerNames()
         {
-            name7.Text = e.ClickedItem?.Text ?? string.Empty;
-        }
-
-        private void name6_Click(object sender, EventArgs e)
-        {
-            contextMenuStrip1 = new ContextMenuStrip();
-            var command = MKTS.conn.CreateCommand();
+            List<string> racerNames = new();
+            var command = conn.CreateCommand();
             command.CommandText = @"SELECT name FROM users";
 
-            using (var reader = command.ExecuteReader())
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
             {
-                if (reader.HasRows)
+                if (!reader.IsDBNull(0))
                 {
-                    while (reader.Read())
-                    {
-                        contextMenuStrip1.Items.Add(reader[0].ToString());
-                    }
+                    racerNames.Add(reader.GetString(0));
                 }
             }
 
-            contextMenuStrip1.ItemClicked += new ToolStripItemClickedEventHandler(name6ContextMenuStrip1_Click);
-            contextMenuStrip1.Show(Cursor.Position);
-
+            return racerNames;
         }
 
-        private void name6ContextMenuStrip1_Click(object? sender, ToolStripItemClickedEventArgs e)
+        private void racerNameMenu_ItemClicked(object? sender, ToolStripItemClickedEventArgs e)
         {
-            name6.Text = e.ClickedItem?.Text ?? string.Empty;
-        }
-
-        private void name5_Click(object sender, EventArgs e)
-        {
-            contextMenuStrip1 = new ContextMenuStrip();
-
-            var command = MKTS.conn.CreateCommand();
-            command.CommandText = @"SELECT name FROM users";
-
-            using (var reader = command.ExecuteReader())
+            if (sender is ContextMenuStrip { Tag: Label nameLabel })
             {
-                if (reader.HasRows)
-                {
-                    while (reader.Read())
-                    {
-                        contextMenuStrip1.Items.Add(reader[0].ToString());
-                    }
-                }
+                nameLabel.Text = e.ClickedItem?.Text ?? string.Empty;
             }
-
-            contextMenuStrip1.ItemClicked += new ToolStripItemClickedEventHandler(name5ContextMenuStrip1_Click);
-            contextMenuStrip1.Show(Cursor.Position);
-
-        }
-
-        private void name5ContextMenuStrip1_Click(object? sender, ToolStripItemClickedEventArgs e)
-        {
-            name5.Text = e.ClickedItem?.Text ?? string.Empty;
-        }
-
-        private void name4_Click(object sender, EventArgs e)
-        {
-            contextMenuStrip1 = new ContextMenuStrip();
-
-            var command = MKTS.conn.CreateCommand();
-            command.CommandText = @"SELECT name FROM users";
-
-            using (var reader = command.ExecuteReader())
-            {
-                if (reader.HasRows)
-                {
-                    while (reader.Read())
-                    {
-                        contextMenuStrip1.Items.Add(reader[0].ToString());
-                    }
-                }
-            }
-
-            contextMenuStrip1.ItemClicked += new ToolStripItemClickedEventHandler(name4ContextMenuStrip1_Click);
-            contextMenuStrip1.Show(Cursor.Position);
-
-        }
-
-        private void name4ContextMenuStrip1_Click(object? sender, ToolStripItemClickedEventArgs e)
-        {
-            name4.Text = e.ClickedItem?.Text ?? string.Empty;
-        }
-        private void name3_Click(object sender, EventArgs e)
-        {
-            contextMenuStrip1 = new ContextMenuStrip();
-
-            var command = MKTS.conn.CreateCommand();
-            command.CommandText = @"SELECT name FROM users";
-
-            using (var reader = command.ExecuteReader())
-            {
-                if (reader.HasRows)
-                {
-                    while (reader.Read())
-                    {
-                        contextMenuStrip1.Items.Add(reader[0].ToString());
-                    }
-                }
-            }
-
-            contextMenuStrip1.ItemClicked += new ToolStripItemClickedEventHandler(name3ContextMenuStrip1_Click);
-            contextMenuStrip1.Show(Cursor.Position);
-
-        }
-
-        private void name3ContextMenuStrip1_Click(object? sender, ToolStripItemClickedEventArgs e)
-        {
-            name3.Text = e.ClickedItem?.Text ?? string.Empty;
-        }
-
-        private void name2_Click(object sender, EventArgs e)
-        {
-            contextMenuStrip1 = new ContextMenuStrip();
-
-            var command = MKTS.conn.CreateCommand();
-            command.CommandText = @"SELECT name FROM users";
-
-            using (var reader = command.ExecuteReader())
-            {
-                if (reader.HasRows)
-                {
-                    while (reader.Read())
-                    {
-                        contextMenuStrip1.Items.Add(reader[0].ToString());
-                    }
-                }
-            }
-
-            contextMenuStrip1.ItemClicked += new ToolStripItemClickedEventHandler(name2ContextMenuStrip1_Click);
-            contextMenuStrip1.Show(Cursor.Position);
-
-        }
-
-        private void name2ContextMenuStrip1_Click(object? sender, ToolStripItemClickedEventArgs e)
-        {
-            name2.Text = e.ClickedItem?.Text ?? string.Empty;
-        }
-
-        private void name1_Click(object sender, EventArgs e)
-        {
-            contextMenuStrip1 = new ContextMenuStrip();
-
-            var command = MKTS.conn.CreateCommand();
-            command.CommandText = @"SELECT name FROM users";
-
-            using (var reader = command.ExecuteReader())
-            {
-                if (reader.HasRows)
-                {
-                    while (reader.Read())
-                    {
-                        contextMenuStrip1.Items.Add(reader[0].ToString());
-                    }
-                }
-            }
-
-            contextMenuStrip1.ItemClicked += new ToolStripItemClickedEventHandler(name1ContextMenuStrip1_Click);
-            contextMenuStrip1.Show(Cursor.Position);
-
-        }
-
-        private void name1ContextMenuStrip1_Click(object? sender, ToolStripItemClickedEventArgs e)
-        {
-            name1.Text = e.ClickedItem?.Text ?? string.Empty;
-        }
-
-        private void name0_Click(object sender, EventArgs e)
-        {
-            contextMenuStrip1 = new ContextMenuStrip();
-
-            var command = MKTS.conn.CreateCommand();
-            command.CommandText = @"SELECT name FROM users";
-
-            using (var reader = command.ExecuteReader())
-            {
-                if (reader.HasRows)
-                {
-                    while (reader.Read())
-                    {
-                        contextMenuStrip1.Items.Add(reader[0].ToString());
-                    }
-                }
-            }
-
-            contextMenuStrip1.ItemClicked += new ToolStripItemClickedEventHandler(name0ContextMenuStrip1_Click);
-            contextMenuStrip1.Show(Cursor.Position);
-
-        }
-        private void name0ContextMenuStrip1_Click(object? sender, ToolStripItemClickedEventArgs e)
-        {
-            name0.Text = e.ClickedItem?.Text ?? string.Empty;
         }
 
         private void configureToolStripMenuItem1_Click(object sender, EventArgs e)

@@ -376,7 +376,7 @@ namespace tlp
             name7.Size = new Size(80, 23);
             name7.TabIndex = 3;
             name7.Text = "          ";
-            name7.Click += name7_Click;
+            name7.Click += nameLabel_Click;
             // 
             // panel44
             // 
@@ -498,7 +498,7 @@ namespace tlp
             name6.Size = new Size(80, 23);
             name6.TabIndex = 3;
             name6.Text = "          ";
-            name6.Click += name6_Click;
+            name6.Click += nameLabel_Click;
             // 
             // panel38
             // 
@@ -620,7 +620,7 @@ namespace tlp
             name5.Size = new Size(80, 23);
             name5.TabIndex = 3;
             name5.Text = "          ";
-            name5.Click += name5_Click;
+            name5.Click += nameLabel_Click;
             // 
             // panel32
             // 
@@ -742,7 +742,7 @@ namespace tlp
             name4.Size = new Size(80, 23);
             name4.TabIndex = 3;
             name4.Text = "          ";
-            name4.Click += name4_Click;
+            name4.Click += nameLabel_Click;
             // 
             // panel26
             // 
@@ -864,7 +864,7 @@ namespace tlp
             name3.Size = new Size(80, 23);
             name3.TabIndex = 3;
             name3.Text = "          ";
-            name3.Click += name3_Click;
+            name3.Click += nameLabel_Click;
             // 
             // panel20
             // 
@@ -986,7 +986,7 @@ namespace tlp
             name2.Size = new Size(80, 23);
             name2.TabIndex = 3;
             name2.Text = "          ";
-            name2.Click += name2_Click;
+            name2.Click += nameLabel_Click;
             // 
             // panel14
             // 
@@ -1108,7 +1108,7 @@ namespace tlp
             name1.Size = new Size(80, 23);
             name1.TabIndex = 3;
             name1.Text = "          ";
-            name1.Click += name1_Click;
+            name1.Click += nameLabel_Click;
             // 
             // panel8
             // 
@@ -1335,7 +1335,7 @@ namespace tlp
             name0.Size = new Size(80, 23);
             name0.TabIndex = 2;
             name0.Text = "          ";
-            name0.Click += name0_Click;
+            name0.Click += nameLabel_Click;
             // 
             // label2
             // 
