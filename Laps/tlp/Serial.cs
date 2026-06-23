@@ -81,6 +81,14 @@ namespace tlp
             _form.SetStatusMessage($"Lane {laneIndex + 1} reset");
         }
 
+        public void SetTrackPowerEnabled(bool enabled)
+        {
+            string command = enabled ? "TRACK_POWER:ON" : "TRACK_POWER:OFF";
+            WriteLine(command);
+            _log.Info(enabled ? "track power restore requested" : "track power cut requested");
+            _form.SetStatusMessage(enabled ? "Track power restore requested" : "Track power cut requested");
+        }
+
         public void Write(string value) => WriteLine(value);
 
         public void WriteLine(string value)

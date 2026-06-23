@@ -18,6 +18,7 @@ namespace tlp
         private Label[] _medianLapLabels = Array.Empty<Label>();
         private Label[] _mphLabels = Array.Empty<Label>();
         private const string EmptyRacerName = "          ";
+        private bool _trackPowerEnabled = true;
         public string port = "";
         public int MinLapMilliseconds { get; private set; } = LapRaceOptions.Default.MinLapMilliseconds;
         public bool SoundOnTooFastLap { get; private set; } = true;
@@ -27,6 +28,7 @@ namespace tlp
         {
             InitializeComponent();
             Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? Icon;
+            KeyPreview = true;
             ConfigureBoardLayout();
             conn.Open();
             var command = conn.CreateCommand();
@@ -43,6 +45,17 @@ namespace tlp
             s = new Serial(this);
             WireBestLapResetClicks();
             FormClosed += (_, _) => s.Dispose();
+        }
+
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        {
+            if (keyData == Keys.Space)
+            {
+                ToggleTrackPower();
+                return true;
+            }
+
+            return base.ProcessCmdKey(ref msg, keyData);
         }
 
         private void tableLayoutPanel1_Paint(object sender, PaintEventArgs e)
@@ -82,6 +95,12 @@ namespace tlp
         {
             practiceToolStripMenuItem.Checked = true;
             heatRaceToolStripMenuItem.Checked = false;
+        }
+
+        private void ToggleTrackPower()
+        {
+            _trackPowerEnabled = !_trackPowerEnabled;
+            s.SetTrackPowerEnabled(_trackPowerEnabled);
         }
 
         private void WireBestLapResetClicks()

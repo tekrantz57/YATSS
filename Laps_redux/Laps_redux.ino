@@ -11,6 +11,10 @@
     EDGE:<zero-based-lane>:<per-lane-sequence>:<millis>*XX
     ERR:QUEUE_FULL:<dropped-count>*XX
 
+  Commands from Windows:
+    TRACK_POWER:OFF*XX  drives the track power cut output active
+    TRACK_POWER:ON*XX   restores the track power cut output inactive
+
   XX is a two-digit hex XOR checksum of every character before the '*'.
 */
 
@@ -19,6 +23,8 @@ const byte QueueSize = 32;
 const unsigned long SerialBaud = 115200;
 const unsigned long HeartbeatIntervalMillis = 1000;
 #define EDGE_DEBOUNCE_MILLIS 20UL
+#define TRACK_POWER_CUT_PIN 10
+#define TRACK_POWER_CUT_ACTIVE_LEVEL HIGH
 
 const byte sensorPins[LaneCount] = { 2, 3, 4, 5, 6, 7, 8, 9 };
 
@@ -74,6 +80,9 @@ void (*resetFunc)(void) = 0;
 void setup() {
   Serial.begin(SerialBaud);
   delay(1000);
+
+  pinMode(TRACK_POWER_CUT_PIN, OUTPUT);
+  setTrackPowerEnabled(true);
 
   for (byte lane = 0; lane < LaneCount; lane++) {
     pinMode(sensorPins[lane], INPUT_PULLUP);
@@ -150,6 +159,12 @@ void handleCommands() {
     sendFrame(String(F("HELLO:RESETTING")));
     delay(100);
     resetFunc();
+  } else if (command == "TRACK_POWER:OFF") {
+    setTrackPowerEnabled(false);
+    sendFrame(String(F("HELLO:TRACK_POWER:OFF")));
+  } else if (command == "TRACK_POWER:ON") {
+    setTrackPowerEnabled(true);
+    sendFrame(String(F("HELLO:TRACK_POWER:ON")));
   } else if (command == "PING") {
     sendFrame(String(F("HELLO:LAPS_REDUX:2:8")));
   } else if (command.length() > 0) {
@@ -192,6 +207,12 @@ bool stripAndValidateChecksum(String &line) {
 
   line = body;
   return true;
+}
+
+void setTrackPowerEnabled(bool enabled) {
+  byte cutLevel = TRACK_POWER_CUT_ACTIVE_LEVEL;
+  byte restoreLevel = (TRACK_POWER_CUT_ACTIVE_LEVEL == HIGH) ? LOW : HIGH;
+  digitalWrite(TRACK_POWER_CUT_PIN, enabled ? restoreLevel : cutLevel);
 }
 
 byte calculateChecksum(const String &body) {
