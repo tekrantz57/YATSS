@@ -31,7 +31,6 @@ namespace tlp
 
             Init();
             ApplySettings();
-            EnsurePortSelected();
             _readerTask = Task.Run(ReadLoopAsync);
         }
 
@@ -266,21 +265,6 @@ namespace tlp
 
         private static string FormatSeconds(int milliseconds) =>
             TimeSpan.FromMilliseconds(milliseconds).TotalSeconds.ToString("0.000", CultureInfo.InvariantCulture);
-
-        private void EnsurePortSelected()
-        {
-            if (!string.IsNullOrWhiteSpace(_form.port))
-            {
-                return;
-            }
-
-            using SelectPort selectPort = new(_form.port);
-            if (selectPort.ShowDialog(_form) == DialogResult.OK || !string.IsNullOrWhiteSpace(selectPort.port))
-            {
-                _form.port = selectPort.port;
-                SavePort(_form.port);
-            }
-        }
 
         private static void SavePort(string portName)
         {
