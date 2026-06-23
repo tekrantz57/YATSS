@@ -16,6 +16,7 @@
 const byte LaneCount = 8;
 const byte QueueSize = 32;
 const unsigned long SerialBaud = 115200;
+#define EDGE_DEBOUNCE_MILLIS 20UL
 
 const byte sensorPins[LaneCount] = { 2, 3, 4, 5, 6, 7, 8, 9 };
 
@@ -29,9 +30,15 @@ volatile EdgeEvent queue[QueueSize];
 volatile byte queueHead = 0;
 volatile byte queueTail = 0;
 volatile unsigned long laneSequences[LaneCount] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+volatile unsigned long lastEdgeMillis[LaneCount] = { 0, 0, 0, 0, 0, 0, 0, 0 };
 volatile unsigned long droppedEvents = 0;
 
 void enqueueEdge(byte lane) {
+  unsigned long now = millis();
+  if (lastEdgeMillis[lane] != 0 && now - lastEdgeMillis[lane] < EDGE_DEBOUNCE_MILLIS) {
+    return;
+  }
+
   byte nextHead = (byte)((queueHead + 1) % QueueSize);
   if (nextHead == queueTail) {
     droppedEvents++;
@@ -40,7 +47,8 @@ void enqueueEdge(byte lane) {
 
   queue[queueHead].lane = lane;
   queue[queueHead].sequence = ++laneSequences[lane];
-  queue[queueHead].timestampMillis = millis();
+  queue[queueHead].timestampMillis = now;
+  lastEdgeMillis[lane] = now;
   queueHead = nextHead;
 }
 
