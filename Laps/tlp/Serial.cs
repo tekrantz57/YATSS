@@ -22,6 +22,8 @@ namespace tlp
         private uint _latestControllerTimestamp;
         private bool _hasControllerTimestamp;
         private bool _trackPowerEnabled = true;
+        private bool _startCountdownInProgress;
+        private int _startCountdownVersion;
         private static readonly TimeSpan ControllerPingInterval = TimeSpan.FromSeconds(3);
         private static readonly TimeSpan ControllerPingTimeout = TimeSpan.FromSeconds(3);
 
@@ -58,6 +60,7 @@ namespace tlp
 
         public void Init()
         {
+            CancelStartCountdown();
             CancelBetweenHeatsTimer();
             _heatRace.SetPracticeMode();
             _race.Reset();
@@ -98,6 +101,7 @@ namespace tlp
 
         public void ConfigureHeatRace(int heatLengthMinutes, int betweenHeatsSeconds, IReadOnlyList<string> racers)
         {
+            CancelStartCountdown();
             CancelBetweenHeatsTimer();
             _race.Reset();
             _form.ResetBoardDisplay(clearRacers: false);
@@ -109,6 +113,7 @@ namespace tlp
 
         public void SetPracticeMode()
         {
+            CancelStartCountdown();
             CancelBetweenHeatsTimer();
             _heatRace.SetPracticeMode();
             _form.ClearHeatRaceStatus();
@@ -121,12 +126,7 @@ namespace tlp
             switch (_heatRace.State)
             {
                 case HeatRaceState.Ready:
-                    if (_heatRace.Start(controllerTimestamp))
-                    {
-                        PublishHeatRaceStatus("Running");
-                        SetTrackPowerEnabled(true, "Let's go", $"Heat {_heatRace.HeatNumber} started. Time remaining {_heatRace.GetRemaining(controllerTimestamp):m\\:ss}");
-                        _log.Info($"heat {_heatRace.HeatNumber} started");
-                    }
+                    QueueStartCountdown(resumePausedHeat: false, manualStart: true);
                     break;
                 case HeatRaceState.Running:
                     if (_heatRace.Pause(controllerTimestamp))
@@ -137,12 +137,7 @@ namespace tlp
                     }
                     break;
                 case HeatRaceState.Paused:
-                    if (_heatRace.Resume(controllerTimestamp))
-                    {
-                        PublishHeatRaceStatus("Running");
-                        SetTrackPowerEnabled(true, "Let's go", $"Heat resumed. Time remaining {_heatRace.GetRemaining(controllerTimestamp):m\\:ss}");
-                        _log.Info("heat resumed");
-                    }
+                    QueueStartCountdown(resumePausedHeat: true, manualStart: true);
                     break;
                 case HeatRaceState.Complete:
                     StartNextHeatFromComplete(manualStart: true);
@@ -175,6 +170,61 @@ namespace tlp
 
             _log.Info(enabled ? "track power restore requested" : "track power cut requested");
             _form.SetStatusMessage(statusMessage);
+        }
+
+        private void QueueStartCountdown(bool resumePausedHeat, bool manualStart)
+        {
+            if (_startCountdownInProgress)
+            {
+                return;
+            }
+
+            _startCountdownInProgress = true;
+            int countdownVersion = ++_startCountdownVersion;
+            _trackPowerEnabled = true;
+            _form.SetStatusMessage(resumePausedHeat ? "Heat restart countdown" : $"Heat {_heatRace.HeatNumber} countdown");
+            _log.Info(resumePausedHeat ? "heat restart countdown queued" : $"heat {_heatRace.HeatNumber} start countdown queued");
+            SpeechAnnouncer.SpeakCountdownAsync(_form.SpeechVoiceName, () => CompleteStartCountdown(resumePausedHeat, manualStart, countdownVersion));
+        }
+
+        private void CompleteStartCountdown(bool resumePausedHeat, bool manualStart, int countdownVersion)
+        {
+            try
+            {
+                if (countdownVersion != _startCountdownVersion)
+                {
+                    return;
+                }
+
+                WriteLine("TRACK_POWER:ON");
+                uint controllerTimestamp = GetControllerTimestamp();
+                bool started = resumePausedHeat
+                    ? _heatRace.Resume(controllerTimestamp)
+                    : _heatRace.Start(controllerTimestamp);
+
+                if (!started)
+                {
+                    return;
+                }
+
+                PublishHeatRaceStatus("Running");
+                _form.SetStatusMessage(resumePausedHeat
+                    ? $"Heat resumed. Time remaining {_heatRace.GetRemaining(controllerTimestamp):m\\:ss}"
+                    : $"Heat {_heatRace.HeatNumber} started. Time remaining {_heatRace.GetRemaining(controllerTimestamp):m\\:ss}");
+                _log.Info(resumePausedHeat
+                    ? "heat resumed"
+                    : manualStart ? $"heat {_heatRace.HeatNumber} started manually" : $"heat {_heatRace.HeatNumber} started automatically");
+            }
+            finally
+            {
+                _startCountdownInProgress = false;
+            }
+        }
+
+        private void CancelStartCountdown()
+        {
+            _startCountdownVersion++;
+            _startCountdownInProgress = false;
         }
 
         public void Write(string value) => WriteLine(value);
@@ -504,15 +554,7 @@ namespace tlp
             _race.ResetTimingForHeat(snapshot.LaneLapCounts);
             _form.SetLaneRacerNames(snapshot.LaneRacers);
             _form.ResetHeatTimingDisplay(snapshot.LaneLapCounts);
-            uint controllerTimestamp = GetControllerTimestamp();
-            if (_heatRace.Start(controllerTimestamp))
-            {
-                PublishHeatRaceStatus("Running");
-                SetTrackPowerEnabled(true, "Let's go", $"Heat {_heatRace.HeatNumber} started. Time remaining {_heatRace.GetRemaining(controllerTimestamp):m\\:ss}");
-                _log.Info(manualStart
-                    ? $"heat {_heatRace.HeatNumber} started manually"
-                    : $"heat {_heatRace.HeatNumber} started automatically");
-            }
+            QueueStartCountdown(resumePausedHeat: false, manualStart);
         }
 
         private void CancelBetweenHeatsTimer()

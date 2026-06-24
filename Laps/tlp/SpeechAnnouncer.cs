@@ -60,7 +60,7 @@ namespace tlp
             _requests?.Add(new SpeechRequest(
                 new[] { "3", "2", "1", "Let's go" },
                 voiceName,
-                TimeSpan.FromMilliseconds(100),
+                TimeSpan.Zero,
                 afterSpeech));
         }
 
