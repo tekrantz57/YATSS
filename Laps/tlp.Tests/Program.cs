@@ -72,10 +72,14 @@ Assert(wrappedTime.Kind == LapUpdateKind.Counted, "wrapped sequence and timestam
 Assert(wrappedTime.LapMilliseconds == 2001, "timestamp wrap should preserve elapsed milliseconds");
 
 HeatRaceController heat = new();
-heat.Configure(1, 15);
+string[] racers = { "R0", "R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8" };
+heat.Configure(1, 15, racers);
 Assert(heat.State == HeatRaceState.Ready, "configured heat should be ready");
 Assert(heat.BetweenHeatsSeconds == 15, "between-heats seconds should be configured");
 Assert(heat.HeatNumber == 1, "configured heat should start at heat 1");
+HeatRaceSnapshot firstHeat = heat.GetSnapshot(0);
+Assert(firstHeat.LaneRacers[0] == "R0" && firstHeat.LaneRacers[7] == "R7", "first heat should assign first eight racers to lanes");
+Assert(firstHeat.OnDeckRacer == "R8", "ninth racer should be on deck");
 Assert(heat.Start(1000), "ready heat should start");
 Assert(heat.PrepareEdge(new LapEdge(0, 1, 2000)).Edge.TimestampMillis == 1000, "running heat should adjust edge to active time");
 Assert(heat.Pause(10000), "running heat should pause");
@@ -87,6 +91,11 @@ Assert(heat.IsExpired(71000), "heat should expire at configured active time");
 Assert(heat.Complete(), "expired heat should complete");
 Assert(heat.PrepareNextHeat(), "completed heat should prepare next heat");
 Assert(heat.HeatNumber == 2, "next heat should be heat 2");
+HeatRaceSnapshot secondHeat = heat.GetSnapshot(80000);
+Assert(secondHeat.LaneRacers[0] == "R8", "waiting racer should enter on red");
+Assert(secondHeat.LaneRacers[1] == "R0", "red racer should rotate to green");
+Assert(secondHeat.LaneRacers[7] == "R6", "orange racer should rotate to white");
+Assert(secondHeat.OnDeckRacer == "R7", "white racer should rotate out to on deck");
 Assert(heat.Start(80000), "next heat should start");
 HeatRaceEdgeDecision secondHeatFirstEdge = heat.PrepareEdge(new LapEdge(0, 3, 81000));
 Assert(secondHeatFirstEdge.Edge.TimestampMillis == 61000, "second heat adjusted time should continue after heat 1");

@@ -15,11 +15,20 @@ namespace tlp
         bool FastestLapEligible,
         string Detail);
 
+    public sealed record HeatRaceSnapshot(
+        HeatRaceState State,
+        int HeatNumber,
+        TimeSpan Remaining,
+        string OnDeckRacer,
+        IReadOnlyList<string> LaneRacers);
+
     public sealed class HeatRaceController
     {
         public const int TotalHeats = 8;
 
         private readonly bool[] _laneSeenThisHeat = new bool[LapProtocolParser.LaneCount];
+        private readonly string[] _laneRacers = new string[LapProtocolParser.LaneCount];
+        private readonly Queue<string> _waitingRacers = new();
         private readonly object _gate = new();
         private long _heatLengthMilliseconds;
         private int _betweenHeatsSeconds;
@@ -54,7 +63,7 @@ namespace tlp
             }
         }
 
-        public void Configure(int heatLengthMinutes, int betweenHeatsSeconds)
+        public void Configure(int heatLengthMinutes, int betweenHeatsSeconds, IReadOnlyList<string> racers)
         {
             lock (_gate)
             {
@@ -65,6 +74,7 @@ namespace tlp
                 _hasRunStartedAt = false;
                 HeatNumber = 1;
                 _isFirstHeat = true;
+                SetInitialRacers(racers);
                 Array.Fill(_laneSeenThisHeat, false);
                 State = HeatRaceState.Ready;
             }
@@ -79,6 +89,8 @@ namespace tlp
                 _raceTimestampBase = 0;
                 _hasRunStartedAt = false;
                 HeatNumber = 0;
+                Array.Fill(_laneRacers, string.Empty);
+                _waitingRacers.Clear();
                 Array.Fill(_laneSeenThisHeat, false);
             }
         }
@@ -158,6 +170,7 @@ namespace tlp
                     return false;
                 }
 
+                RotateRacers();
                 HeatNumber++;
                 _activeMillisecondsBeforeRun = 0;
                 _hasRunStartedAt = false;
@@ -181,10 +194,23 @@ namespace tlp
         {
             lock (_gate)
             {
-                long elapsed = State == HeatRaceState.Running
-                    ? GetElapsedMillisecondsCore(controllerTimestamp)
-                    : _activeMillisecondsBeforeRun;
-                return TimeSpan.FromMilliseconds(Math.Max(0, _heatLengthMilliseconds - elapsed));
+                return GetRemainingCore(controllerTimestamp);
+            }
+        }
+
+        public HeatRaceSnapshot GetSnapshot(uint controllerTimestamp)
+        {
+            lock (_gate)
+            {
+                TimeSpan remaining = State == HeatRaceState.Practice
+                    ? TimeSpan.Zero
+                    : GetRemainingCore(controllerTimestamp);
+                return new HeatRaceSnapshot(
+                    State,
+                    HeatNumber,
+                    remaining,
+                    _waitingRacers.Count > 0 ? _waitingRacers.Peek() : string.Empty,
+                    _laneRacers.ToArray());
             }
         }
 
@@ -221,6 +247,60 @@ namespace tlp
 
             uint runElapsed = unchecked(controllerTimestamp - _runStartedAt);
             return _activeMillisecondsBeforeRun + runElapsed;
+        }
+
+        private TimeSpan GetRemainingCore(uint controllerTimestamp)
+        {
+            long elapsed = State == HeatRaceState.Running
+                ? GetElapsedMillisecondsCore(controllerTimestamp)
+                : _activeMillisecondsBeforeRun;
+            return TimeSpan.FromMilliseconds(Math.Max(0, _heatLengthMilliseconds - elapsed));
+        }
+
+        private void SetInitialRacers(IReadOnlyList<string> racers)
+        {
+            Array.Fill(_laneRacers, string.Empty);
+            _waitingRacers.Clear();
+
+            for (int i = 0; i < racers.Count; i++)
+            {
+                string racer = racers[i].Trim();
+                if (string.IsNullOrWhiteSpace(racer))
+                {
+                    continue;
+                }
+
+                if (i < _laneRacers.Length)
+                {
+                    _laneRacers[i] = racer;
+                }
+                else
+                {
+                    _waitingRacers.Enqueue(racer);
+                }
+            }
+        }
+
+        private void RotateRacers()
+        {
+            string rotatingOut = _laneRacers[^1];
+            for (int i = _laneRacers.Length - 1; i > 0; i--)
+            {
+                _laneRacers[i] = _laneRacers[i - 1];
+            }
+
+            if (_waitingRacers.Count > 0)
+            {
+                _laneRacers[0] = _waitingRacers.Dequeue();
+                if (!string.IsNullOrWhiteSpace(rotatingOut))
+                {
+                    _waitingRacers.Enqueue(rotatingOut);
+                }
+            }
+            else
+            {
+                _laneRacers[0] = rotatingOut;
+            }
         }
     }
 }

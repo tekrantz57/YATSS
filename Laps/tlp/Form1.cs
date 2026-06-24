@@ -17,6 +17,9 @@ namespace tlp
         private Label[] _bestLapLabels = Array.Empty<Label>();
         private Label[] _medianLapLabels = Array.Empty<Label>();
         private Label[] _mphLabels = Array.Empty<Label>();
+        private Label _heatStatusLabel = null!;
+        private Label _heatTimerLabel = null!;
+        private Label _onDeckLabel = null!;
         private const string EmptyRacerName = "          ";
         public string port = "";
         public int MinLapMilliseconds { get; private set; } = LapRaceOptions.Default.MinLapMilliseconds;
@@ -92,7 +95,10 @@ namespace tlp
             if (heatRaceSetup.ShowDialog(this) == DialogResult.OK)
             {
                 SetHeatRaceMode();
-                s.ConfigureHeatRace(heatRaceSetup.HeatLengthMinutes, heatRaceSetup.BetweenHeatsSeconds);
+                s.ConfigureHeatRace(
+                    heatRaceSetup.HeatLengthMinutes,
+                    heatRaceSetup.BetweenHeatsSeconds,
+                    heatRaceSetup.SelectedRacers);
                 SetLaneRacerNames(heatRaceSetup.FirstHeatLaneRacers);
             }
         }
@@ -131,6 +137,7 @@ namespace tlp
 
         private void ConfigureBoardLayout()
         {
+            ConfigureHeatStatusLayout();
             _boardHeaderLabels = new[] { label2, label4, label6, label8, label10, label12 };
             _nameLabels = new[] { name0, name1, name2, name3, name4, name5, name6, name7 };
             _lapLabels = new[] { laps0, laps1, laps2, laps3, laps4, laps5, laps6, laps7 };
@@ -188,6 +195,55 @@ namespace tlp
             SetFontSizeToFit(labelMKTS, labelMKTS.Height * 0.4f);
         }
 
+        private void ConfigureHeatStatusLayout()
+        {
+            if (_heatStatusLabel != null)
+            {
+                return;
+            }
+
+            TableLayoutPanel heatStatusPanel = new()
+            {
+                BackColor = Color.FromArgb(32, 32, 32),
+                ColumnCount = 3,
+                Dock = DockStyle.Fill,
+                Margin = Padding.Empty,
+                Padding = new Padding(8, 2, 8, 2)
+            };
+            heatStatusPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 28F));
+            heatStatusPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 28F));
+            heatStatusPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 44F));
+
+            _heatStatusLabel = CreateHeatStatusLabel("Practice");
+            _heatTimerLabel = CreateHeatStatusLabel("Timer --:--");
+            _onDeckLabel = CreateHeatStatusLabel("On deck: ");
+            heatStatusPanel.Controls.Add(_heatStatusLabel, 0, 0);
+            heatStatusPanel.Controls.Add(_heatTimerLabel, 1, 0);
+            heatStatusPanel.Controls.Add(_onDeckLabel, 2, 0);
+
+            tableLayoutPanel1.SuspendLayout();
+            tableLayoutPanel1.Controls.Remove(labelMKTS);
+            tableLayoutPanel1.RowStyles.Clear();
+            tableLayoutPanel1.RowCount = 3;
+            tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Percent, 80F));
+            tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Absolute, 42F));
+            tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Percent, 20F));
+            tableLayoutPanel1.Controls.Add(heatStatusPanel, 0, 1);
+            tableLayoutPanel1.Controls.Add(labelMKTS, 0, 2);
+            tableLayoutPanel1.ResumeLayout();
+        }
+
+        private static Label CreateHeatStatusLabel(string text) =>
+            new()
+            {
+                AutoSize = false,
+                Dock = DockStyle.Fill,
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 14F, FontStyle.Bold, GraphicsUnit.Point),
+                Text = text,
+                TextAlign = ContentAlignment.MiddleLeft
+            };
+
         public void ResetBoardDisplay(bool clearRacers)
         {
             RunOnUiThread(() =>
@@ -218,6 +274,26 @@ namespace tlp
                     string racerName = i < racerNames.Count ? racerNames[i].Trim() : string.Empty;
                     _nameLabels[i].Text = string.IsNullOrWhiteSpace(racerName) ? EmptyRacerName : racerName;
                 }
+            });
+        }
+
+        public void UpdateHeatRaceStatus(int heatNumber, string state, TimeSpan remaining, string onDeckRacer)
+        {
+            RunOnUiThread(() =>
+            {
+                _heatStatusLabel.Text = heatNumber > 0 ? $"Heat {heatNumber}/8 {state}" : state;
+                _heatTimerLabel.Text = $"Timer {FormatClock(remaining)}";
+                _onDeckLabel.Text = string.IsNullOrWhiteSpace(onDeckRacer) ? "On deck: " : $"On deck: {onDeckRacer}";
+            });
+        }
+
+        public void ClearHeatRaceStatus()
+        {
+            RunOnUiThread(() =>
+            {
+                _heatStatusLabel.Text = "Practice";
+                _heatTimerLabel.Text = "Timer --:--";
+                _onDeckLabel.Text = "On deck: ";
             });
         }
 
@@ -321,6 +397,18 @@ namespace tlp
             }
 
             SetFontSize(label, size);
+        }
+
+        private static string FormatClock(TimeSpan time)
+        {
+            if (time < TimeSpan.Zero)
+            {
+                time = TimeSpan.Zero;
+            }
+
+            return time.TotalHours >= 1
+                ? time.ToString(@"h\:mm\:ss", System.Globalization.CultureInfo.InvariantCulture)
+                : time.ToString(@"m\:ss", System.Globalization.CultureInfo.InvariantCulture);
         }
 
         private void editUsersToolStripMenuItem_Click(object sender, EventArgs e)

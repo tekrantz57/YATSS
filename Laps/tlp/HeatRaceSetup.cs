@@ -27,6 +27,7 @@ namespace tlp
 
         public int HeatLengthMinutes => (int)_heatLengthMinutes.Value;
         public int BetweenHeatsSeconds => (int)_betweenHeatsSeconds.Value;
+        public IReadOnlyList<string> SelectedRacers => _selectedNames.ToArray();
         public IReadOnlyList<string> FirstHeatLaneRacers =>
             Enumerable.Range(0, LaneNames.Length)
                 .Select(i => i < _selectedNames.Count ? _selectedNames[i] : string.Empty)
