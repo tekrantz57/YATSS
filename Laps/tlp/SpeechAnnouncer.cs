@@ -61,7 +61,7 @@ namespace tlp
                 new[] { "3 2 1 Let's go" },
                 voiceName,
                 TimeSpan.Zero,
-                Rate: 4,
+                Rate: -2,
                 afterSpeech));
         }
 
