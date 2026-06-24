@@ -17,14 +17,15 @@ namespace tlp
     public sealed record LapProtocolMessage(
         LapProtocolMessageKind Kind,
         LapEdge? Edge,
+        uint? ControllerTimestampMillis,
         string RawLine,
         string Detail)
     {
         public static LapProtocolMessage Invalid(string rawLine, string detail) =>
-            new(LapProtocolMessageKind.Invalid, null, rawLine, detail);
+            new(LapProtocolMessageKind.Invalid, null, null, rawLine, detail);
 
         public static LapProtocolMessage Ignored(string rawLine, string detail) =>
-            new(LapProtocolMessageKind.Ignored, null, rawLine, detail);
+            new(LapProtocolMessageKind.Ignored, null, null, rawLine, detail);
     }
 
     public static class LapProtocolParser
@@ -52,17 +53,23 @@ namespace tlp
 
             if (command == "HELLO")
             {
-                return new LapProtocolMessage(LapProtocolMessageKind.Hello, null, rawLine, body);
+                return new LapProtocolMessage(LapProtocolMessageKind.Hello, null, null, rawLine, body);
             }
 
             if (command == "HEARTBEAT")
             {
-                return new LapProtocolMessage(LapProtocolMessageKind.Heartbeat, null, rawLine, body);
+                if (parts.Length == 2 &&
+                    uint.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out uint timestamp))
+                {
+                    return new LapProtocolMessage(LapProtocolMessageKind.Heartbeat, null, timestamp, rawLine, body);
+                }
+
+                return new LapProtocolMessage(LapProtocolMessageKind.Heartbeat, null, null, rawLine, body);
             }
 
             if (command == "ERR")
             {
-                return new LapProtocolMessage(LapProtocolMessageKind.Error, null, rawLine, body);
+                return new LapProtocolMessage(LapProtocolMessageKind.Error, null, null, rawLine, body);
             }
 
             if (command == "EDGE")
@@ -90,6 +97,7 @@ namespace tlp
                 return new LapProtocolMessage(
                     LapProtocolMessageKind.Edge,
                     new LapEdge(laneIndex, sequence, timestamp),
+                    timestamp,
                     rawLine,
                     "edge");
             }
@@ -104,6 +112,7 @@ namespace tlp
                 return new LapProtocolMessage(
                     LapProtocolMessageKind.Edge,
                     new LapEdge(legacyLane, null, timestamp),
+                    timestamp,
                     rawLine,
                     "legacy lane:timestamp edge");
             }
@@ -118,6 +127,7 @@ namespace tlp
                 return new LapProtocolMessage(
                     LapProtocolMessageKind.Edge,
                     new LapEdge(oldLane, null, timestamp),
+                    timestamp,
                     rawLine,
                     "old lane:laps:timestamp edge");
             }

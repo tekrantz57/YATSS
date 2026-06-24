@@ -21,6 +21,7 @@ Assert(boot.Kind == LapProtocolMessageKind.Hello, "HELLO should parse");
 
 LapProtocolMessage heartbeat = LapProtocolParser.Parse(LapProtocolParser.EncodeFrame("HEARTBEAT:12345"));
 Assert(heartbeat.Kind == LapProtocolMessageKind.Heartbeat, "HEARTBEAT should parse");
+Assert(heartbeat.ControllerTimestampMillis == 12345, "HEARTBEAT timestamp should parse");
 
 LapProtocolMessage badLane = LapProtocolParser.Parse(LapProtocolParser.EncodeFrame("EDGE:8:1:100"));
 Assert(badLane.Kind == LapProtocolMessageKind.Invalid, "Lane 8 should be rejected");
@@ -57,10 +58,29 @@ LapUpdate stale = race.Process(new LapEdge(0, 4, 9000));
 Assert(stale.Kind == LapUpdateKind.Duplicate, "stale sequence should be rejected");
 Assert(race.GetLane(0).getCount() == 1, "stale sequence should not count a lap");
 
+LapRace ineligibleBestRace = new(new LapRaceOptions(1000, 600000, 155.0));
+Assert(ineligibleBestRace.Process(new LapEdge(0, 1, 1000)).Kind == LapUpdateKind.Started, "ineligible best race should start");
+LapUpdate ineligibleBest = ineligibleBestRace.Process(new LapEdge(0, 2, 3000), fastestLapEligible: false);
+Assert(ineligibleBest.Kind == LapUpdateKind.Counted, "ineligible best lap should still count");
+Assert(ineligibleBestRace.GetLane(0).getCount() == 1, "ineligible best lap should increment count");
+Assert(ineligibleBestRace.GetLane(0).best_time == int.MaxValue, "ineligible best lap should not set best time");
+
 LapRace wrapRace = new(new LapRaceOptions(1000, 600000, 155.0));
 Assert(wrapRace.Process(new LapEdge(0, uint.MaxValue, uint.MaxValue - 500)).Kind == LapUpdateKind.Started, "wrap race should start");
 LapUpdate wrappedTime = wrapRace.Process(new LapEdge(0, 0, 1500));
 Assert(wrappedTime.Kind == LapUpdateKind.Counted, "wrapped sequence and timestamp should count");
 Assert(wrappedTime.LapMilliseconds == 2001, "timestamp wrap should preserve elapsed milliseconds");
+
+HeatRaceController heat = new();
+heat.Configure(1);
+Assert(heat.State == HeatRaceState.Ready, "configured heat should be ready");
+Assert(heat.Start(1000), "ready heat should start");
+Assert(heat.PrepareEdge(new LapEdge(0, 1, 2000)).Edge.TimestampMillis == 1000, "running heat should adjust edge to active time");
+Assert(heat.Pause(10000), "running heat should pause");
+Assert(heat.Resume(20000), "paused heat should resume");
+HeatRaceEdgeDecision adjustedAfterPause = heat.PrepareEdge(new LapEdge(0, 2, 21000));
+Assert(adjustedAfterPause.Edge.TimestampMillis == 10000, "heat adjustment should subtract paused time");
+Assert(!heat.IsExpired(70999), "heat should not expire before configured active time");
+Assert(heat.IsExpired(71000), "heat should expire at configured active time");
 
 Console.WriteLine("Protocol and lap race tests passed.");

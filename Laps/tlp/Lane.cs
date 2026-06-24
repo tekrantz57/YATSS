@@ -20,10 +20,10 @@ namespace tlp
             times = new List<int>();
         }
 
-        public void AddLap(int millis)
+        public void AddLap(int millis, bool eligibleForBest = true)
         {
             times.Add(millis);
-            if (millis < best_time)
+            if (eligibleForBest && millis < best_time)
                 best_time = millis;
         }
 

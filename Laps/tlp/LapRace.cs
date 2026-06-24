@@ -111,7 +111,10 @@ namespace tlp
             }
         }
 
-        public LapUpdate Process(LapEdge edge)
+        public LapUpdate Process(LapEdge edge) =>
+            Process(edge, fastestLapEligible: true);
+
+        public LapUpdate Process(LapEdge edge, bool fastestLapEligible)
         {
             if (edge.LaneIndex < 0 || edge.LaneIndex >= _lanes.Length)
             {
@@ -165,15 +168,21 @@ namespace tlp
 
                 int lapMilliseconds = (int)elapsed;
                 lane.LastAcceptedTimestamp = edge.TimestampMillis;
-                lane.Stats.AddLap(lapMilliseconds);
+                lane.Stats.AddLap(lapMilliseconds, fastestLapEligible);
 
                 return new LapUpdate(
                     missedFrames > 0 ? LapUpdateKind.MissedFrame : LapUpdateKind.Counted,
                     edge.LaneIndex,
                     lapMilliseconds,
                     lane.MissedFrames,
-                    missedFrames > 0 ? $"counted lap after {missedFrames} missed frame(s)" : "counted lap");
+                    GetCountedDetail(missedFrames, fastestLapEligible));
             }
+        }
+
+        private static string GetCountedDetail(int missedFrames, bool fastestLapEligible)
+        {
+            string detail = missedFrames > 0 ? $"counted lap after {missedFrames} missed frame(s)" : "counted lap";
+            return fastestLapEligible ? detail : $"{detail}; fastest lap unchanged";
         }
 
         public double CalculateMilesPerHour(int lapMilliseconds)

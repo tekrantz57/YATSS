@@ -9,6 +9,7 @@ namespace tlp
     {
         private readonly MKTS _form;
         private readonly LapRace _race = new();
+        private readonly HeatRaceController _heatRace = new();
         private readonly SerialLog _log = new();
         private readonly CancellationTokenSource _stop = new();
         private readonly object _portGate = new();
@@ -16,6 +17,9 @@ namespace tlp
         private TaskCompletionSource _reconnectNow = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private Task? _readerTask;
         private SerialPort? _port;
+        private uint _latestControllerTimestamp;
+        private bool _hasControllerTimestamp;
+        private bool _trackPowerEnabled = true;
         private static readonly TimeSpan ControllerPingInterval = TimeSpan.FromSeconds(3);
         private static readonly TimeSpan ControllerPingTimeout = TimeSpan.FromSeconds(3);
 
@@ -52,6 +56,7 @@ namespace tlp
 
         public void Init()
         {
+            _heatRace.SetPracticeMode();
             _race.Reset();
             _form.ResetBoardDisplay(clearRacers: true);
             _log.Info("race state reset");
@@ -83,11 +88,72 @@ namespace tlp
 
         public void SetTrackPowerEnabled(bool enabled)
         {
+            SetTrackPowerEnabled(enabled, enabled ? "Let's go" : "Track call",
+                enabled ? "Track power restore requested" : "Track power cut requested");
+        }
+
+        public void ConfigureHeatRace(int heatLengthMinutes)
+        {
+            _race.Reset();
+            _form.ResetBoardDisplay(clearRacers: false);
+            _heatRace.Configure(heatLengthMinutes);
+            SetTrackPowerEnabled(false, null, $"Heat race ready: {heatLengthMinutes} minute heat. Press Space to start.");
+            _log.Info($"heat race configured for {heatLengthMinutes} minute(s)");
+        }
+
+        public void SetPracticeMode()
+        {
+            _heatRace.SetPracticeMode();
+            _form.SetStatusMessage("Practice mode");
+        }
+
+        public void HandleSpaceBar()
+        {
+            uint controllerTimestamp = GetControllerTimestamp();
+            switch (_heatRace.State)
+            {
+                case HeatRaceState.Ready:
+                    if (_heatRace.Start(controllerTimestamp))
+                    {
+                        SetTrackPowerEnabled(true, "Let's go", $"Heat started. Time remaining {_heatRace.GetRemaining(controllerTimestamp):m\\:ss}");
+                        _log.Info("heat started");
+                    }
+                    break;
+                case HeatRaceState.Running:
+                    if (_heatRace.Pause(controllerTimestamp))
+                    {
+                        SetTrackPowerEnabled(false, "Track call", "Heat paused for track call");
+                        _log.Info("heat paused for track call");
+                    }
+                    break;
+                case HeatRaceState.Paused:
+                    if (_heatRace.Resume(controllerTimestamp))
+                    {
+                        SetTrackPowerEnabled(true, "Let's go", $"Heat resumed. Time remaining {_heatRace.GetRemaining(controllerTimestamp):m\\:ss}");
+                        _log.Info("heat resumed");
+                    }
+                    break;
+                case HeatRaceState.Complete:
+                    _form.SetStatusMessage("Heat complete");
+                    break;
+                default:
+                    SetTrackPowerEnabled(!_trackPowerEnabled);
+                    break;
+            }
+        }
+
+        private void SetTrackPowerEnabled(bool enabled, string? speech, string statusMessage)
+        {
+            _trackPowerEnabled = enabled;
             string command = enabled ? "TRACK_POWER:ON" : "TRACK_POWER:OFF";
             WriteLine(command);
-            SpeechAnnouncer.SpeakAsync(enabled ? "Let's go" : "Track call", _form.SpeechVoiceName);
+            if (!string.IsNullOrWhiteSpace(speech))
+            {
+                SpeechAnnouncer.SpeakAsync(speech, _form.SpeechVoiceName);
+            }
+
             _log.Info(enabled ? "track power restore requested" : "track power cut requested");
-            _form.SetStatusMessage(enabled ? "Track power restore requested" : "Track power cut requested");
+            _form.SetStatusMessage(statusMessage);
         }
 
         public void Write(string value) => WriteLine(value);
@@ -235,6 +301,12 @@ namespace tlp
             _log.Raw(trimmed);
 
             LapProtocolMessage message = LapProtocolParser.Parse(trimmed);
+            if (message.ControllerTimestampMillis.HasValue)
+            {
+                _latestControllerTimestamp = message.ControllerTimestampMillis.Value;
+                _hasControllerTimestamp = true;
+            }
+
             switch (message.Kind)
             {
                 case LapProtocolMessageKind.Edge:
@@ -251,7 +323,10 @@ namespace tlp
                     _log.Info(message.Detail);
                     break;
                 case LapProtocolMessageKind.Heartbeat:
-                    _form.SetStatusMessage($"Controller responding on {_form.port}");
+                    if (!CheckHeatExpired(message.ControllerTimestampMillis) && _heatRace.State == HeatRaceState.Practice)
+                    {
+                        _form.SetStatusMessage($"Controller responding on {_form.port}");
+                    }
                     break;
                 case LapProtocolMessageKind.Error:
                     _form.SetStatusMessage(message.Detail);
@@ -268,7 +343,30 @@ namespace tlp
 
         private void HandleEdge(LapEdge edge)
         {
-            LapUpdate update = _race.Process(edge);
+            if (CheckHeatExpired(edge.TimestampMillis))
+            {
+                return;
+            }
+
+            LapUpdate update;
+            if (_heatRace.State == HeatRaceState.Practice)
+            {
+                update = _race.Process(edge);
+            }
+            else
+            {
+                HeatRaceEdgeDecision heatDecision = _heatRace.PrepareEdge(edge);
+                if (!heatDecision.ShouldProcess)
+                {
+                    _log.Info($"lane {edge.LaneIndex}: ignored edge because {heatDecision.Detail}");
+                    return;
+                }
+
+                update = _race.Process(
+                    heatDecision.Edge,
+                    heatDecision.FastestLapEligible);
+            }
+
             if (update.Kind == LapUpdateKind.TooFast)
             {
                 if (_form.SoundOnTooFastLap)
@@ -308,6 +406,25 @@ namespace tlp
 
             _log.Info($"lane {laneIndex}: lap {lapSeconds}s, count {lane.getCount()}, {update.Detail}");
             _form.SetStatusMessage($"Lane {laneIndex + 1}: lap {lapSeconds}s");
+        }
+
+        private uint GetControllerTimestamp() =>
+            _hasControllerTimestamp ? _latestControllerTimestamp : 0;
+
+        private bool CheckHeatExpired(uint? controllerTimestamp)
+        {
+            if (!controllerTimestamp.HasValue || !_heatRace.IsExpired(controllerTimestamp.Value))
+            {
+                return false;
+            }
+
+            if (_heatRace.Complete())
+            {
+                SetTrackPowerEnabled(false, "Heat over", "Heat complete");
+                _log.Info("heat complete");
+            }
+
+            return true;
         }
 
         private static string FormatSeconds(int milliseconds) =>

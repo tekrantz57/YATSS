@@ -18,7 +18,6 @@ namespace tlp
         private Label[] _medianLapLabels = Array.Empty<Label>();
         private Label[] _mphLabels = Array.Empty<Label>();
         private const string EmptyRacerName = "          ";
-        private bool _trackPowerEnabled = true;
         public string port = "";
         public int MinLapMilliseconds { get; private set; } = LapRaceOptions.Default.MinLapMilliseconds;
         public bool SoundOnTooFastLap { get; private set; } = true;
@@ -53,7 +52,7 @@ namespace tlp
         {
             if (keyData == Keys.Space)
             {
-                ToggleTrackPower();
+                s.HandleSpaceBar();
                 return true;
             }
 
@@ -84,13 +83,17 @@ namespace tlp
         private void practiceToolStripMenuItem_Click(object sender, EventArgs e)
         {
             SetPracticeMode();
+            s.SetPracticeMode();
         }
 
         private void heatRaceToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            SetPracticeMode();
             using HeatRaceSetup heatRaceSetup = new();
-            heatRaceSetup.ShowDialog(this);
+            if (heatRaceSetup.ShowDialog(this) == DialogResult.OK)
+            {
+                SetHeatRaceMode();
+                s.ConfigureHeatRace(heatRaceSetup.HeatLengthMinutes);
+            }
         }
 
         private void SetPracticeMode()
@@ -99,10 +102,10 @@ namespace tlp
             heatRaceToolStripMenuItem.Checked = false;
         }
 
-        private void ToggleTrackPower()
+        private void SetHeatRaceMode()
         {
-            _trackPowerEnabled = !_trackPowerEnabled;
-            s.SetTrackPowerEnabled(_trackPowerEnabled);
+            practiceToolStripMenuItem.Checked = false;
+            heatRaceToolStripMenuItem.Checked = true;
         }
 
         private void WireBestLapResetClicks()
