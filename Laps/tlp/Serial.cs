@@ -379,6 +379,7 @@ namespace tlp
 
                 update = _race.Process(
                     heatDecision.Edge,
+                    heatDecision.CountFirstEdgeAsLap,
                     heatDecision.FastestLapEligible);
             }
 
@@ -404,14 +405,17 @@ namespace tlp
                 return;
             }
 
+            int laneIndex = update.LaneIndex;
+            Lane lane = _race.GetLane(laneIndex);
             if (!update.LapMilliseconds.HasValue)
             {
+                _form.UpdateLaneDisplay(laneIndex, lane.getCount(), "0.000", "0.000", "0.000", "0.0");
+                _log.Info($"lane {laneIndex}: count {lane.getCount()}, {update.Detail}");
+                _form.SetStatusMessage($"Lane {laneIndex + 1}: lap counted");
                 return;
             }
 
-            int laneIndex = update.LaneIndex;
             int lapMilliseconds = update.LapMilliseconds.Value;
-            Lane lane = _race.GetLane(laneIndex);
             string lapSeconds = FormatSeconds(lapMilliseconds);
             string bestSeconds = FormatSeconds(lane.best_time == int.MaxValue ? 0 : lane.best_time);
             string medianSeconds = FormatSeconds(lane.getMedian());
@@ -475,7 +479,7 @@ namespace tlp
         private void StartNextHeatFromComplete(bool manualStart)
         {
             CancelBetweenHeatsTimer();
-            if (!_heatRace.PrepareNextHeat())
+            if (!_heatRace.PrepareNextHeat(_race.GetLapCounts()))
             {
                 PublishHeatRaceStatus("Race complete");
                 _form.SetStatusMessage("Heat race complete");
@@ -483,7 +487,10 @@ namespace tlp
             }
 
             PublishHeatRaceStatus("Ready");
-            _form.SetLaneRacerNames(_heatRace.GetSnapshot(GetControllerTimestamp()).LaneRacers);
+            HeatRaceSnapshot snapshot = _heatRace.GetSnapshot(GetControllerTimestamp());
+            _race.ResetTimingForHeat(snapshot.LaneLapCounts);
+            _form.SetLaneRacerNames(snapshot.LaneRacers);
+            _form.ResetHeatTimingDisplay(snapshot.LaneLapCounts);
             uint controllerTimestamp = GetControllerTimestamp();
             if (_heatRace.Start(controllerTimestamp))
             {

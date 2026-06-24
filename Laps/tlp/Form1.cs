@@ -277,6 +277,22 @@ namespace tlp
             });
         }
 
+        public void ResetHeatTimingDisplay(IReadOnlyList<int> lapCounts)
+        {
+            RunOnUiThread(() =>
+            {
+                for (int i = 0; i < LapProtocolParser.LaneCount; i++)
+                {
+                    int lapCount = i < lapCounts.Count ? Math.Max(0, lapCounts[i]) : 0;
+                    _lapLabels[i].Text = lapCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    _lastLapLabels[i].Text = "0.000";
+                    _bestLapLabels[i].Text = "0.000";
+                    _medianLapLabels[i].Text = "0.000";
+                    _mphLabels[i].Text = "0.0";
+                }
+            });
+        }
+
         public void UpdateHeatRaceStatus(int heatNumber, string state, TimeSpan remaining, string onDeckRacer)
         {
             RunOnUiThread(() =>

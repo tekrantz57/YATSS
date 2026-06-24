@@ -60,10 +60,18 @@ Assert(race.GetLane(0).getCount() == 1, "stale sequence should not count a lap")
 
 LapRace ineligibleBestRace = new(new LapRaceOptions(1000, 600000, 155.0));
 Assert(ineligibleBestRace.Process(new LapEdge(0, 1, 1000)).Kind == LapUpdateKind.Started, "ineligible best race should start");
-LapUpdate ineligibleBest = ineligibleBestRace.Process(new LapEdge(0, 2, 3000), fastestLapEligible: false);
+LapUpdate ineligibleBest = ineligibleBestRace.Process(new LapEdge(0, 2, 3000), countFirstEdgeAsLap: false, fastestLapEligible: false);
 Assert(ineligibleBest.Kind == LapUpdateKind.Counted, "ineligible best lap should still count");
 Assert(ineligibleBestRace.GetLane(0).getCount() == 1, "ineligible best lap should increment count");
 Assert(ineligibleBestRace.GetLane(0).best_time == int.MaxValue, "ineligible best lap should not set best time");
+
+LapRace carriedCountRace = new(new LapRaceOptions(1000, 600000, 155.0));
+carriedCountRace.ResetTimingForHeat(new[] { 4, 0, 0, 0, 0, 0, 0, 0 });
+LapUpdate countedFirstEdge = carriedCountRace.Process(new LapEdge(0, 1, 1000), countFirstEdgeAsLap: true, fastestLapEligible: false);
+Assert(countedFirstEdge.Kind == LapUpdateKind.Counted, "first edge can count in successive heats");
+Assert(!countedFirstEdge.LapMilliseconds.HasValue, "first counted edge should not have a timed lap");
+Assert(carriedCountRace.GetLane(0).getCount() == 5, "first counted edge should increment carried count");
+Assert(carriedCountRace.GetLane(0).getMedian() == 0, "first counted edge should not affect timing samples");
 
 LapRace wrapRace = new(new LapRaceOptions(1000, 600000, 155.0));
 Assert(wrapRace.Process(new LapEdge(0, uint.MaxValue, uint.MaxValue - 500)).Kind == LapUpdateKind.Started, "wrap race should start");
@@ -89,16 +97,19 @@ Assert(adjustedAfterPause.Edge.TimestampMillis == 10000, "heat adjustment should
 Assert(!heat.IsExpired(70999), "heat should not expire before configured active time");
 Assert(heat.IsExpired(71000), "heat should expire at configured active time");
 Assert(heat.Complete(), "expired heat should complete");
-Assert(heat.PrepareNextHeat(), "completed heat should prepare next heat");
+Assert(heat.PrepareNextHeat(new[] { 10, 11, 12, 13, 14, 15, 16, 17 }), "completed heat should prepare next heat");
 Assert(heat.HeatNumber == 2, "next heat should be heat 2");
 HeatRaceSnapshot secondHeat = heat.GetSnapshot(80000);
 Assert(secondHeat.LaneRacers[0] == "R8", "waiting racer should enter on red");
 Assert(secondHeat.LaneRacers[1] == "R0", "red racer should rotate to green");
 Assert(secondHeat.LaneRacers[7] == "R6", "orange racer should rotate to white");
 Assert(secondHeat.OnDeckRacer == "R7", "white racer should rotate out to on deck");
+Assert(secondHeat.LaneLapCounts[1] == 10, "red racer's lap total should rotate to green");
+Assert(secondHeat.LaneLapCounts[7] == 16, "orange racer's lap total should rotate to white");
 Assert(heat.Start(80000), "next heat should start");
 HeatRaceEdgeDecision secondHeatFirstEdge = heat.PrepareEdge(new LapEdge(0, 3, 81000));
 Assert(secondHeatFirstEdge.Edge.TimestampMillis == 61000, "second heat adjusted time should continue after heat 1");
+Assert(secondHeatFirstEdge.CountFirstEdgeAsLap, "first lane edge after heat 1 should count as a lap");
 Assert(!secondHeatFirstEdge.FastestLapEligible, "first lane edge after heat 1 should not be fastest eligible");
 
 Console.WriteLine("Protocol and lap race tests passed.");

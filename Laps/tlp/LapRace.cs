@@ -112,9 +112,9 @@ namespace tlp
         }
 
         public LapUpdate Process(LapEdge edge) =>
-            Process(edge, fastestLapEligible: true);
+            Process(edge, countFirstEdgeAsLap: false, fastestLapEligible: true);
 
-        public LapUpdate Process(LapEdge edge, bool fastestLapEligible)
+        public LapUpdate Process(LapEdge edge, bool countFirstEdgeAsLap, bool fastestLapEligible)
         {
             if (edge.LaneIndex < 0 || edge.LaneIndex >= _lanes.Length)
             {
@@ -151,6 +151,12 @@ namespace tlp
                 if (!lane.LastAcceptedTimestamp.HasValue)
                 {
                     lane.LastAcceptedTimestamp = edge.TimestampMillis;
+                    if (countFirstEdgeAsLap)
+                    {
+                        lane.Stats.AddLapCountOnly();
+                        return new LapUpdate(LapUpdateKind.Counted, edge.LaneIndex, null, lane.MissedFrames, "first edge counted without lap timing");
+                    }
+
                     return new LapUpdate(LapUpdateKind.Started, edge.LaneIndex, null, lane.MissedFrames, "first edge establishes baseline");
                 }
 
@@ -176,6 +182,29 @@ namespace tlp
                     lapMilliseconds,
                     lane.MissedFrames,
                     GetCountedDetail(missedFrames, fastestLapEligible));
+            }
+        }
+
+        public int[] GetLapCounts()
+        {
+            lock (_gate)
+            {
+                return _lanes.Select(lane => lane.Stats.getCount()).ToArray();
+            }
+        }
+
+        public void ResetTimingForHeat(IReadOnlyList<int> lapCounts)
+        {
+            lock (_gate)
+            {
+                for (int i = 0; i < _lanes.Length; i++)
+                {
+                    int lapCount = i < lapCounts.Count ? Math.Max(0, lapCounts[i]) : 0;
+                    _lanes[i].Stats.ResetTiming(lapCount);
+                    _lanes[i].LastAcceptedTimestamp = null;
+                    _lanes[i].LastSequence = null;
+                    _lanes[i].MissedFrames = 0;
+                }
             }
         }
 
