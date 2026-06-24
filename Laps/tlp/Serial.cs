@@ -17,6 +17,7 @@ namespace tlp
         private TaskCompletionSource _reconnectNow = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private Task? _readerTask;
         private SerialPort? _port;
+        private System.Threading.Timer? _betweenHeatsTimer;
         private uint _latestControllerTimestamp;
         private bool _hasControllerTimestamp;
         private bool _trackPowerEnabled = true;
@@ -56,6 +57,7 @@ namespace tlp
 
         public void Init()
         {
+            CancelBetweenHeatsTimer();
             _heatRace.SetPracticeMode();
             _race.Reset();
             _form.ResetBoardDisplay(clearRacers: true);
@@ -92,17 +94,19 @@ namespace tlp
                 enabled ? "Track power restore requested" : "Track power cut requested");
         }
 
-        public void ConfigureHeatRace(int heatLengthMinutes)
+        public void ConfigureHeatRace(int heatLengthMinutes, int betweenHeatsSeconds)
         {
+            CancelBetweenHeatsTimer();
             _race.Reset();
             _form.ResetBoardDisplay(clearRacers: false);
-            _heatRace.Configure(heatLengthMinutes);
-            SetTrackPowerEnabled(false, null, $"Heat race ready: {heatLengthMinutes} minute heat. Press Space to start.");
-            _log.Info($"heat race configured for {heatLengthMinutes} minute(s)");
+            _heatRace.Configure(heatLengthMinutes, betweenHeatsSeconds);
+            SetTrackPowerEnabled(false, null, $"Heat 1 ready: {heatLengthMinutes} minute heat. Press Space to start.");
+            _log.Info($"heat race configured for {heatLengthMinutes} minute(s), {betweenHeatsSeconds} second(s) between heats");
         }
 
         public void SetPracticeMode()
         {
+            CancelBetweenHeatsTimer();
             _heatRace.SetPracticeMode();
             _form.SetStatusMessage("Practice mode");
         }
@@ -115,8 +119,8 @@ namespace tlp
                 case HeatRaceState.Ready:
                     if (_heatRace.Start(controllerTimestamp))
                     {
-                        SetTrackPowerEnabled(true, "Let's go", $"Heat started. Time remaining {_heatRace.GetRemaining(controllerTimestamp):m\\:ss}");
-                        _log.Info("heat started");
+                        SetTrackPowerEnabled(true, "Let's go", $"Heat {_heatRace.HeatNumber} started. Time remaining {_heatRace.GetRemaining(controllerTimestamp):m\\:ss}");
+                        _log.Info($"heat {_heatRace.HeatNumber} started");
                     }
                     break;
                 case HeatRaceState.Running:
@@ -134,7 +138,7 @@ namespace tlp
                     }
                     break;
                 case HeatRaceState.Complete:
-                    _form.SetStatusMessage("Heat complete");
+                    StartNextHeatFromComplete(manualStart: true);
                     break;
                 default:
                     SetTrackPowerEnabled(!_trackPowerEnabled);
@@ -421,10 +425,60 @@ namespace tlp
             if (_heatRace.Complete())
             {
                 SetTrackPowerEnabled(false, "Heat over", "Heat complete");
-                _log.Info("heat complete");
+                _log.Info($"heat {_heatRace.HeatNumber} complete");
+                ScheduleNextHeatIfNeeded();
             }
 
             return true;
+        }
+
+        private void ScheduleNextHeatIfNeeded()
+        {
+            if (!_heatRace.HasMoreHeats)
+            {
+                _form.SetStatusMessage("Heat race complete");
+                return;
+            }
+
+            int betweenHeatsSeconds = _heatRace.BetweenHeatsSeconds;
+            if (betweenHeatsSeconds <= 0)
+            {
+                _form.SetStatusMessage($"Heat {_heatRace.HeatNumber} complete. Press Space for next heat.");
+                return;
+            }
+
+            CancelBetweenHeatsTimer();
+            _form.SetStatusMessage($"Heat {_heatRace.HeatNumber} complete. Next heat in {betweenHeatsSeconds} seconds.");
+            _betweenHeatsTimer = new System.Threading.Timer(
+                _ => StartNextHeatFromComplete(manualStart: false),
+                null,
+                TimeSpan.FromSeconds(betweenHeatsSeconds),
+                Timeout.InfiniteTimeSpan);
+        }
+
+        private void StartNextHeatFromComplete(bool manualStart)
+        {
+            CancelBetweenHeatsTimer();
+            if (!_heatRace.PrepareNextHeat())
+            {
+                _form.SetStatusMessage("Heat race complete");
+                return;
+            }
+
+            uint controllerTimestamp = GetControllerTimestamp();
+            if (_heatRace.Start(controllerTimestamp))
+            {
+                SetTrackPowerEnabled(true, "Let's go", $"Heat {_heatRace.HeatNumber} started. Time remaining {_heatRace.GetRemaining(controllerTimestamp):m\\:ss}");
+                _log.Info(manualStart
+                    ? $"heat {_heatRace.HeatNumber} started manually"
+                    : $"heat {_heatRace.HeatNumber} started automatically");
+            }
+        }
+
+        private void CancelBetweenHeatsTimer()
+        {
+            System.Threading.Timer? timer = Interlocked.Exchange(ref _betweenHeatsTimer, null);
+            timer?.Dispose();
         }
 
         private static string FormatSeconds(int milliseconds) =>
@@ -515,6 +569,7 @@ namespace tlp
         public void Dispose()
         {
             _stop.Cancel();
+            CancelBetweenHeatsTimer();
             CloseActivePort();
             try
             {

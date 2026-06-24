@@ -17,15 +17,31 @@ namespace tlp
 
     public sealed class HeatRaceController
     {
+        public const int TotalHeats = 8;
+
         private readonly bool[] _laneSeenThisHeat = new bool[LapProtocolParser.LaneCount];
         private readonly object _gate = new();
         private long _heatLengthMilliseconds;
+        private int _betweenHeatsSeconds;
         private long _activeMillisecondsBeforeRun;
+        private long _raceTimestampBase;
         private uint _runStartedAt;
         private bool _hasRunStartedAt;
         private bool _isFirstHeat = true;
 
         public HeatRaceState State { get; private set; } = HeatRaceState.Practice;
+        public int HeatNumber { get; private set; }
+        public bool HasMoreHeats => HeatNumber > 0 && HeatNumber < TotalHeats;
+        public int BetweenHeatsSeconds
+        {
+            get
+            {
+                lock (_gate)
+                {
+                    return _betweenHeatsSeconds;
+                }
+            }
+        }
 
         public int HeatLengthMinutes
         {
@@ -38,13 +54,16 @@ namespace tlp
             }
         }
 
-        public void Configure(int heatLengthMinutes)
+        public void Configure(int heatLengthMinutes, int betweenHeatsSeconds)
         {
             lock (_gate)
             {
                 _heatLengthMilliseconds = Math.Max(1, heatLengthMinutes) * 60000L;
+                _betweenHeatsSeconds = Math.Clamp(betweenHeatsSeconds, 0, 300);
                 _activeMillisecondsBeforeRun = 0;
+                _raceTimestampBase = 0;
                 _hasRunStartedAt = false;
+                HeatNumber = 1;
                 _isFirstHeat = true;
                 Array.Fill(_laneSeenThisHeat, false);
                 State = HeatRaceState.Ready;
@@ -57,7 +76,9 @@ namespace tlp
             {
                 State = HeatRaceState.Practice;
                 _activeMillisecondsBeforeRun = 0;
+                _raceTimestampBase = 0;
                 _hasRunStartedAt = false;
+                HeatNumber = 0;
                 Array.Fill(_laneSeenThisHeat, false);
             }
         }
@@ -71,7 +92,6 @@ namespace tlp
                     return false;
                 }
 
-                _activeMillisecondsBeforeRun = 0;
                 _runStartedAt = controllerTimestamp;
                 _hasRunStartedAt = true;
                 Array.Fill(_laneSeenThisHeat, false);
@@ -121,9 +141,29 @@ namespace tlp
                     return false;
                 }
 
+                _raceTimestampBase += _heatLengthMilliseconds;
                 _activeMillisecondsBeforeRun = _heatLengthMilliseconds;
                 _hasRunStartedAt = false;
                 State = HeatRaceState.Complete;
+                return true;
+            }
+        }
+
+        public bool PrepareNextHeat()
+        {
+            lock (_gate)
+            {
+                if (State != HeatRaceState.Complete || !HasMoreHeats)
+                {
+                    return false;
+                }
+
+                HeatNumber++;
+                _activeMillisecondsBeforeRun = 0;
+                _hasRunStartedAt = false;
+                _isFirstHeat = false;
+                Array.Fill(_laneSeenThisHeat, false);
+                State = HeatRaceState.Ready;
                 return true;
             }
         }
@@ -161,7 +201,7 @@ namespace tlp
                 _laneSeenThisHeat[edge.LaneIndex] = true;
 
                 bool fastestLapEligible = !isFirstLaneEdge || _isFirstHeat;
-                uint adjustedTimestamp = (uint)GetElapsedMillisecondsCore(edge.TimestampMillis);
+                uint adjustedTimestamp = (uint)(_raceTimestampBase + GetElapsedMillisecondsCore(edge.TimestampMillis));
                 LapEdge adjustedEdge = edge with { TimestampMillis = adjustedTimestamp };
 
                 return new HeatRaceEdgeDecision(

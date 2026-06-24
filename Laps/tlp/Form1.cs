@@ -92,7 +92,7 @@ namespace tlp
             if (heatRaceSetup.ShowDialog(this) == DialogResult.OK)
             {
                 SetHeatRaceMode();
-                s.ConfigureHeatRace(heatRaceSetup.HeatLengthMinutes);
+                s.ConfigureHeatRace(heatRaceSetup.HeatLengthMinutes, heatRaceSetup.BetweenHeatsSeconds);
             }
         }
 

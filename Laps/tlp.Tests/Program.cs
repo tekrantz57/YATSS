@@ -72,8 +72,10 @@ Assert(wrappedTime.Kind == LapUpdateKind.Counted, "wrapped sequence and timestam
 Assert(wrappedTime.LapMilliseconds == 2001, "timestamp wrap should preserve elapsed milliseconds");
 
 HeatRaceController heat = new();
-heat.Configure(1);
+heat.Configure(1, 15);
 Assert(heat.State == HeatRaceState.Ready, "configured heat should be ready");
+Assert(heat.BetweenHeatsSeconds == 15, "between-heats seconds should be configured");
+Assert(heat.HeatNumber == 1, "configured heat should start at heat 1");
 Assert(heat.Start(1000), "ready heat should start");
 Assert(heat.PrepareEdge(new LapEdge(0, 1, 2000)).Edge.TimestampMillis == 1000, "running heat should adjust edge to active time");
 Assert(heat.Pause(10000), "running heat should pause");
@@ -82,5 +84,12 @@ HeatRaceEdgeDecision adjustedAfterPause = heat.PrepareEdge(new LapEdge(0, 2, 210
 Assert(adjustedAfterPause.Edge.TimestampMillis == 10000, "heat adjustment should subtract paused time");
 Assert(!heat.IsExpired(70999), "heat should not expire before configured active time");
 Assert(heat.IsExpired(71000), "heat should expire at configured active time");
+Assert(heat.Complete(), "expired heat should complete");
+Assert(heat.PrepareNextHeat(), "completed heat should prepare next heat");
+Assert(heat.HeatNumber == 2, "next heat should be heat 2");
+Assert(heat.Start(80000), "next heat should start");
+HeatRaceEdgeDecision secondHeatFirstEdge = heat.PrepareEdge(new LapEdge(0, 3, 81000));
+Assert(secondHeatFirstEdge.Edge.TimestampMillis == 61000, "second heat adjusted time should continue after heat 1");
+Assert(!secondHeatFirstEdge.FastestLapEligible, "first lane edge after heat 1 should not be fastest eligible");
 
 Console.WriteLine("Protocol and lap race tests passed.");

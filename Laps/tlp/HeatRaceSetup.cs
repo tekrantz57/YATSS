@@ -21,10 +21,12 @@ namespace tlp
         private readonly DataGridView _laneGrid = new();
         private readonly Label _queueLabel = new();
         private readonly NumericUpDown _heatLengthMinutes = new();
+        private readonly NumericUpDown _betweenHeatsSeconds = new();
         private readonly Random _random = new();
         private readonly List<string> _selectedNames = new();
 
         public int HeatLengthMinutes => (int)_heatLengthMinutes.Value;
+        public int BetweenHeatsSeconds => (int)_betweenHeatsSeconds.Value;
 
         public HeatRaceSetup()
         {
@@ -142,6 +144,20 @@ namespace tlp
             _heatLengthMinutes.Value = 3;
             _heatLengthMinutes.Width = 64;
             heatSettings.Controls.Add(_heatLengthMinutes);
+
+            Label betweenHeatsLabel = new()
+            {
+                Text = "Between heats (seconds)",
+                AutoSize = true,
+                Margin = new Padding(18, 6, 8, 0)
+            };
+            heatSettings.Controls.Add(betweenHeatsLabel);
+
+            _betweenHeatsSeconds.Minimum = 0;
+            _betweenHeatsSeconds.Maximum = 300;
+            _betweenHeatsSeconds.Value = 0;
+            _betweenHeatsSeconds.Width = 64;
+            heatSettings.Controls.Add(_betweenHeatsSeconds);
 
             ConfigureLaneGrid();
             heatLayout.Controls.Add(_laneGrid, 0, 1);
