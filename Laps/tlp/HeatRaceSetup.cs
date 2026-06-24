@@ -253,7 +253,7 @@ namespace tlp
         {
             List<string> racerNames = new();
             using SqliteCommand command = MKTS.conn.CreateCommand();
-            command.CommandText = @"SELECT name FROM users ORDER BY name";
+            command.CommandText = @"SELECT name FROM users ORDER BY name COLLATE NOCASE, name";
 
             using SqliteDataReader reader = command.ExecuteReader();
             while (reader.Read())
