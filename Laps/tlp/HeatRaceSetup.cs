@@ -25,6 +25,7 @@ namespace tlp
         private readonly Button _okButton = new();
         private readonly Random _random = new();
         private readonly List<string> _selectedNames = new();
+        private bool _loadingRacers;
 
         public int HeatLengthMinutes => (int)_heatLengthMinutes.Value;
         public int BetweenHeatsSeconds => (int)_betweenHeatsSeconds.Value;
@@ -78,7 +79,13 @@ namespace tlp
 
             _racerList.Dock = DockStyle.Fill;
             _racerList.CheckOnClick = true;
-            _racerList.ItemCheck += (_, _) => BeginInvoke(UpdateSelection);
+            _racerList.ItemCheck += (_, _) =>
+            {
+                if (!_loadingRacers)
+                {
+                    BeginInvoke(UpdateSelection);
+                }
+            };
             racerLayout.Controls.Add(_racerList, 0, 0);
 
             FlowLayoutPanel racerButtons = new()
@@ -103,6 +110,14 @@ namespace tlp
             };
             clearButton.Click += (_, _) => SetAllRacersChecked(false);
             racerButtons.Controls.Add(clearButton);
+
+            Button editUsersButton = new()
+            {
+                Text = "Add User...",
+                AutoSize = true
+            };
+            editUsersButton.Click += (_, _) => OpenEditUsers();
+            racerButtons.Controls.Add(editUsersButton);
 
             _queueLabel.Dock = DockStyle.Fill;
             _queueLabel.TextAlign = ContentAlignment.MiddleLeft;
@@ -227,6 +242,7 @@ namespace tlp
 
         private void LoadRacers()
         {
+            _racerList.Items.Clear();
             foreach (string name in LoadRacerNames())
             {
                 _racerList.Items.Add(name, false);
@@ -263,6 +279,54 @@ namespace tlp
             }
 
             UpdateSelection();
+        }
+
+        private void OpenEditUsers()
+        {
+            List<string> selectedBeforeEdit = _selectedNames.ToList();
+            using EditUsers editUsers = new();
+            editUsers.ShowDialog(this);
+            ReloadRacers(selectedBeforeEdit);
+        }
+
+        private void ReloadRacers(IReadOnlyList<string> selectedNames)
+        {
+            _loadingRacers = true;
+            try
+            {
+                LoadRacers();
+                HashSet<string> availableNames = new(StringComparer.OrdinalIgnoreCase);
+                foreach (object item in _racerList.Items)
+                {
+                    if (item is string name)
+                    {
+                        availableNames.Add(name);
+                    }
+                }
+
+                _selectedNames.Clear();
+                foreach (string selectedName in selectedNames)
+                {
+                    if (availableNames.Contains(selectedName))
+                    {
+                        _selectedNames.Add(selectedName);
+                    }
+                }
+
+                for (int i = 0; i < _racerList.Items.Count; i++)
+                {
+                    string? racerName = _racerList.Items[i]?.ToString();
+                    bool isChecked = !string.IsNullOrWhiteSpace(racerName) &&
+                        _selectedNames.Contains(racerName, StringComparer.OrdinalIgnoreCase);
+                    _racerList.SetItemChecked(i, isChecked);
+                }
+            }
+            finally
+            {
+                _loadingRacers = false;
+            }
+
+            RenderSelection();
         }
 
         private void RandomizeSelectedRacers()
