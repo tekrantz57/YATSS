@@ -58,9 +58,10 @@ namespace tlp
         {
             EnsureStarted();
             _requests?.Add(new SpeechRequest(
-                new[] { "3", "2", "1", "Let's go" },
+                new[] { "3 2 1 Let's go" },
                 voiceName,
                 TimeSpan.Zero,
+                Rate: 4,
                 afterSpeech));
         }
 
@@ -88,6 +89,7 @@ namespace tlp
         {
             dynamic? voice = null;
             string activeVoiceName = "";
+            int? originalRate = null;
 
             foreach (SpeechRequest request in requests.GetConsumingEnumerable())
             {
@@ -105,6 +107,12 @@ namespace tlp
                         activeVoiceName = request.VoiceName;
                     }
 
+                    if (request.Rate.HasValue)
+                    {
+                        originalRate = voice.Rate;
+                        voice.Rate = Math.Clamp(request.Rate.Value, -10, 10);
+                    }
+
                     for (int i = 0; i < request.Phrases.Count; i++)
                     {
                         string phrase = request.Phrases[i];
@@ -118,6 +126,8 @@ namespace tlp
                             Thread.Sleep(request.DelayBetweenPhrases);
                         }
                     }
+
+                    RestoreRate(voice, ref originalRate);
                 }
                 catch
                 {
@@ -127,6 +137,8 @@ namespace tlp
                 {
                     try
                     {
+                        RestoreRate(voice, ref originalRate);
+
                         request.AfterSpeech?.Invoke();
                     }
                     catch
@@ -140,6 +152,20 @@ namespace tlp
         {
             Type? voiceType = Type.GetTypeFromProgID("SAPI.SpVoice");
             return voiceType == null ? null : Activator.CreateInstance(voiceType);
+        }
+
+        private static void RestoreRate(object? voice, ref int? originalRate)
+        {
+            if (voice == null || !originalRate.HasValue)
+            {
+                return;
+            }
+
+            int rate = originalRate.Value;
+            object nonNullVoiceObject = voice;
+            dynamic nonNullVoice = nonNullVoiceObject;
+            nonNullVoice.Rate = rate;
+            originalRate = null;
         }
 
         private static void ApplyVoice(dynamic voice, string voiceName)
@@ -166,10 +192,11 @@ namespace tlp
             IReadOnlyList<string> Phrases,
             string VoiceName,
             TimeSpan DelayBetweenPhrases,
+            int? Rate,
             Action? AfterSpeech)
         {
             public static SpeechRequest Single(string phrase, string voiceName) =>
-                new(new[] { phrase }, voiceName, TimeSpan.Zero, null);
+                new(new[] { phrase }, voiceName, TimeSpan.Zero, null, null);
         }
     }
 }
