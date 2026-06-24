@@ -193,6 +193,29 @@ namespace tlp
             }
         }
 
+        public int?[] GetBestLapMilliseconds()
+        {
+            lock (_gate)
+            {
+                return _lanes
+                    .Select(lane => lane.Stats.best_time == int.MaxValue ? (int?)null : lane.Stats.best_time)
+                    .ToArray();
+            }
+        }
+
+        public int AdjustLapCount(int laneIndex, int delta)
+        {
+            if (laneIndex < 0 || laneIndex >= _lanes.Length || delta == 0)
+            {
+                return 0;
+            }
+
+            lock (_gate)
+            {
+                return _lanes[laneIndex].Stats.AdjustLapCount(delta);
+            }
+        }
+
         public void ResetTimingForHeat(IReadOnlyList<int> lapCounts)
         {
             lock (_gate)

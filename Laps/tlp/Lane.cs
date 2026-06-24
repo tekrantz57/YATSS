@@ -12,6 +12,7 @@ namespace tlp
         int lane;
         List<int> times;
         int carriedLapCount;
+        int manualLapAdjustment;
         public int best_time { get; set; }
               
         public Lane(int l)
@@ -33,16 +34,24 @@ namespace tlp
             carriedLapCount++;
         }
 
+        public int AdjustLapCount(int delta)
+        {
+            int baseCount = carriedLapCount + times.Count;
+            manualLapAdjustment = Math.Max(-baseCount, manualLapAdjustment + delta);
+            return getCount();
+        }
+
         public void ResetTiming(int lapCount)
         {
             carriedLapCount = lapCount;
+            manualLapAdjustment = 0;
             times.Clear();
             best_time = Int32.MaxValue;
         }
 
         public int getCount()
         {
-            return carriedLapCount + times.Count();
+            return carriedLapCount + times.Count() + manualLapAdjustment;
         }
 
         public int getMedian()

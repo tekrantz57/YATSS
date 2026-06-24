@@ -53,6 +53,11 @@ namespace tlp
 
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
+            if (TryHandleLapAdjustmentKey(keyData))
+            {
+                return true;
+            }
+
             if (keyData == Keys.Space)
             {
                 s.HandleSpaceBar();
@@ -60,6 +65,37 @@ namespace tlp
             }
 
             return base.ProcessCmdKey(ref msg, keyData);
+        }
+
+        private static bool TryGetLaneKey(Keys keyCode, out int laneIndex)
+        {
+            laneIndex = keyCode switch
+            {
+                Keys.D1 or Keys.NumPad1 => 0,
+                Keys.D2 or Keys.NumPad2 => 1,
+                Keys.D3 or Keys.NumPad3 => 2,
+                Keys.D4 or Keys.NumPad4 => 3,
+                Keys.D5 or Keys.NumPad5 => 4,
+                Keys.D6 or Keys.NumPad6 => 5,
+                Keys.D7 or Keys.NumPad7 => 6,
+                Keys.D8 or Keys.NumPad8 => 7,
+                _ => -1
+            };
+
+            return laneIndex >= 0;
+        }
+
+        private bool TryHandleLapAdjustmentKey(Keys keyData)
+        {
+            Keys keyCode = keyData & Keys.KeyCode;
+            if (!TryGetLaneKey(keyCode, out int laneIndex) || !keyData.HasFlag(Keys.Control))
+            {
+                return false;
+            }
+
+            int delta = keyData.HasFlag(Keys.Shift) ? -1 : 1;
+            s.AdjustStoppedHeatLap(laneIndex, delta);
+            return true;
         }
 
         private void tableLayoutPanel1_Paint(object sender, PaintEventArgs e)

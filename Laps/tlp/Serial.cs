@@ -150,6 +150,27 @@ namespace tlp
             }
         }
 
+        public bool AdjustStoppedHeatLap(int laneIndex, int delta)
+        {
+            if (!_heatRace.CanAdjustLapCounts)
+            {
+                _form.SetStatusMessage("Lap adjustment is only available during stopped heat time");
+                return false;
+            }
+
+            int count = _race.AdjustLapCount(laneIndex, delta);
+            Lane lane = _race.GetLane(laneIndex);
+            string bestSeconds = lane.best_time == int.MaxValue ? string.Empty : FormatSeconds(lane.best_time);
+            string medianSeconds = FormatOptionalSeconds(lane.getMedian());
+            _form.UpdateLaneDisplay(laneIndex, count, string.Empty, bestSeconds, medianSeconds, string.Empty);
+            RecordCurrentHeatResults();
+
+            string direction = delta > 0 ? "added to" : "subtracted from";
+            _log.Info($"lane {laneIndex}: manual lap {direction} stopped heat, count {count}");
+            _form.SetStatusMessage($"Lane {laneIndex + 1}: manual lap {direction} total, count {count}");
+            return true;
+        }
+
         private void SetTrackPowerEnabled(bool enabled, string? speech, string statusMessage)
         {
             _trackPowerEnabled = enabled;
@@ -501,6 +522,7 @@ namespace tlp
 
             if (_heatRace.Complete())
             {
+                RecordCurrentHeatResults();
                 PublishHeatRaceStatus("Complete");
                 string completionSpeech = _heatRace.HasMoreHeats
                     ? $"Heat {_heatRace.HeatNumber} of {HeatRaceController.TotalHeats} over"
@@ -519,6 +541,7 @@ namespace tlp
             {
                 PublishHeatRaceStatus("Race complete");
                 _form.SetStatusMessage("Heat race complete");
+                WriteHeatRaceReport();
                 return;
             }
 
@@ -544,10 +567,12 @@ namespace tlp
         private void StartNextHeatFromComplete(bool manualStart)
         {
             CancelBetweenHeatsTimer();
+            RecordCurrentHeatResults();
             if (!_heatRace.PrepareNextHeat(_race.GetLapCounts()))
             {
                 PublishHeatRaceStatus("Race complete");
                 _form.SetStatusMessage("Heat race complete");
+                WriteHeatRaceReport();
                 return;
             }
 
@@ -574,6 +599,27 @@ namespace tlp
                 ? _nextHeatStartUtc.Value - DateTime.UtcNow
                 : snapshot.Remaining;
             _form.UpdateHeatRaceStatus(snapshot.HeatNumber, state, remaining, snapshot.OnDeckRacer);
+        }
+
+        private void RecordCurrentHeatResults()
+        {
+            _heatRace.RecordHeatResults(_race.GetLapCounts(), _race.GetBestLapMilliseconds());
+        }
+
+        private void WriteHeatRaceReport()
+        {
+            try
+            {
+                string path = HeatRaceReportWriter.Write(_heatRace.CreateReport());
+                HeatRaceReportWriter.Open(path);
+                _log.Info($"heat race report written to {path}");
+                _form.SetStatusMessage($"Heat race report written: {path}");
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is InvalidOperationException)
+            {
+                _log.Error(ex, "heat race report failed");
+                _form.SetStatusMessage("Heat race report could not be written");
+            }
         }
 
         private string GetCurrentHeatStatusName()

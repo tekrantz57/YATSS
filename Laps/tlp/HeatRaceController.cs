@@ -24,11 +24,44 @@ namespace tlp
         IReadOnlyList<string> LaneRacers,
         IReadOnlyList<int> LaneLapCounts);
 
+    public sealed record HeatRaceLaneResult(
+        int HeatNumber,
+        int LaneIndex,
+        string LaneName,
+        string RacerName,
+        int HeatLaps,
+        int TotalLaps,
+        int? BestLapMilliseconds);
+
+    public sealed record HeatRaceRacerReport(
+        string RacerName,
+        int TotalLaps,
+        IReadOnlyList<int> HeatLaps,
+        IReadOnlyList<int?> BestLapByLaneMilliseconds);
+
+    public sealed record HeatRaceReport(
+        DateTime CreatedLocal,
+        IReadOnlyList<string> LaneNames,
+        IReadOnlyList<HeatRaceRacerReport> Racers,
+        IReadOnlyList<HeatRaceLaneResult> LaneResults);
+
     public sealed class HeatRaceController
     {
         public const int TotalHeats = 8;
+        private static readonly string[] LaneNameValues =
+        {
+            "Red",
+            "White",
+            "Green",
+            "Orange",
+            "Blue",
+            "Yellow",
+            "Purple",
+            "Black"
+        };
         private static readonly int[] InitialLaneOrder = { 0, 1, 2, 3, 4, 5, 6, 7 };
         private static readonly int[] RotationLaneOrder = { 0, 2, 4, 6, 7, 5, 3, 1 };
+        public static IReadOnlyList<string> LaneNames => LaneNameValues;
         public static IReadOnlyList<int> InitialLaneIndexes => InitialLaneOrder;
         public static IReadOnlyList<int> RotationLaneIndexes => RotationLaneOrder;
 
@@ -37,6 +70,7 @@ namespace tlp
             .Select(_ => new RacerEntry(string.Empty))
             .ToArray();
         private readonly Queue<RacerEntry> _waitingRacers = new();
+        private readonly List<HeatRaceLaneResult> _laneResults = new();
         private readonly object _gate = new();
         private long _heatLengthMilliseconds;
         private int _betweenHeatsSeconds;
@@ -82,6 +116,7 @@ namespace tlp
                 _hasRunStartedAt = false;
                 HeatNumber = 1;
                 _isFirstHeat = true;
+                _laneResults.Clear();
                 SetInitialRacers(racers);
                 Array.Fill(_laneSeenThisHeat, false);
                 State = HeatRaceState.Ready;
@@ -97,6 +132,7 @@ namespace tlp
                 _raceTimestampBase = 0;
                 _hasRunStartedAt = false;
                 HeatNumber = 0;
+                _laneResults.Clear();
                 ClearRacers();
                 _waitingRacers.Clear();
                 Array.Fill(_laneSeenThisHeat, false);
@@ -252,6 +288,100 @@ namespace tlp
                     countFirstEdgeAsLap,
                     fastestLapEligible,
                     isFirstLaneEdge ? "first lane edge in heat" : "heat edge");
+            }
+        }
+
+        public bool CanAdjustLapCounts
+        {
+            get
+            {
+                lock (_gate)
+                {
+                    return State == HeatRaceState.Paused || State == HeatRaceState.Complete;
+                }
+            }
+        }
+
+        public void RecordHeatResults(IReadOnlyList<int> laneLapCounts, IReadOnlyList<int?> laneBestLapMilliseconds)
+        {
+            lock (_gate)
+            {
+                if (HeatNumber <= 0)
+                {
+                    return;
+                }
+
+                _laneResults.RemoveAll(result => result.HeatNumber == HeatNumber);
+                for (int i = 0; i < _laneRacers.Length; i++)
+                {
+                    string racerName = _laneRacers[i].Name;
+                    if (string.IsNullOrWhiteSpace(racerName))
+                    {
+                        continue;
+                    }
+
+                    int totalLaps = i < laneLapCounts.Count ? Math.Max(0, laneLapCounts[i]) : 0;
+                    int heatLaps = Math.Max(0, totalLaps - _laneRacers[i].LapCount);
+                    int? bestLap = i < laneBestLapMilliseconds.Count ? laneBestLapMilliseconds[i] : null;
+                    _laneResults.Add(new HeatRaceLaneResult(
+                        HeatNumber,
+                        i,
+                        LaneNameValues[i],
+                        racerName,
+                        heatLaps,
+                        totalLaps,
+                        bestLap));
+                }
+            }
+        }
+
+        public HeatRaceReport CreateReport()
+        {
+            lock (_gate)
+            {
+                Dictionary<string, List<HeatRaceLaneResult>> byRacer = _laneResults
+                    .GroupBy(result => result.RacerName, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(group => group.Key, group => group.ToList(), StringComparer.OrdinalIgnoreCase);
+
+                List<HeatRaceRacerReport> racers = new();
+                foreach ((string racerName, List<HeatRaceLaneResult> results) in byRacer)
+                {
+                    int[] heatLaps = new int[TotalHeats];
+                    int?[] bestByLane = new int?[LaneNameValues.Length];
+                    foreach (HeatRaceLaneResult result in results)
+                    {
+                        if (result.HeatNumber >= 1 && result.HeatNumber <= TotalHeats)
+                        {
+                            heatLaps[result.HeatNumber - 1] += result.HeatLaps;
+                        }
+
+                        if (result.BestLapMilliseconds is int bestLap)
+                        {
+                            int laneIndex = result.LaneIndex;
+                            bestByLane[laneIndex] = !bestByLane[laneIndex].HasValue
+                                ? bestLap
+                                : Math.Min(bestByLane[laneIndex]!.Value, bestLap);
+                        }
+                    }
+
+                    racers.Add(new HeatRaceRacerReport(
+                        racerName,
+                        results.Max(result => result.TotalLaps),
+                        heatLaps,
+                        bestByLane));
+                }
+
+                return new HeatRaceReport(
+                    DateTime.Now,
+                    LaneNameValues,
+                    racers
+                        .OrderByDescending(racer => racer.TotalLaps)
+                        .ThenBy(racer => racer.RacerName, StringComparer.OrdinalIgnoreCase)
+                        .ToArray(),
+                    _laneResults
+                        .OrderBy(result => result.HeatNumber)
+                        .ThenBy(result => result.LaneIndex)
+                        .ToArray());
             }
         }
 

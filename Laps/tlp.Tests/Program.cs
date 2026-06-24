@@ -46,6 +46,9 @@ LapUpdate counted = race.Process(new LapEdge(0, 3, 3500));
 Assert(counted.Kind == LapUpdateKind.Counted, "valid edge should count lap");
 Assert(counted.LapMilliseconds == 2500, "lap duration should be computed from last accepted edge");
 Assert(race.GetLane(0).getCount() == 1, "lane should have one counted lap");
+Assert(race.AdjustLapCount(0, 1) == 2, "manual add should increase lap count");
+Assert(race.AdjustLapCount(0, -1) == 1, "manual subtract should decrease lap count");
+Assert(race.AdjustLapCount(0, -5) == 0, "manual subtract should not create negative lap count");
 
 race.ResetLane(0);
 Assert(race.GetLane(0).getCount() == 0, "lane reset should clear lap count");
@@ -134,5 +137,19 @@ HeatRaceEdgeDecision secondHeatFirstEdge = heat.PrepareEdge(new LapEdge(0, 3, 81
 Assert(secondHeatFirstEdge.Edge.TimestampMillis == 61000, "second heat adjusted time should continue after heat 1");
 Assert(secondHeatFirstEdge.CountFirstEdgeAsLap, "first lane edge after heat 1 should count as a lap");
 Assert(!secondHeatFirstEdge.FastestLapEligible, "first lane edge after heat 1 should not be fastest eligible");
+
+HeatRaceController reportHeat = new();
+reportHeat.Configure(1, 0, new[] { "Ada", "Grace" });
+Assert(reportHeat.Start(0), "report heat should start");
+Assert(reportHeat.Pause(1000), "paused heat should allow lap adjustment");
+Assert(reportHeat.CanAdjustLapCounts, "paused heat should allow manual lap adjustment");
+reportHeat.RecordHeatResults(
+    new[] { 5, 4, 0, 0, 0, 0, 0, 0 },
+    new int?[] { 2100, 2200, null, null, null, null, null, null });
+HeatRaceReport report = reportHeat.CreateReport();
+Assert(report.Racers[0].RacerName == "Ada", "report should sort finish order by total laps");
+Assert(report.Racers[0].TotalLaps == 5, "report should include total laps");
+Assert(report.Racers[0].HeatLaps[0] == 5, "report should include heat laps");
+Assert(report.Racers[0].BestLapByLaneMilliseconds[0] == 2100, "report should include fast lap by lane");
 
 Console.WriteLine("Protocol and lap race tests passed.");
