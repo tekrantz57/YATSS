@@ -93,6 +93,7 @@ namespace tlp
             {
                 SetHeatRaceMode();
                 s.ConfigureHeatRace(heatRaceSetup.HeatLengthMinutes, heatRaceSetup.BetweenHeatsSeconds);
+                SetLaneRacerNames(heatRaceSetup.FirstHeatLaneRacers);
             }
         }
 
@@ -206,6 +207,18 @@ namespace tlp
             }
 
             RunOnUiThread(() => ResetLaneDisplayCore(laneIndex, clearRacer));
+        }
+
+        public void SetLaneRacerNames(IReadOnlyList<string> racerNames)
+        {
+            RunOnUiThread(() =>
+            {
+                for (int i = 0; i < _nameLabels.Length; i++)
+                {
+                    string racerName = i < racerNames.Count ? racerNames[i].Trim() : string.Empty;
+                    _nameLabels[i].Text = string.IsNullOrWhiteSpace(racerName) ? EmptyRacerName : racerName;
+                }
+            });
         }
 
         public void UpdateLaneDisplay(
