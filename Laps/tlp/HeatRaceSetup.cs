@@ -22,6 +22,7 @@ namespace tlp
         private readonly Label _queueLabel = new();
         private readonly NumericUpDown _heatLengthMinutes = new();
         private readonly NumericUpDown _betweenHeatsSeconds = new();
+        private readonly Button _okButton = new();
         private readonly Random _random = new();
         private readonly List<string> _selectedNames = new();
 
@@ -190,13 +191,10 @@ namespace tlp
             };
             buttons.Controls.Add(cancelButton);
 
-            Button okButton = new()
-            {
-                Text = "OK",
-                DialogResult = DialogResult.OK,
-                AutoSize = true
-            };
-            buttons.Controls.Add(okButton);
+            _okButton.Text = "OK";
+            _okButton.DialogResult = DialogResult.OK;
+            _okButton.AutoSize = true;
+            buttons.Controls.Add(_okButton);
 
             Button randomizeButton = new()
             {
@@ -206,7 +204,7 @@ namespace tlp
             randomizeButton.Click += (_, _) => RandomizeSelectedRacers();
             buttons.Controls.Add(randomizeButton);
 
-            AcceptButton = okButton;
+            AcceptButton = _okButton;
             CancelButton = cancelButton;
         }
 
@@ -315,6 +313,7 @@ namespace tlp
 
             int waiting = Math.Max(0, _selectedNames.Count - LaneNames.Length);
             _queueLabel.Text = $"{_selectedNames.Count} selected; {waiting} waiting. New racers enter on Red after White rotates out.";
+            _okButton.Enabled = _selectedNames.Count >= 2;
         }
 
         private string[] GetFirstHeatLaneRacers()
