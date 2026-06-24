@@ -233,6 +233,11 @@ namespace tlp
                     return new HeatRaceEdgeDecision(false, edge, false, false, "heat is not running");
                 }
 
+                if (string.IsNullOrWhiteSpace(_laneRacers[edge.LaneIndex].Name))
+                {
+                    return new HeatRaceEdgeDecision(false, edge, false, false, "lane is unoccupied");
+                }
+
                 bool isFirstLaneEdge = !_laneSeenThisHeat[edge.LaneIndex];
                 _laneSeenThisHeat[edge.LaneIndex] = true;
 
