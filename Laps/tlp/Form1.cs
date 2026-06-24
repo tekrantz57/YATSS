@@ -138,7 +138,7 @@ namespace tlp
         private void ConfigureBoardLayout()
         {
             ConfigureHeatStatusLayout();
-            _boardHeaderLabels = new[] { label2, label4, label6, label8, label10, label12 };
+            _boardHeaderLabels = new[] { racerHeaderLabel, lapsHeaderLabel, lastLapHeaderLabel, bestLapHeaderLabel, medianHeaderLabel, mphHeaderLabel };
             _nameLabels = new[] { name0, name1, name2, name3, name4, name5, name6, name7 };
             _lapLabels = new[] { laps0, laps1, laps2, laps3, laps4, laps5, laps6, laps7 };
             _lastLapLabels = new[] { ll0, ll1, ll2, ll3, ll4, ll5, ll6, ll7 };
@@ -165,8 +165,8 @@ namespace tlp
                 label.TextAlign = ContentAlignment.MiddleCenter;
             }
 
-            labelMKTS.AutoSize = false;
-            labelMKTS.TextAlign = ContentAlignment.MiddleCenter;
+            titleLabel.AutoSize = false;
+            titleLabel.TextAlign = ContentAlignment.MiddleCenter;
             ApplyBoardFonts();
         }
 
@@ -192,7 +192,7 @@ namespace tlp
                 SetFontSize(label, label.Height * 0.48f);
             }
 
-            SetFontSizeToFit(labelMKTS, labelMKTS.Height * 0.4f);
+            SetFontSizeToFit(titleLabel, titleLabel.Height * 0.4f);
         }
 
         private void ConfigureHeatStatusLayout()
@@ -221,16 +221,16 @@ namespace tlp
             heatStatusPanel.Controls.Add(_heatTimerLabel, 1, 0);
             heatStatusPanel.Controls.Add(_onDeckLabel, 2, 0);
 
-            tableLayoutPanel1.SuspendLayout();
-            tableLayoutPanel1.Controls.Remove(labelMKTS);
-            tableLayoutPanel1.RowStyles.Clear();
-            tableLayoutPanel1.RowCount = 3;
-            tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Percent, 80F));
-            tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Absolute, 42F));
-            tableLayoutPanel1.RowStyles.Add(new RowStyle(SizeType.Percent, 20F));
-            tableLayoutPanel1.Controls.Add(heatStatusPanel, 0, 1);
-            tableLayoutPanel1.Controls.Add(labelMKTS, 0, 2);
-            tableLayoutPanel1.ResumeLayout();
+            mainLayoutPanel.SuspendLayout();
+            mainLayoutPanel.Controls.Remove(titleLabel);
+            mainLayoutPanel.RowStyles.Clear();
+            mainLayoutPanel.RowCount = 3;
+            mainLayoutPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 80F));
+            mainLayoutPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 42F));
+            mainLayoutPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 20F));
+            mainLayoutPanel.Controls.Add(heatStatusPanel, 0, 1);
+            mainLayoutPanel.Controls.Add(titleLabel, 0, 2);
+            mainLayoutPanel.ResumeLayout();
         }
 
         private static Label CreateHeatStatusLabel(string text) =>
@@ -338,7 +338,7 @@ namespace tlp
 
         public void SetStatusMessage(string message)
         {
-            RunOnUiThread(() => statusMessageLabel.Text = message);
+            RunOnUiThread(() => statusLabel.Text = message);
         }
 
         private void ResetLaneDisplayCore(int laneIndex, bool clearRacer)
@@ -448,18 +448,18 @@ namespace tlp
 
         private void ShowRacerMenu(Label nameLabel)
         {
-            contextMenuStrip1 = new ContextMenuStrip
+            racerContextMenu = new ContextMenuStrip
             {
                 Tag = nameLabel
             };
 
             foreach (string racerName in LoadRacerNames())
             {
-                contextMenuStrip1.Items.Add(racerName);
+                racerContextMenu.Items.Add(racerName);
             }
 
-            contextMenuStrip1.ItemClicked += racerNameMenu_ItemClicked;
-            contextMenuStrip1.Show(Cursor.Position);
+            racerContextMenu.ItemClicked += racerNameMenu_ItemClicked;
+            racerContextMenu.Show(Cursor.Position);
         }
 
         private static List<string> LoadRacerNames()
