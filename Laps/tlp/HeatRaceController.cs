@@ -27,6 +27,8 @@ namespace tlp
     public sealed class HeatRaceController
     {
         public const int TotalHeats = 8;
+        private static readonly int[] RotationLaneOrder = { 0, 2, 4, 6, 7, 5, 3, 1 };
+        public static IReadOnlyList<int> RotationLaneIndexes => RotationLaneOrder;
 
         private readonly bool[] _laneSeenThisHeat = new bool[LapProtocolParser.LaneCount];
         private readonly RacerEntry[] _laneRacers = Enumerable.Range(0, LapProtocolParser.LaneCount)
@@ -278,9 +280,9 @@ namespace tlp
                     continue;
                 }
 
-                if (i < _laneRacers.Length)
+                if (i < RotationLaneIndexes.Count)
                 {
-                    _laneRacers[i] = new RacerEntry(racer);
+                    _laneRacers[RotationLaneIndexes[i]] = new RacerEntry(racer);
                 }
                 else
                 {
@@ -291,15 +293,16 @@ namespace tlp
 
         private void RotateRacers()
         {
-            RacerEntry rotatingOut = _laneRacers[^1];
-            for (int i = _laneRacers.Length - 1; i > 0; i--)
+            int whiteLaneIndex = RotationLaneIndexes[RotationLaneIndexes.Count - 1];
+            RacerEntry rotatingOut = _laneRacers[whiteLaneIndex];
+            for (int i = RotationLaneIndexes.Count - 1; i > 0; i--)
             {
-                _laneRacers[i] = _laneRacers[i - 1];
+                _laneRacers[RotationLaneIndexes[i]] = _laneRacers[RotationLaneIndexes[i - 1]];
             }
 
             if (_waitingRacers.Count > 0)
             {
-                _laneRacers[0] = _waitingRacers.Dequeue();
+                _laneRacers[RotationLaneIndexes[0]] = _waitingRacers.Dequeue();
                 if (!string.IsNullOrWhiteSpace(rotatingOut.Name))
                 {
                     _waitingRacers.Enqueue(rotatingOut);
@@ -307,7 +310,7 @@ namespace tlp
             }
             else
             {
-                _laneRacers[0] = rotatingOut;
+                _laneRacers[RotationLaneIndexes[0]] = rotatingOut;
             }
         }
 

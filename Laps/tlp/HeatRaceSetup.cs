@@ -28,10 +28,7 @@ namespace tlp
         public int HeatLengthMinutes => (int)_heatLengthMinutes.Value;
         public int BetweenHeatsSeconds => (int)_betweenHeatsSeconds.Value;
         public IReadOnlyList<string> SelectedRacers => _selectedNames.ToArray();
-        public IReadOnlyList<string> FirstHeatLaneRacers =>
-            Enumerable.Range(0, LaneNames.Length)
-                .Select(i => i < _selectedNames.Count ? _selectedNames[i] : string.Empty)
-                .ToArray();
+        public IReadOnlyList<string> FirstHeatLaneRacers => GetFirstHeatLaneRacers();
 
         public HeatRaceSetup()
         {
@@ -315,6 +312,18 @@ namespace tlp
 
             int waiting = Math.Max(0, _selectedNames.Count - LaneNames.Length);
             _queueLabel.Text = $"{_selectedNames.Count} selected; {waiting} waiting. New racers enter on Red after White rotates out.";
+        }
+
+        private string[] GetFirstHeatLaneRacers()
+        {
+            string[] laneRacers = new string[LaneNames.Length];
+            for (int i = 0; i < HeatRaceController.RotationLaneIndexes.Count; i++)
+            {
+                int laneIndex = HeatRaceController.RotationLaneIndexes[i];
+                laneRacers[laneIndex] = i < _selectedNames.Count ? _selectedNames[i] : string.Empty;
+            }
+
+            return laneRacers;
         }
     }
 }
