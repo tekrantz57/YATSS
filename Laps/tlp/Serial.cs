@@ -409,7 +409,7 @@ namespace tlp
             Lane lane = _race.GetLane(laneIndex);
             if (!update.LapMilliseconds.HasValue)
             {
-                _form.UpdateLaneDisplay(laneIndex, lane.getCount(), "0.000", "0.000", "0.000", "0.0");
+                _form.UpdateLaneDisplay(laneIndex, lane.getCount(), string.Empty, string.Empty, string.Empty, string.Empty);
                 _log.Info($"lane {laneIndex}: count {lane.getCount()}, {update.Detail}");
                 _form.SetStatusMessage($"Lane {laneIndex + 1}: lap counted");
                 return;
@@ -417,8 +417,8 @@ namespace tlp
 
             int lapMilliseconds = update.LapMilliseconds.Value;
             string lapSeconds = FormatSeconds(lapMilliseconds);
-            string bestSeconds = FormatSeconds(lane.best_time == int.MaxValue ? 0 : lane.best_time);
-            string medianSeconds = FormatSeconds(lane.getMedian());
+            string bestSeconds = lane.best_time == int.MaxValue ? string.Empty : FormatSeconds(lane.best_time);
+            string medianSeconds = FormatOptionalSeconds(lane.getMedian());
             string mph = _race.CalculateMilesPerHour(lapMilliseconds).ToString("F1", CultureInfo.InvariantCulture);
 
             _form.UpdateLaneDisplay(laneIndex, lane.getCount(), lapSeconds, bestSeconds, medianSeconds, mph);
@@ -543,6 +543,9 @@ namespace tlp
 
         private static string FormatSeconds(int milliseconds) =>
             TimeSpan.FromMilliseconds(milliseconds).TotalSeconds.ToString("0.000", CultureInfo.InvariantCulture);
+
+        private static string FormatOptionalSeconds(int milliseconds) =>
+            milliseconds > 0 ? FormatSeconds(milliseconds) : string.Empty;
 
         private static void SavePort(string portName)
         {

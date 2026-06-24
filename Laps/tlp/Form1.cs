@@ -284,11 +284,11 @@ namespace tlp
                 for (int i = 0; i < LapProtocolParser.LaneCount; i++)
                 {
                     int lapCount = i < lapCounts.Count ? Math.Max(0, lapCounts[i]) : 0;
-                    _lapLabels[i].Text = lapCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
-                    _lastLapLabels[i].Text = "0.000";
-                    _bestLapLabels[i].Text = "0.000";
-                    _medianLapLabels[i].Text = "0.000";
-                    _mphLabels[i].Text = "0.0";
+                    _lapLabels[i].Text = FormatLapCount(lapCount);
+                    _lastLapLabels[i].Text = string.Empty;
+                    _bestLapLabels[i].Text = string.Empty;
+                    _medianLapLabels[i].Text = string.Empty;
+                    _mphLabels[i].Text = string.Empty;
                 }
             });
         }
@@ -328,7 +328,7 @@ namespace tlp
 
             RunOnUiThread(() =>
             {
-                _lapLabels[laneIndex].Text = lapCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                _lapLabels[laneIndex].Text = FormatLapCount(lapCount);
                 _lastLapLabels[laneIndex].Text = lastLap;
                 _bestLapLabels[laneIndex].Text = bestLap;
                 _medianLapLabels[laneIndex].Text = medianLap;
@@ -348,11 +348,11 @@ namespace tlp
                 _nameLabels[laneIndex].Text = EmptyRacerName;
             }
 
-            _lapLabels[laneIndex].Text = "0";
-            _lastLapLabels[laneIndex].Text = "0.000";
-            _bestLapLabels[laneIndex].Text = "0.000";
-            _medianLapLabels[laneIndex].Text = "0.000";
-            _mphLabels[laneIndex].Text = "0.0";
+            _lapLabels[laneIndex].Text = string.Empty;
+            _lastLapLabels[laneIndex].Text = string.Empty;
+            _bestLapLabels[laneIndex].Text = string.Empty;
+            _medianLapLabels[laneIndex].Text = string.Empty;
+            _mphLabels[laneIndex].Text = string.Empty;
         }
 
         private void RunOnUiThread(Action action)
@@ -426,6 +426,9 @@ namespace tlp
                 ? time.ToString(@"h\:mm\:ss", System.Globalization.CultureInfo.InvariantCulture)
                 : time.ToString(@"m\:ss", System.Globalization.CultureInfo.InvariantCulture);
         }
+
+        private static string FormatLapCount(int lapCount) =>
+            lapCount > 0 ? lapCount.ToString(System.Globalization.CultureInfo.InvariantCulture) : string.Empty;
 
         private void editUsersToolStripMenuItem_Click(object sender, EventArgs e)
         {

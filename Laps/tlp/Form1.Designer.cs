@@ -398,7 +398,7 @@ namespace tlp
             laps7.Name = "laps7";
             laps7.Size = new Size(24, 25);
             laps7.TabIndex = 3;
-            laps7.Text = "0";
+            laps7.Text = "";
             // 
             // panel45
             // 
@@ -418,7 +418,7 @@ namespace tlp
             ll7.Name = "ll7";
             ll7.Size = new Size(66, 25);
             ll7.TabIndex = 3;
-            ll7.Text = "0.000";
+            ll7.Text = "";
             // 
             // panel46
             // 
@@ -438,7 +438,7 @@ namespace tlp
             bl7.Name = "bl7";
             bl7.Size = new Size(66, 25);
             bl7.TabIndex = 3;
-            bl7.Text = "0.000";
+            bl7.Text = "";
             // 
             // panel47
             // 
@@ -458,7 +458,7 @@ namespace tlp
             ml7.Name = "ml7";
             ml7.Size = new Size(66, 25);
             ml7.TabIndex = 3;
-            ml7.Text = "0.000";
+            ml7.Text = "";
             // 
             // panel48
             // 
@@ -478,7 +478,7 @@ namespace tlp
             mph7.Name = "mph7";
             mph7.Size = new Size(42, 25);
             mph7.TabIndex = 1;
-            mph7.Text = "0.0";
+            mph7.Text = "";
             // 
             // panel37
             // 
@@ -520,7 +520,7 @@ namespace tlp
             laps6.Name = "laps6";
             laps6.Size = new Size(24, 25);
             laps6.TabIndex = 3;
-            laps6.Text = "0";
+            laps6.Text = "";
             // 
             // panel39
             // 
@@ -540,7 +540,7 @@ namespace tlp
             ll6.Name = "ll6";
             ll6.Size = new Size(66, 25);
             ll6.TabIndex = 3;
-            ll6.Text = "0.000";
+            ll6.Text = "";
             // 
             // panel40
             // 
@@ -560,7 +560,7 @@ namespace tlp
             bl6.Name = "bl6";
             bl6.Size = new Size(66, 25);
             bl6.TabIndex = 3;
-            bl6.Text = "0.000";
+            bl6.Text = "";
             // 
             // panel41
             // 
@@ -580,7 +580,7 @@ namespace tlp
             ml6.Name = "ml6";
             ml6.Size = new Size(66, 25);
             ml6.TabIndex = 3;
-            ml6.Text = "0.000";
+            ml6.Text = "";
             // 
             // panel42
             // 
@@ -600,7 +600,7 @@ namespace tlp
             mph6.Name = "mph6";
             mph6.Size = new Size(42, 25);
             mph6.TabIndex = 1;
-            mph6.Text = "0.0";
+            mph6.Text = "";
             // 
             // panel31
             // 
@@ -642,7 +642,7 @@ namespace tlp
             laps5.Name = "laps5";
             laps5.Size = new Size(24, 25);
             laps5.TabIndex = 3;
-            laps5.Text = "0";
+            laps5.Text = "";
             // 
             // panel33
             // 
@@ -662,7 +662,7 @@ namespace tlp
             ll5.Name = "ll5";
             ll5.Size = new Size(66, 25);
             ll5.TabIndex = 3;
-            ll5.Text = "0.000";
+            ll5.Text = "";
             // 
             // panel34
             // 
@@ -682,7 +682,7 @@ namespace tlp
             bl5.Name = "bl5";
             bl5.Size = new Size(66, 25);
             bl5.TabIndex = 3;
-            bl5.Text = "0.000";
+            bl5.Text = "";
             // 
             // panel35
             // 
@@ -702,7 +702,7 @@ namespace tlp
             ml5.Name = "ml5";
             ml5.Size = new Size(66, 25);
             ml5.TabIndex = 3;
-            ml5.Text = "0.000";
+            ml5.Text = "";
             // 
             // panel36
             // 
@@ -722,7 +722,7 @@ namespace tlp
             mph5.Name = "mph5";
             mph5.Size = new Size(42, 25);
             mph5.TabIndex = 1;
-            mph5.Text = "0.0";
+            mph5.Text = "";
             // 
             // panel25
             // 
@@ -764,7 +764,7 @@ namespace tlp
             laps4.Name = "laps4";
             laps4.Size = new Size(24, 25);
             laps4.TabIndex = 3;
-            laps4.Text = "0";
+            laps4.Text = "";
             // 
             // panel27
             // 
@@ -784,7 +784,7 @@ namespace tlp
             ll4.Name = "ll4";
             ll4.Size = new Size(66, 25);
             ll4.TabIndex = 3;
-            ll4.Text = "0.000";
+            ll4.Text = "";
             // 
             // panel28
             // 
@@ -804,7 +804,7 @@ namespace tlp
             bl4.Name = "bl4";
             bl4.Size = new Size(66, 25);
             bl4.TabIndex = 3;
-            bl4.Text = "0.000";
+            bl4.Text = "";
             // 
             // panel29
             // 
@@ -824,7 +824,7 @@ namespace tlp
             ml4.Name = "ml4";
             ml4.Size = new Size(66, 25);
             ml4.TabIndex = 3;
-            ml4.Text = "0.000";
+            ml4.Text = "";
             // 
             // panel30
             // 
@@ -844,7 +844,7 @@ namespace tlp
             mph4.Name = "mph4";
             mph4.Size = new Size(42, 25);
             mph4.TabIndex = 1;
-            mph4.Text = "0.0";
+            mph4.Text = "";
             // 
             // panel19
             // 
@@ -886,7 +886,7 @@ namespace tlp
             laps3.Name = "laps3";
             laps3.Size = new Size(24, 25);
             laps3.TabIndex = 3;
-            laps3.Text = "0";
+            laps3.Text = "";
             // 
             // panel21
             // 
@@ -906,7 +906,7 @@ namespace tlp
             ll3.Name = "ll3";
             ll3.Size = new Size(66, 25);
             ll3.TabIndex = 3;
-            ll3.Text = "0.000";
+            ll3.Text = "";
             // 
             // panel22
             // 
@@ -926,7 +926,7 @@ namespace tlp
             bl3.Name = "bl3";
             bl3.Size = new Size(66, 25);
             bl3.TabIndex = 3;
-            bl3.Text = "0.000";
+            bl3.Text = "";
             // 
             // panel23
             // 
@@ -946,7 +946,7 @@ namespace tlp
             ml3.Name = "ml3";
             ml3.Size = new Size(66, 25);
             ml3.TabIndex = 3;
-            ml3.Text = "0.000";
+            ml3.Text = "";
             // 
             // panel24
             // 
@@ -966,7 +966,7 @@ namespace tlp
             mph3.Name = "mph3";
             mph3.Size = new Size(42, 25);
             mph3.TabIndex = 1;
-            mph3.Text = "0.0";
+            mph3.Text = "";
             // 
             // panel13
             // 
@@ -1008,7 +1008,7 @@ namespace tlp
             laps2.Name = "laps2";
             laps2.Size = new Size(24, 30);
             laps2.TabIndex = 3;
-            laps2.Text = "0";
+            laps2.Text = "";
             // 
             // panel15
             // 
@@ -1028,7 +1028,7 @@ namespace tlp
             ll2.Name = "ll2";
             ll2.Size = new Size(62, 30);
             ll2.TabIndex = 3;
-            ll2.Text = "0.000";
+            ll2.Text = "";
             // 
             // panel16
             // 
@@ -1048,7 +1048,7 @@ namespace tlp
             bl2.Name = "bl2";
             bl2.Size = new Size(62, 30);
             bl2.TabIndex = 3;
-            bl2.Text = "0.000";
+            bl2.Text = "";
             // 
             // panel17
             // 
@@ -1068,7 +1068,7 @@ namespace tlp
             ml2.Name = "ml2";
             ml2.Size = new Size(62, 30);
             ml2.TabIndex = 3;
-            ml2.Text = "0.000";
+            ml2.Text = "";
             // 
             // panel18
             // 
@@ -1088,7 +1088,7 @@ namespace tlp
             mph2.Name = "mph2";
             mph2.Size = new Size(40, 30);
             mph2.TabIndex = 1;
-            mph2.Text = "0.0";
+            mph2.Text = "";
             // 
             // panel7
             // 
@@ -1130,7 +1130,7 @@ namespace tlp
             laps1.Name = "laps1";
             laps1.Size = new Size(24, 30);
             laps1.TabIndex = 3;
-            laps1.Text = "0";
+            laps1.Text = "";
             // 
             // panel9
             // 
@@ -1150,7 +1150,7 @@ namespace tlp
             ll1.Name = "ll1";
             ll1.Size = new Size(62, 30);
             ll1.TabIndex = 3;
-            ll1.Text = "0.000";
+            ll1.Text = "";
             // 
             // panel10
             // 
@@ -1170,7 +1170,7 @@ namespace tlp
             bl1.Name = "bl1";
             bl1.Size = new Size(62, 30);
             bl1.TabIndex = 3;
-            bl1.Text = "0.000";
+            bl1.Text = "";
             // 
             // panel11
             // 
@@ -1190,7 +1190,7 @@ namespace tlp
             ml1.Name = "ml1";
             ml1.Size = new Size(62, 30);
             ml1.TabIndex = 3;
-            ml1.Text = "0.000";
+            ml1.Text = "";
             // 
             // panel12
             // 
@@ -1210,7 +1210,7 @@ namespace tlp
             mph1.Name = "mph1";
             mph1.Size = new Size(40, 30);
             mph1.TabIndex = 1;
-            mph1.Text = "0.0";
+            mph1.Text = "";
             // 
             // panel6
             // 
@@ -1231,7 +1231,7 @@ namespace tlp
             mph0.Name = "mph0";
             mph0.Size = new Size(40, 30);
             mph0.TabIndex = 3;
-            mph0.Text = "0.0";
+            mph0.Text = "";
             // 
             // panel5
             // 
@@ -1252,7 +1252,7 @@ namespace tlp
             ml0.Name = "ml0";
             ml0.Size = new Size(62, 30);
             ml0.TabIndex = 3;
-            ml0.Text = "0.000";
+            ml0.Text = "";
             // 
             // panel4
             // 
@@ -1273,7 +1273,7 @@ namespace tlp
             bl0.Name = "bl0";
             bl0.Size = new Size(62, 30);
             bl0.TabIndex = 3;
-            bl0.Text = "0.000";
+            bl0.Text = "";
             // 
             // panel3
             // 
@@ -1294,7 +1294,7 @@ namespace tlp
             ll0.Name = "ll0";
             ll0.Size = new Size(62, 30);
             ll0.TabIndex = 3;
-            ll0.Text = "0.000";
+            ll0.Text = "";
             // 
             // panel2
             // 
@@ -1315,7 +1315,7 @@ namespace tlp
             laps0.Name = "laps0";
             laps0.Size = new Size(24, 30);
             laps0.TabIndex = 3;
-            laps0.Text = "0";
+            laps0.Text = "";
             // 
             // panel1
             // 
