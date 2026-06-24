@@ -41,6 +41,7 @@ namespace tlp
 
             BuildLayout();
             LoadRacers();
+            LoadSettings();
             UpdateSelection();
         }
 
@@ -223,6 +224,16 @@ namespace tlp
             CancelButton = cancelButton;
         }
 
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            if (DialogResult == DialogResult.OK)
+            {
+                SaveSettings();
+            }
+
+            base.OnFormClosing(e);
+        }
+
         private void ConfigureLaneGrid()
         {
             _laneGrid.Dock = DockStyle.Fill;
@@ -269,6 +280,73 @@ namespace tlp
             }
 
             return racerNames;
+        }
+
+        private void LoadSettings()
+        {
+            EnsureSettingsTable();
+
+            using SqliteCommand command = MKTS.conn.CreateCommand();
+            command.CommandText = @"
+                SELECT heat_length_minutes, between_heats_seconds
+                FROM heat_race_settings
+                WHERE id = 1";
+
+            using SqliteDataReader reader = command.ExecuteReader();
+            if (!reader.Read())
+            {
+                return;
+            }
+
+            int heatLengthMinutes = reader.IsDBNull(0) ? (int)_heatLengthMinutes.Value : reader.GetInt32(0);
+            int betweenHeatsSeconds = reader.IsDBNull(1) ? (int)_betweenHeatsSeconds.Value : reader.GetInt32(1);
+            _heatLengthMinutes.Value = Math.Clamp(
+                heatLengthMinutes,
+                (int)_heatLengthMinutes.Minimum,
+                (int)_heatLengthMinutes.Maximum);
+            _betweenHeatsSeconds.Value = Math.Clamp(
+                betweenHeatsSeconds,
+                (int)_betweenHeatsSeconds.Minimum,
+                (int)_betweenHeatsSeconds.Maximum);
+        }
+
+        private void SaveSettings()
+        {
+            EnsureSettingsTable();
+
+            using SqliteCommand update = MKTS.conn.CreateCommand();
+            update.CommandText = @"
+                UPDATE heat_race_settings
+                SET heat_length_minutes = $heatLengthMinutes,
+                    between_heats_seconds = $betweenHeatsSeconds
+                WHERE id = 1";
+            update.Parameters.AddWithValue("$heatLengthMinutes", HeatLengthMinutes);
+            update.Parameters.AddWithValue("$betweenHeatsSeconds", BetweenHeatsSeconds);
+
+            if (update.ExecuteNonQuery() > 0)
+            {
+                return;
+            }
+
+            using SqliteCommand insert = MKTS.conn.CreateCommand();
+            insert.CommandText = @"
+                INSERT INTO heat_race_settings (id, heat_length_minutes, between_heats_seconds)
+                VALUES (1, $heatLengthMinutes, $betweenHeatsSeconds)";
+            insert.Parameters.AddWithValue("$heatLengthMinutes", HeatLengthMinutes);
+            insert.Parameters.AddWithValue("$betweenHeatsSeconds", BetweenHeatsSeconds);
+            insert.ExecuteNonQuery();
+        }
+
+        private static void EnsureSettingsTable()
+        {
+            using SqliteCommand command = MKTS.conn.CreateCommand();
+            command.CommandText = @"
+                CREATE TABLE IF NOT EXISTS heat_race_settings (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    heat_length_minutes INTEGER NOT NULL,
+                    between_heats_seconds INTEGER NOT NULL
+                )";
+            command.ExecuteNonQuery();
         }
 
         private void SetAllRacersChecked(bool isChecked)
