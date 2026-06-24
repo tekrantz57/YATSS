@@ -27,7 +27,9 @@ namespace tlp
     public sealed class HeatRaceController
     {
         public const int TotalHeats = 8;
+        private static readonly int[] InitialLaneOrder = { 0, 1, 2, 3, 4, 5, 6, 7 };
         private static readonly int[] RotationLaneOrder = { 0, 2, 4, 6, 7, 5, 3, 1 };
+        public static IReadOnlyList<int> InitialLaneIndexes => InitialLaneOrder;
         public static IReadOnlyList<int> RotationLaneIndexes => RotationLaneOrder;
 
         private readonly bool[] _laneSeenThisHeat = new bool[LapProtocolParser.LaneCount];
@@ -280,9 +282,9 @@ namespace tlp
                     continue;
                 }
 
-                if (i < RotationLaneIndexes.Count)
+                if (i < InitialLaneIndexes.Count)
                 {
-                    _laneRacers[RotationLaneIndexes[i]] = new RacerEntry(racer);
+                    _laneRacers[InitialLaneIndexes[i]] = new RacerEntry(racer);
                 }
                 else
                 {

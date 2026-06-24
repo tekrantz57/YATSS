@@ -7,13 +7,13 @@ namespace tlp
         private static readonly string[] LaneNames =
         {
             "Red",
+            "White",
             "Green",
-            "Blue",
-            "Purple",
-            "Black",
-            "Yellow",
             "Orange",
-            "White"
+            "Blue",
+            "Yellow",
+            "Purple",
+            "Black"
         };
 
         private readonly CheckedListBox _racerList = new();
@@ -296,17 +296,20 @@ namespace tlp
         private void RenderSelection()
         {
             _laneGrid.Rows.Clear();
+            IReadOnlyList<string> laneRacers = FirstHeatLaneRacers;
             for (int lane = 0; lane < LaneNames.Length; lane++)
             {
-                string racer = lane < _selectedNames.Count ? _selectedNames[lane] : "";
-                string nextLane = lane == LaneNames.Length - 1 ? "Rotate out" : LaneNames[lane + 1];
+                string racer = lane < laneRacers.Count ? laneRacers[lane] : "";
+                string nextLane = GetNextRotationLaneName(lane);
                 _laneGrid.Rows.Add(LaneNames[lane], racer, nextLane);
             }
 
             _selectedRacers.Items.Clear();
             for (int i = 0; i < _selectedNames.Count; i++)
             {
-                string prefix = i < LaneNames.Length ? LaneNames[i] : "Waiting";
+                string prefix = i < HeatRaceController.InitialLaneIndexes.Count
+                    ? LaneNames[HeatRaceController.InitialLaneIndexes[i]]
+                    : "Waiting";
                 _selectedRacers.Items.Add($"{prefix}: {_selectedNames[i]}");
             }
 
@@ -317,13 +320,30 @@ namespace tlp
         private string[] GetFirstHeatLaneRacers()
         {
             string[] laneRacers = new string[LaneNames.Length];
-            for (int i = 0; i < HeatRaceController.RotationLaneIndexes.Count; i++)
+            for (int i = 0; i < HeatRaceController.InitialLaneIndexes.Count; i++)
             {
-                int laneIndex = HeatRaceController.RotationLaneIndexes[i];
+                int laneIndex = HeatRaceController.InitialLaneIndexes[i];
                 laneRacers[laneIndex] = i < _selectedNames.Count ? _selectedNames[i] : string.Empty;
             }
 
             return laneRacers;
+        }
+
+        private static string GetNextRotationLaneName(int laneIndex)
+        {
+            for (int i = 0; i < HeatRaceController.RotationLaneIndexes.Count; i++)
+            {
+                if (HeatRaceController.RotationLaneIndexes[i] != laneIndex)
+                {
+                    continue;
+                }
+
+                return i == HeatRaceController.RotationLaneIndexes.Count - 1
+                    ? "Rotate out"
+                    : LaneNames[HeatRaceController.RotationLaneIndexes[i + 1]];
+            }
+
+            return "Rotate out";
         }
     }
 }
