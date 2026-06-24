@@ -45,13 +45,23 @@ namespace tlp
         public static void WarmUpAsync(string voiceName)
         {
             EnsureStarted();
-            _requests?.Add(new SpeechRequest("", voiceName));
+            _requests?.Add(SpeechRequest.Single("", voiceName));
         }
 
         public static void SpeakAsync(string phrase, string voiceName)
         {
             EnsureStarted();
-            _requests?.Add(new SpeechRequest(phrase, voiceName));
+            _requests?.Add(SpeechRequest.Single(phrase, voiceName));
+        }
+
+        public static void SpeakCountdownAsync(string voiceName, Action? afterSpeech = null)
+        {
+            EnsureStarted();
+            _requests?.Add(new SpeechRequest(
+                new[] { "3", "2", "1", "Let's go" },
+                voiceName,
+                TimeSpan.FromMilliseconds(100),
+                afterSpeech));
         }
 
         private static void EnsureStarted()
@@ -95,14 +105,33 @@ namespace tlp
                         activeVoiceName = request.VoiceName;
                     }
 
-                    if (!string.IsNullOrWhiteSpace(request.Phrase))
+                    for (int i = 0; i < request.Phrases.Count; i++)
                     {
-                        voice.Speak(request.Phrase);
+                        string phrase = request.Phrases[i];
+                        if (!string.IsNullOrWhiteSpace(phrase))
+                        {
+                            voice.Speak(phrase);
+                        }
+
+                        if (i < request.Phrases.Count - 1 && request.DelayBetweenPhrases > TimeSpan.Zero)
+                        {
+                            Thread.Sleep(request.DelayBetweenPhrases);
+                        }
                     }
                 }
                 catch
                 {
                     // Voice announcements are helpful, but they should never affect race control.
+                }
+                finally
+                {
+                    try
+                    {
+                        request.AfterSpeech?.Invoke();
+                    }
+                    catch
+                    {
+                    }
                 }
             }
         }
@@ -133,6 +162,14 @@ namespace tlp
             }
         }
 
-        private sealed record SpeechRequest(string Phrase, string VoiceName);
+        private sealed record SpeechRequest(
+            IReadOnlyList<string> Phrases,
+            string VoiceName,
+            TimeSpan DelayBetweenPhrases,
+            Action? AfterSpeech)
+        {
+            public static SpeechRequest Single(string phrase, string voiceName) =>
+                new(new[] { phrase }, voiceName, TimeSpan.Zero, null);
+        }
     }
 }

@@ -157,10 +157,20 @@ namespace tlp
         {
             _trackPowerEnabled = enabled;
             string command = enabled ? "TRACK_POWER:ON" : "TRACK_POWER:OFF";
-            WriteLine(command);
-            if (!string.IsNullOrWhiteSpace(speech))
+            bool restoreAfterCountdown = enabled &&
+                string.Equals(speech, "Let's go", StringComparison.OrdinalIgnoreCase);
+
+            if (restoreAfterCountdown)
             {
-                SpeechAnnouncer.SpeakAsync(speech, _form.SpeechVoiceName);
+                SpeechAnnouncer.SpeakCountdownAsync(_form.SpeechVoiceName, () => WriteLine(command));
+            }
+            else
+            {
+                WriteLine(command);
+                if (!string.IsNullOrWhiteSpace(speech))
+                {
+                    SpeechAnnouncer.SpeakAsync(speech, _form.SpeechVoiceName);
+                }
             }
 
             _log.Info(enabled ? "track power restore requested" : "track power cut requested");
@@ -440,7 +450,10 @@ namespace tlp
             if (_heatRace.Complete())
             {
                 PublishHeatRaceStatus("Complete");
-                SetTrackPowerEnabled(false, "Heat over", "Heat complete");
+                string completionSpeech = _heatRace.HasMoreHeats
+                    ? $"Heat {_heatRace.HeatNumber} of {HeatRaceController.TotalHeats} over"
+                    : "Race over";
+                SetTrackPowerEnabled(false, completionSpeech, "Heat complete");
                 _log.Info($"heat {_heatRace.HeatNumber} complete");
                 ScheduleNextHeatIfNeeded();
             }

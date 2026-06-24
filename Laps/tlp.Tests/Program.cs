@@ -104,6 +104,7 @@ Assert(adjustedAfterPause.Edge.TimestampMillis == 10000, "heat adjustment should
 Assert(!heat.IsExpired(70999), "heat should not expire before configured active time");
 Assert(heat.IsExpired(71000), "heat should expire at configured active time");
 Assert(heat.Complete(), "expired heat should complete");
+Assert(!heat.PrepareEdge(new LapEdge(0, 9, 72000)).ShouldProcess, "edges between heats should be ignored");
 Assert(heat.PrepareNextHeat(new[] { 10, 11, 12, 13, 14, 15, 16, 17 }), "completed heat should prepare next heat");
 Assert(heat.HeatNumber == 2, "next heat should be heat 2");
 HeatRaceSnapshot secondHeat = heat.GetSnapshot(80000);
