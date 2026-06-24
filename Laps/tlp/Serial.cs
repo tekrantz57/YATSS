@@ -116,6 +116,8 @@ namespace tlp
             CancelStartCountdown();
             CancelBetweenHeatsTimer();
             _heatRace.SetPracticeMode();
+            _race.Reset();
+            _form.ResetBoardDisplay(clearRacers: true);
             _form.ClearHeatRaceStatus();
             _form.SetStatusMessage("Practice mode");
         }
