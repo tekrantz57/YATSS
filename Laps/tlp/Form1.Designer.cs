@@ -1366,7 +1366,6 @@ namespace tlp
             titleLabel.TabIndex = 1;
             titleLabel.Text = "McAnulty/Krantz Timing and Scoring";
             titleLabel.TextAlign = ContentAlignment.MiddleCenter;
-            titleLabel.Click += labelMKTS_Click;
             //
             // fileToolStripMenuItem
             //
@@ -1374,7 +1373,6 @@ namespace tlp
             fileToolStripMenuItem.Name = "fileToolStripMenuItem";
             fileToolStripMenuItem.Size = new Size(37, 20);
             fileToolStripMenuItem.Text = "File";
-            fileToolStripMenuItem.Click += fileToolStripMenuItem_Click;
             //
             // configureToolStripMenuItem
             //
@@ -1455,7 +1453,6 @@ namespace tlp
             //
             racerContextMenu.Name = "racerContextMenu";
             racerContextMenu.Size = new Size(61, 4);
-            racerContextMenu.Opening += contextMenuStrip1_Opening;
             //
             // MKTS
             //

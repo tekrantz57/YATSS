@@ -41,9 +41,12 @@ namespace tlp
 
     public sealed record HeatRaceReport(
         DateTime CreatedLocal,
+        int HeatLengthMinutes,
+        int BetweenHeatsSeconds,
         IReadOnlyList<string> LaneNames,
         IReadOnlyList<HeatRaceRacerReport> Racers,
-        IReadOnlyList<HeatRaceLaneResult> LaneResults);
+        IReadOnlyList<HeatRaceLaneResult> LaneResults,
+        string Notes);
 
     public sealed class HeatRaceController
     {
@@ -373,6 +376,8 @@ namespace tlp
 
                 return new HeatRaceReport(
                     DateTime.Now,
+                    HeatLengthMinutes,
+                    BetweenHeatsSeconds,
                     LaneNameValues,
                     racers
                         .OrderByDescending(racer => racer.TotalLaps)
@@ -381,7 +386,8 @@ namespace tlp
                     _laneResults
                         .OrderBy(result => result.HeatNumber)
                         .ThenBy(result => result.LaneIndex)
-                        .ToArray());
+                        .ToArray(),
+                    "Manual lap adjustments made during stopped time are reflected in totals.");
             }
         }
 

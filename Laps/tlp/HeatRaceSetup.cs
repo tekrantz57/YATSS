@@ -1,5 +1,3 @@
-using Microsoft.Data.Sqlite;
-
 namespace tlp
 {
     public sealed class HeatRaceSetup : Form
@@ -261,92 +259,25 @@ namespace tlp
         }
 
         private static List<string> LoadRacerNames()
-        {
-            List<string> racerNames = new();
-            using SqliteCommand command = MKTS.conn.CreateCommand();
-            command.CommandText = @"SELECT name FROM users ORDER BY name COLLATE NOCASE, name";
-
-            using SqliteDataReader reader = command.ExecuteReader();
-            while (reader.Read())
-            {
-                if (!reader.IsDBNull(0))
-                {
-                    string name = reader.GetString(0).Trim();
-                    if (!string.IsNullOrWhiteSpace(name))
-                    {
-                        racerNames.Add(name);
-                    }
-                }
-            }
-
-            return racerNames;
-        }
+            => AppDatabase.LoadRacerNames();
 
         private void LoadSettings()
         {
-            EnsureSettingsTable();
-
-            using SqliteCommand command = MKTS.conn.CreateCommand();
-            command.CommandText = @"
-                SELECT heat_length_minutes, between_heats_seconds
-                FROM heat_race_settings
-                WHERE id = 1";
-
-            using SqliteDataReader reader = command.ExecuteReader();
-            if (!reader.Read())
-            {
-                return;
-            }
-
-            int heatLengthMinutes = reader.IsDBNull(0) ? (int)_heatLengthMinutes.Value : reader.GetInt32(0);
-            int betweenHeatsSeconds = reader.IsDBNull(1) ? (int)_betweenHeatsSeconds.Value : reader.GetInt32(1);
+            HeatRaceSetupSettings settings = AppDatabase.LoadHeatRaceSettings(
+                new HeatRaceSetupSettings((int)_heatLengthMinutes.Value, (int)_betweenHeatsSeconds.Value));
             _heatLengthMinutes.Value = Math.Clamp(
-                heatLengthMinutes,
+                settings.HeatLengthMinutes,
                 (int)_heatLengthMinutes.Minimum,
                 (int)_heatLengthMinutes.Maximum);
             _betweenHeatsSeconds.Value = Math.Clamp(
-                betweenHeatsSeconds,
+                settings.BetweenHeatsSeconds,
                 (int)_betweenHeatsSeconds.Minimum,
                 (int)_betweenHeatsSeconds.Maximum);
         }
 
         private void SaveSettings()
         {
-            EnsureSettingsTable();
-
-            using SqliteCommand update = MKTS.conn.CreateCommand();
-            update.CommandText = @"
-                UPDATE heat_race_settings
-                SET heat_length_minutes = $heatLengthMinutes,
-                    between_heats_seconds = $betweenHeatsSeconds
-                WHERE id = 1";
-            update.Parameters.AddWithValue("$heatLengthMinutes", HeatLengthMinutes);
-            update.Parameters.AddWithValue("$betweenHeatsSeconds", BetweenHeatsSeconds);
-
-            if (update.ExecuteNonQuery() > 0)
-            {
-                return;
-            }
-
-            using SqliteCommand insert = MKTS.conn.CreateCommand();
-            insert.CommandText = @"
-                INSERT INTO heat_race_settings (id, heat_length_minutes, between_heats_seconds)
-                VALUES (1, $heatLengthMinutes, $betweenHeatsSeconds)";
-            insert.Parameters.AddWithValue("$heatLengthMinutes", HeatLengthMinutes);
-            insert.Parameters.AddWithValue("$betweenHeatsSeconds", BetweenHeatsSeconds);
-            insert.ExecuteNonQuery();
-        }
-
-        private static void EnsureSettingsTable()
-        {
-            using SqliteCommand command = MKTS.conn.CreateCommand();
-            command.CommandText = @"
-                CREATE TABLE IF NOT EXISTS heat_race_settings (
-                    id INTEGER PRIMARY KEY CHECK (id = 1),
-                    heat_length_minutes INTEGER NOT NULL,
-                    between_heats_seconds INTEGER NOT NULL
-                )";
-            command.ExecuteNonQuery();
+            AppDatabase.SaveHeatRaceSettings(new HeatRaceSetupSettings(HeatLengthMinutes, BetweenHeatsSeconds));
         }
 
         private void SetAllRacersChecked(bool isChecked)

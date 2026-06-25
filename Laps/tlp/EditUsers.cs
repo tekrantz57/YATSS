@@ -1,15 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows.Forms;
-using System.Xml.Linq;
-using Microsoft.Data.Sqlite;
-
 namespace tlp
 {
     public partial class EditUsers : Form
@@ -21,74 +9,45 @@ namespace tlp
 
         private void EditUsers_Load(object sender, EventArgs e)
         {
-            var command = MKTS.conn.CreateCommand();
-            command.CommandText = @"SELECT name FROM users";
-
-            using (var reader = command.ExecuteReader())
+            cbUsers.Items.Clear();
+            foreach (string name in AppDatabase.LoadRacerNames())
             {
-                if (reader.HasRows)
-                {
-                    while (reader.Read())
-                    {
-                        string? name = reader[0].ToString();
-                        if (!string.IsNullOrWhiteSpace(name))
-                        {
-                            cbUsers.Items.Add(name.Trim());
-                        }
-                    }
+                cbUsers.Items.Add(name);
+            }
 
-                    if (cbUsers.Items.Count > 0)
-                    {
-                        cbUsers.SelectedIndex = 0;
-                    }
-                }
+            if (cbUsers.Items.Count > 0)
+            {
+                cbUsers.SelectedIndex = 0;
             }
         }
 
         private void bOK_Click(object sender, EventArgs e)
         {
-            var command = MKTS.conn.CreateCommand();
-            command.CommandText = @"delete from users";
-            command.ExecuteNonQuery();
-
-            command = MKTS.conn.CreateCommand();
-            command.CommandText = @"delete from sqlite_sequence where name = 'users'";
-            command.ExecuteNonQuery();
-
-            foreach (var item in cbUsers.Items)
-            {
-                command = MKTS.conn.CreateCommand();
-                command.CommandText = @"INSERT INTO users (name) values ($name)";
-                command.Parameters.AddWithValue("$name", item?.ToString() ?? string.Empty);
-                command.ExecuteNonQuery();
-            }
-
-            this.Close();
+            AppDatabase.SaveRacerNames(cbUsers.Items.Cast<object>().Select(item => item?.ToString() ?? string.Empty));
+            DialogResult = DialogResult.OK;
+            Close();
         }
 
         private void bCancel_Click(object sender, EventArgs e)
         {
-            this.Close();
+            DialogResult = DialogResult.Cancel;
+            Close();
         }
 
         private void bAddUser_Click(object sender, EventArgs e)
         {
             using (var addUser = new AddUser())
             {
-                addUser.ShowDialog();
+                addUser.ShowDialog(this);
                 if (addUser.DialogResult == DialogResult.OK)
                 {
-                    if (!cbUsers.Items.Contains(addUser.name))
+                    string name = addUser.name.Trim();
+                    if (!string.IsNullOrWhiteSpace(name) && !ContainsUser(name))
                     {
-                        cbUsers.SelectedItem = cbUsers.Items.Add(addUser.name.Trim());
+                        cbUsers.SelectedItem = cbUsers.Items.Add(name);
                     }
                 }
             }
-
-        }
-
-        private void cbUsers_SelectedIndexChanged(object sender, EventArgs e)
-        {
 
         }
 
@@ -104,6 +63,19 @@ namespace tlp
             {
                 cbUsers.SelectedIndex = 0;
             }
+        }
+
+        private bool ContainsUser(string name)
+        {
+            foreach (object? item in cbUsers.Items)
+            {
+                if (string.Equals(item?.ToString(), name, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }

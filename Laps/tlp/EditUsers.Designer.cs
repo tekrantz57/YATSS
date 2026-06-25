@@ -44,7 +44,6 @@ namespace tlp
             this.cbUsers.Size = new System.Drawing.Size(276, 23);
             this.cbUsers.Sorted = true;
             this.cbUsers.TabIndex = 0;
-            this.cbUsers.SelectedIndexChanged += new System.EventHandler(this.cbUsers_SelectedIndexChanged);
             // 
             // bAddUser
             // 

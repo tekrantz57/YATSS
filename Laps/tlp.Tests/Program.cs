@@ -147,6 +147,9 @@ reportHeat.RecordHeatResults(
     new[] { 5, 4, 0, 0, 0, 0, 0, 0 },
     new int?[] { 2100, 2200, null, null, null, null, null, null });
 HeatRaceReport report = reportHeat.CreateReport();
+Assert(report.HeatLengthMinutes == 1, "report should include heat length");
+Assert(report.BetweenHeatsSeconds == 0, "report should include between-heat seconds");
+Assert(report.Notes.Contains("Manual lap adjustments", StringComparison.OrdinalIgnoreCase), "report should include manual adjustment note");
 Assert(report.Racers[0].RacerName == "Ada", "report should sort finish order by total laps");
 Assert(report.Racers[0].TotalLaps == 5, "report should include total laps");
 Assert(report.Racers[0].HeatLaps[0] == 5, "report should include heat laps");

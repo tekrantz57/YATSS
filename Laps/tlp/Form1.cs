@@ -1,8 +1,4 @@
 using System.Diagnostics;
-using System.Drawing.Text;
-using System.IO.Ports;
-using System.Xml.Serialization;
-using Microsoft.Data.Sqlite;
 
 namespace tlp
 {
@@ -25,7 +21,6 @@ namespace tlp
         public int MinLapMilliseconds { get; private set; } = LapRaceOptions.Default.MinLapMilliseconds;
         public bool SoundOnTooFastLap { get; private set; } = true;
         public string SpeechVoiceName { get; private set; } = "";
-        public static SqliteConnection conn = new SqliteConnection(@"Data Source=c:\sqlite\data\laps.db");
 
         public MKTS()
         {
@@ -34,17 +29,8 @@ namespace tlp
             KeyPreview = true;
             SpeechAnnouncer.WarmUpAsync(SpeechVoiceName);
             ConfigureBoardLayout();
-            conn.Open();
-            var command = conn.CreateCommand();
-            command.CommandText = @"SELECT name FROM comports limit 1";
-
-            using (var reader = command.ExecuteReader())
-            {
-                while (reader.Read())
-                {
-                    port = reader.GetString(0);
-                }
-            }
+            AppDatabase.Open();
+            port = AppDatabase.LoadSerialPort();
 
             s = new Serial(this);
             WireBestLapResetClicks();
@@ -96,16 +82,6 @@ namespace tlp
             int delta = keyData.HasFlag(Keys.Shift) ? -1 : 1;
             s.AdjustStoppedHeatLap(laneIndex, delta);
             return true;
-        }
-
-        private void tableLayoutPanel1_Paint(object sender, PaintEventArgs e)
-        {
-
-        }
-
-        private void fileToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-
         }
 
         private void exitToolStripMenuItem_Click(object sender, EventArgs e)
@@ -499,22 +475,7 @@ namespace tlp
         }
 
         private static List<string> LoadRacerNames()
-        {
-            List<string> racerNames = new();
-            var command = conn.CreateCommand();
-            command.CommandText = @"SELECT name FROM users";
-
-            using var reader = command.ExecuteReader();
-            while (reader.Read())
-            {
-                if (!reader.IsDBNull(0))
-                {
-                    racerNames.Add(reader.GetString(0));
-                }
-            }
-
-            return racerNames;
-        }
+            => AppDatabase.LoadRacerNames();
 
         private void racerNameMenu_ItemClicked(object? sender, ToolStripItemClickedEventArgs e)
         {
@@ -538,14 +499,5 @@ namespace tlp
             }
         }
 
-        private void contextMenuStrip1_Opening(object sender, System.ComponentModel.CancelEventArgs e)
-        {
-
-        }
-
-        private void labelMKTS_Click(object sender, EventArgs e)
-        {
-
-        }
     }
 }

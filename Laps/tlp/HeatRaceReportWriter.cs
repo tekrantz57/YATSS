@@ -41,11 +41,29 @@ namespace tlp
             html.AppendLine("th{background:#efefef}.highlight{background:#fff0a8;font-weight:700}.muted{color:#666}.total{font-weight:700}");
             html.AppendLine("</style></head><body>");
             html.AppendLine("<h1>Heat Race Results</h1>");
-            html.AppendLine($"<div class=\"muted\">Created {WebUtility.HtmlEncode(report.CreatedLocal.ToString("g", CultureInfo.CurrentCulture))}</div>");
+            html.AppendLine("<table style=\"width:auto;margin-top:8px\"><tbody>");
+            AppendMetadataRow(html, "Created", report.CreatedLocal.ToString("g", CultureInfo.CurrentCulture));
+            AppendMetadataRow(html, "Heat length", $"{report.HeatLengthMinutes} minute(s)");
+            AppendMetadataRow(html, "Between heats", $"{report.BetweenHeatsSeconds} second(s)");
+            AppendMetadataRow(html, "Racers", report.Racers.Count.ToString(CultureInfo.InvariantCulture));
+            html.AppendLine("</tbody></table>");
+            if (!string.IsNullOrWhiteSpace(report.Notes))
+            {
+                html.AppendLine($"<p class=\"muted\">{WebUtility.HtmlEncode(report.Notes)}</p>");
+            }
             AppendFinishOrder(html, report);
             AppendFastLaps(html, report, fastestByLane);
+            AppendHeatDetails(html, report);
             html.AppendLine("</body></html>");
             return html.ToString();
+        }
+
+        private static void AppendMetadataRow(StringBuilder html, string label, string value)
+        {
+            html.AppendLine("<tr>");
+            html.AppendLine($"<th>{WebUtility.HtmlEncode(label)}</th>");
+            html.AppendLine($"<td>{WebUtility.HtmlEncode(value)}</td>");
+            html.AppendLine("</tr>");
         }
 
         private static void AppendFinishOrder(StringBuilder html, HeatRaceReport report)
@@ -70,6 +88,25 @@ namespace tlp
                     html.AppendLine($"<td>{FormatCount(heatLaps)}</td>");
                 }
 
+                html.AppendLine("</tr>");
+            }
+
+            html.AppendLine("</tbody></table>");
+        }
+
+        private static void AppendHeatDetails(StringBuilder html, HeatRaceReport report)
+        {
+            html.AppendLine("<h2>Heat Details</h2>");
+            html.AppendLine("<table><thead><tr><th>Heat</th><th>Lane</th><th>Racer</th><th>Heat Laps</th><th>Total Laps</th><th>Best Lap</th></tr></thead><tbody>");
+            foreach (HeatRaceLaneResult result in report.LaneResults)
+            {
+                html.AppendLine("<tr>");
+                html.AppendLine($"<td>{result.HeatNumber}</td>");
+                html.AppendLine($"<td>{WebUtility.HtmlEncode(result.LaneName)}</td>");
+                html.AppendLine($"<td>{WebUtility.HtmlEncode(result.RacerName)}</td>");
+                html.AppendLine($"<td>{FormatCount(result.HeatLaps)}</td>");
+                html.AppendLine($"<td>{FormatCount(result.TotalLaps)}</td>");
+                html.AppendLine($"<td>{FormatLap(result.BestLapMilliseconds)}</td>");
                 html.AppendLine("</tr>");
             }
 

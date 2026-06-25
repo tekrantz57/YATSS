@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.IO.Ports;
 using System.Media;
-using Microsoft.Data.Sqlite;
 
 namespace tlp
 {
@@ -19,6 +18,7 @@ namespace tlp
         private SerialPort? _port;
         private System.Threading.Timer? _betweenHeatsTimer;
         private DateTime? _nextHeatStartUtc;
+        private DateTime? _lastControllerResponseUtc;
         private uint _latestControllerTimestamp;
         private bool _hasControllerTimestamp;
         private bool _trackPowerEnabled = true;
@@ -134,7 +134,7 @@ namespace tlp
                     if (_heatRace.Pause(controllerTimestamp))
                     {
                         PublishHeatRaceStatus("Paused");
-                        SetTrackPowerEnabled(false, "Track call", "Heat paused for track call");
+                        SetTrackPowerEnabled(false, "Track call", $"Heat paused for track call. {StoppedAdjustmentHint}");
                         _log.Info("heat paused for track call");
                     }
                     break;
@@ -167,7 +167,7 @@ namespace tlp
 
             string direction = delta > 0 ? "added to" : "subtracted from";
             _log.Info($"lane {laneIndex}: manual lap {direction} stopped heat, count {count}");
-            _form.SetStatusMessage($"Lane {laneIndex + 1}: manual lap {direction} total, count {count}");
+            _form.SetStatusMessage($"{StoppedAdjustmentHint} Lane {laneIndex + 1}: manual lap {direction} total, count {count}");
             return true;
         }
 
@@ -335,6 +335,7 @@ namespace tlp
                         }
 
                         lastLineReceived = DateTime.UtcNow;
+                        _lastControllerResponseUtc = lastLineReceived;
                         waitingForPingReply = false;
                         HandleLine(line);
                     }
@@ -373,14 +374,14 @@ namespace tlp
             if (waitingForPingReply && now - lastPingSent >= ControllerPingTimeout)
             {
                 _log.Warn($"no controller response on {portName}");
-                _form.SetStatusMessage($"No response from controller on {portName}");
+                _form.SetStatusMessage($"No response from controller on {portName}; {FormatLastHeard()}");
                 RequestReconnect();
                 return true;
             }
 
             if (now - lastLineReceived >= ControllerPingInterval && now - lastPingSent >= ControllerPingInterval)
             {
-                _form.SetStatusMessage($"Checking controller on {portName}");
+                _form.SetStatusMessage($"Checking controller on {portName}; {FormatLastHeard()}");
                 WriteLine("PING");
                 lastPingSent = now;
                 waitingForPingReply = true;
@@ -413,13 +414,13 @@ namespace tlp
                     _form.SetStatusMessage(
                         message.Detail.Contains("RESETTING", StringComparison.OrdinalIgnoreCase)
                             ? message.Detail
-                            : $"Controller responding on {_form.port}");
+                            : FormatControllerRespondingStatus());
                     _log.Info(message.Detail);
                     break;
                 case LapProtocolMessageKind.Heartbeat:
                     if (!CheckHeatExpired(message.ControllerTimestampMillis) && _heatRace.State == HeatRaceState.Practice)
                     {
-                        _form.SetStatusMessage($"Controller responding on {_form.port}");
+                        _form.SetStatusMessage(FormatControllerRespondingStatus());
                     }
                     else if (_heatRace.State != HeatRaceState.Practice)
                     {
@@ -549,14 +550,14 @@ namespace tlp
             if (betweenHeatsSeconds <= 0)
             {
                 PublishHeatRaceStatus("Complete");
-                _form.SetStatusMessage($"Heat {_heatRace.HeatNumber} complete. Press Space for next heat.");
+                _form.SetStatusMessage($"Heat {_heatRace.HeatNumber} complete. Press Space for next heat. {StoppedAdjustmentHint}");
                 return;
             }
 
             CancelBetweenHeatsTimer();
             _nextHeatStartUtc = DateTime.UtcNow.AddSeconds(betweenHeatsSeconds);
             PublishHeatRaceStatus("Intermission");
-            _form.SetStatusMessage($"Heat {_heatRace.HeatNumber} complete. Next heat in {betweenHeatsSeconds} seconds.");
+            _form.SetStatusMessage($"Heat {_heatRace.HeatNumber} complete. Next heat in {betweenHeatsSeconds} seconds. {StoppedAdjustmentHint}");
             _betweenHeatsTimer = new System.Threading.Timer(
                 _ => StartNextHeatFromComplete(manualStart: false),
                 null,
@@ -650,25 +651,26 @@ namespace tlp
         private static string FormatOptionalSeconds(int milliseconds) =>
             milliseconds > 0 ? FormatSeconds(milliseconds) : string.Empty;
 
-        private static void SavePort(string portName)
+        private static string StoppedAdjustmentHint =>
+            "Ctrl+1-8 add lap; Ctrl+Shift+1-8 subtract.";
+
+        private string FormatControllerRespondingStatus() =>
+            $"Controller responding on {_form.port}; {FormatLastHeard()}";
+
+        private string FormatLastHeard()
         {
-            if (string.IsNullOrWhiteSpace(portName))
+            if (!_lastControllerResponseUtc.HasValue)
             {
-                return;
+                return "last heard: never";
             }
 
-            try
-            {
-                using SqliteCommand command = MKTS.conn.CreateCommand();
-                command.CommandText = @"update comports set name=$name";
-                command.Parameters.AddWithValue("$name", portName);
-                command.ExecuteNonQuery();
-            }
-            catch
-            {
-                // Port persistence is helpful, but losing it should not stop timing.
-            }
+            TimeSpan age = DateTime.UtcNow - _lastControllerResponseUtc.Value;
+            return age.TotalSeconds < 2
+                ? "last heard: now"
+                : $"last heard: {Math.Round(age.TotalSeconds)}s ago";
         }
+
+        private static void SavePort(string portName) => AppDatabase.SaveSerialPort(portName);
 
         private async Task DelayReconnectAsync()
         {
