@@ -174,7 +174,7 @@ namespace tlp
         private void SetTrackPowerEnabled(bool enabled, string? speech, string statusMessage)
         {
             _trackPowerEnabled = enabled;
-            string command = enabled ? "TRACK_POWER:ON" : "TRACK_POWER:OFF";
+            string command = GetTrackPowerCommand();
             bool restoreAfterCountdown = enabled &&
                 string.Equals(speech, "Let's go", StringComparison.OrdinalIgnoreCase);
 
@@ -219,7 +219,7 @@ namespace tlp
                     return;
                 }
 
-                WriteLine("TRACK_POWER:ON");
+                WriteLine(GetTrackPowerCommand());
                 uint controllerTimestamp = GetControllerTimestamp();
                 bool started = resumePausedHeat
                     ? _heatRace.Resume(controllerTimestamp)
@@ -411,6 +411,11 @@ namespace tlp
                     }
                     break;
                 case LapProtocolMessageKind.Hello:
+                    if (message.Detail.StartsWith("HELLO:LAPS_REDUX:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        WriteLine(GetTrackPowerCommand());
+                    }
+
                     _form.SetStatusMessage(
                         message.Detail.Contains("RESETTING", StringComparison.OrdinalIgnoreCase)
                             ? message.Detail
@@ -438,6 +443,19 @@ namespace tlp
                     _form.SetStatusMessage($"Rejected serial line: {message.Detail}");
                     break;
             }
+        }
+
+        private string GetTrackPowerCommand()
+        {
+            if (!_trackPowerEnabled)
+            {
+                return "TRACK_POWER:MASK:00";
+            }
+
+            byte enabledLaneMask = _heatRace.State == HeatRaceState.Practice
+                ? byte.MaxValue
+                : _heatRace.GetOccupiedLaneMask();
+            return $"TRACK_POWER:MASK:{enabledLaneMask:X2}";
         }
 
         private void HandleEdge(LapEdge edge)

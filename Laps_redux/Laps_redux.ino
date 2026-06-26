@@ -12,8 +12,9 @@
     ERR:QUEUE_FULL:<dropped-count>*XX
 
   Commands from Windows:
-    TRACK_POWER:OFF*XX  drives the track power cut output active
-    TRACK_POWER:ON*XX   restores the track power cut output inactive
+    TRACK_POWER:OFF*XX     cuts power to every lane
+    TRACK_POWER:ON*XX      restores power to every lane
+    TRACK_POWER:MASK:XX*YY sets the enabled lanes using an 8-bit hex mask
 
   XX is a two-digit hex XOR checksum of every character before the '*'.
 */
@@ -22,11 +23,11 @@ const byte LaneCount = 8;
 const byte QueueSize = 32;
 const unsigned long SerialBaud = 115200;
 const unsigned long HeartbeatIntervalMillis = 1000;
-#define EDGE_DEBOUNCE_MILLIS 20UL
-#define TRACK_POWER_CUT_PIN 10
+#define EDGE_DEBOUNCE_MILLIS 500UL
 #define TRACK_POWER_CUT_ACTIVE_LEVEL HIGH
 
 const byte sensorPins[LaneCount] = { 2, 3, 4, 5, 6, 7, 8, 9 };
+const byte trackPowerCutPins[LaneCount] = { 10, 11, 12, 13, A0, A1, A2, A3 };
 
 struct EdgeEvent {
   byte lane;
@@ -81,8 +82,10 @@ void setup() {
   Serial.begin(SerialBaud);
   delay(1000);
 
-  pinMode(TRACK_POWER_CUT_PIN, OUTPUT);
-  setTrackPowerEnabled(true);
+  for (byte lane = 0; lane < LaneCount; lane++) {
+    digitalWrite(trackPowerCutPins[lane], TRACK_POWER_CUT_ACTIVE_LEVEL);
+    pinMode(trackPowerCutPins[lane], OUTPUT);
+  }
 
   for (byte lane = 0; lane < LaneCount; lane++) {
     pinMode(sensorPins[lane], INPUT_PULLUP);
@@ -160,11 +163,22 @@ void handleCommands() {
     delay(100);
     resetFunc();
   } else if (command == "TRACK_POWER:OFF") {
-    setTrackPowerEnabled(false);
+    setTrackPowerMask(0);
     sendFrame(String(F("HELLO:TRACK_POWER:OFF")));
   } else if (command == "TRACK_POWER:ON") {
-    setTrackPowerEnabled(true);
+    setTrackPowerMask(0xFF);
     sendFrame(String(F("HELLO:TRACK_POWER:ON")));
+  } else if (command.startsWith("TRACK_POWER:MASK:")) {
+    String maskText = command.substring(17);
+    char *end = NULL;
+    unsigned long mask = strtoul(maskText.c_str(), &end, 16);
+    if (maskText.length() != 2 || end == maskText.c_str() || *end != '\0' || mask > 0xFF) {
+      sendFrame(String(F("ERR:BAD_POWER_MASK")));
+      return;
+    }
+
+    setTrackPowerMask((byte)mask);
+    sendFrame(String(F("HELLO:TRACK_POWER:MASK:")) + maskText);
   } else if (command == "PING") {
     sendFrame(String(F("HELLO:LAPS_REDUX:2:8")));
   } else if (command.length() > 0) {
@@ -209,10 +223,13 @@ bool stripAndValidateChecksum(String &line) {
   return true;
 }
 
-void setTrackPowerEnabled(bool enabled) {
+void setTrackPowerMask(byte enabledLaneMask) {
   byte cutLevel = TRACK_POWER_CUT_ACTIVE_LEVEL;
   byte restoreLevel = (TRACK_POWER_CUT_ACTIVE_LEVEL == HIGH) ? LOW : HIGH;
-  digitalWrite(TRACK_POWER_CUT_PIN, enabled ? restoreLevel : cutLevel);
+  for (byte lane = 0; lane < LaneCount; lane++) {
+    bool enabled = (enabledLaneMask & (1 << lane)) != 0;
+    digitalWrite(trackPowerCutPins[lane], enabled ? restoreLevel : cutLevel);
+  }
 }
 
 byte calculateChecksum(const String &body) {

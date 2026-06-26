@@ -263,6 +263,23 @@ namespace tlp
             }
         }
 
+        public byte GetOccupiedLaneMask()
+        {
+            lock (_gate)
+            {
+                byte mask = 0;
+                for (int lane = 0; lane < _laneRacers.Length; lane++)
+                {
+                    if (!string.IsNullOrWhiteSpace(_laneRacers[lane].Name))
+                    {
+                        mask |= (byte)(1 << lane);
+                    }
+                }
+
+                return mask;
+            }
+        }
+
         public HeatRaceEdgeDecision PrepareEdge(LapEdge edge)
         {
             lock (_gate)
