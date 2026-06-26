@@ -263,12 +263,12 @@ namespace tlp
         {
             foreach (Label label in _boardHeaderLabels)
             {
-                SetFontSize(label, label.Height * 0.45f);
+                SetFontSizeToFit(label, Math.Min(label.Height * 0.45f, 28f));
             }
 
             foreach (Label label in _boardValueLabels)
             {
-                SetFontSize(label, label.Height * 0.48f);
+                ApplyBoardValueFont(label);
             }
 
             foreach (Label label in _nameLabels)
@@ -376,6 +376,7 @@ namespace tlp
                     _bestLapLabels[i].Text = string.Empty;
                     _medianLapLabels[i].Text = string.Empty;
                     _mphLabels[i].Text = string.Empty;
+                    ApplyBoardValueFont(_lapLabels[i]);
                 }
             });
         }
@@ -425,6 +426,11 @@ namespace tlp
                 _bestLapLabels[laneIndex].Text = bestLap;
                 _medianLapLabels[laneIndex].Text = medianLap;
                 _mphLabels[laneIndex].Text = milesPerHour;
+                ApplyBoardValueFont(_lapLabels[laneIndex]);
+                ApplyBoardValueFont(_lastLapLabels[laneIndex]);
+                ApplyBoardValueFont(_bestLapLabels[laneIndex]);
+                ApplyBoardValueFont(_medianLapLabels[laneIndex]);
+                ApplyBoardValueFont(_mphLabels[laneIndex]);
             });
         }
 
@@ -511,6 +517,12 @@ namespace tlp
         {
             const float maximumRacerNameSize = 32f;
             SetFontSizeToFit(label, Math.Min(label.Height * 0.4f, maximumRacerNameSize));
+        }
+
+        private static void ApplyBoardValueFont(Label label)
+        {
+            const float maximumBoardValueSize = 32f;
+            SetFontSizeToFit(label, Math.Min(label.Height * 0.42f, maximumBoardValueSize));
         }
 
         private static string FormatClock(TimeSpan time)
