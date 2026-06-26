@@ -228,6 +228,11 @@ namespace tlp
                 SetFontSize(label, label.Height * 0.48f);
             }
 
+            foreach (Label label in _nameLabels)
+            {
+                ApplyRacerNameFont(label);
+            }
+
             SetFontSizeToFit(titleLabel, titleLabel.Height * 0.4f);
         }
 
@@ -311,6 +316,7 @@ namespace tlp
                         ? racerNames[i]?.Trim() ?? string.Empty
                         : string.Empty;
                     _nameLabels[i].Text = string.IsNullOrWhiteSpace(racerName) ? EmptyRacerName : racerName;
+                    ApplyRacerNameFont(_nameLabels[i]);
                 }
             });
         }
@@ -453,6 +459,12 @@ namespace tlp
             SetFontSize(label, size);
         }
 
+        private static void ApplyRacerNameFont(Label label)
+        {
+            const float maximumRacerNameSize = 32f;
+            SetFontSizeToFit(label, Math.Min(label.Height * 0.4f, maximumRacerNameSize));
+        }
+
         private static string FormatClock(TimeSpan time)
         {
             if (time < TimeSpan.Zero)
@@ -508,6 +520,7 @@ namespace tlp
             if (sender is ContextMenuStrip { Tag: Label nameLabel })
             {
                 nameLabel.Text = e.ClickedItem?.Text ?? string.Empty;
+                ApplyRacerNameFont(nameLabel);
             }
         }
 
