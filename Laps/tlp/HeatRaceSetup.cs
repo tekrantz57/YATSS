@@ -399,6 +399,7 @@ namespace tlp
         private string[] GetFirstHeatLaneRacers()
         {
             string[] laneRacers = new string[LapProtocolParser.LaneCount];
+            Array.Fill(laneRacers, string.Empty);
             for (int i = 0; i < _initialLaneIndexes.Count; i++)
             {
                 int laneIndex = _initialLaneIndexes[i];

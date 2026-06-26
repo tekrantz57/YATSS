@@ -307,7 +307,9 @@ namespace tlp
             {
                 for (int i = 0; i < _nameLabels.Length; i++)
                 {
-                    string racerName = i < racerNames.Count ? racerNames[i].Trim() : string.Empty;
+                    string racerName = i < racerNames.Count
+                        ? racerNames[i]?.Trim() ?? string.Empty
+                        : string.Empty;
                     _nameLabels[i].Text = string.IsNullOrWhiteSpace(racerName) ? EmptyRacerName : racerName;
                 }
             });
