@@ -455,6 +455,24 @@ namespace tlp
             });
         }
 
+        public void ShowLaneBaseline(int laneIndex)
+        {
+            if (laneIndex < 0 || laneIndex >= LapProtocolParser.LaneCount)
+            {
+                return;
+            }
+
+            RunOnUiThread(() =>
+            {
+                _lapLabels[laneIndex].Text = "0";
+                _lastLapLabels[laneIndex].Text = string.Empty;
+                _bestLapLabels[laneIndex].Text = string.Empty;
+                _medianLapLabels[laneIndex].Text = string.Empty;
+                _mphLabels[laneIndex].Text = string.Empty;
+                ApplyBoardValueFont(_lapLabels[laneIndex]);
+            });
+        }
+
         public void SetStatusMessage(string message)
         {
             RunOnUiThread(() => statusLabel.Text = message);

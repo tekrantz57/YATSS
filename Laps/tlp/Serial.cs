@@ -541,13 +541,7 @@ namespace tlp
                 _log.Info($"lane {edge.LaneIndex}: {update.Detail}");
                 if (update.Kind == LapUpdateKind.Started)
                 {
-                    _form.UpdateLaneDisplay(
-                        edge.LaneIndex,
-                        0,
-                        string.Empty,
-                        string.Empty,
-                        string.Empty,
-                        string.Empty);
+                    _form.ShowLaneBaseline(edge.LaneIndex);
                 }
 
                 if (update.Kind == LapUpdateKind.Invalid)
