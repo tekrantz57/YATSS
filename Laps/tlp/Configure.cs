@@ -12,7 +12,9 @@ namespace tlp
         public IReadOnlyList<LaneConfiguration> LaneConfigurations { get; private set; }
         private readonly TextBox[] _laneNameTextBoxes = new TextBox[LapProtocolParser.LaneCount];
         private readonly Button[] _laneColorButtons = new Button[LapProtocolParser.LaneCount];
+        private readonly FlowLayoutPanel[] _laneEditorPanels = new FlowLayoutPanel[LapProtocolParser.LaneCount];
         private readonly ToolTip _laneColorToolTip = new();
+        private TableLayoutPanel _laneColorLayout = null!;
 
         public Configure(
             int minLapMilliseconds,
@@ -33,6 +35,7 @@ namespace tlp
             cbSoundOnTooFastLap.Checked = soundOnTooFastLap;
             nudActiveLaneCount.Value = Math.Clamp(activeLaneCount, (int)nudActiveLaneCount.Minimum, (int)nudActiveLaneCount.Maximum);
             BuildLaneColorEditor();
+            nudActiveLaneCount.ValueChanged += (_, _) => ApplyActiveLaneEditors();
             LoadSerialPorts(selectedPort);
             LoadSpeechVoices(selectedSpeechVoice);
         }
@@ -83,21 +86,21 @@ namespace tlp
 
         private void BuildLaneColorEditor()
         {
-            TableLayoutPanel layout = new()
+            _laneColorLayout = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 2,
                 RowCount = 4,
                 Padding = new Padding(6)
             };
-            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
-            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+            _laneColorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+            _laneColorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
             for (int row = 0; row < 4; row++)
             {
-                layout.RowStyles.Add(new RowStyle(SizeType.Percent, 25F));
+                _laneColorLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 25F));
             }
 
-            groupBoxLaneColors.Controls.Add(layout);
+            groupBoxLaneColors.Controls.Add(_laneColorLayout);
             for (int lane = 0; lane < LapProtocolParser.LaneCount; lane++)
             {
                 FlowLayoutPanel lanePanel = new()
@@ -107,6 +110,7 @@ namespace tlp
                     WrapContents = false,
                     Margin = Padding.Empty
                 };
+                _laneEditorPanels[lane] = lanePanel;
 
                 Label laneLabel = new()
                 {
@@ -140,8 +144,35 @@ namespace tlp
                 _laneColorToolTip.SetToolTip(colorButton, $"Choose color for lane {lane + 1}");
                 lanePanel.Controls.Add(colorButton);
 
-                layout.Controls.Add(lanePanel, lane % 2, lane / 2);
+                _laneColorLayout.Controls.Add(lanePanel, lane % 2, lane / 2);
             }
+
+            ApplyActiveLaneEditors();
+        }
+
+        private void ApplyActiveLaneEditors()
+        {
+            int activeLaneCount = (int)nudActiveLaneCount.Value;
+            int visibleRows = (activeLaneCount + 1) / 2;
+            for (int lane = 0; lane < _laneEditorPanels.Length; lane++)
+            {
+                _laneEditorPanels[lane].Visible = lane < activeLaneCount;
+            }
+
+            for (int row = 0; row < _laneColorLayout.RowStyles.Count; row++)
+            {
+                RowStyle rowStyle = _laneColorLayout.RowStyles[row];
+                rowStyle.SizeType = row < visibleRows ? SizeType.Percent : SizeType.Absolute;
+                rowStyle.Height = row < visibleRows ? 100F / visibleRows : 0F;
+            }
+
+            int groupHeight = 30 + (visibleRows * 36);
+            groupBoxLaneColors.Height = groupHeight;
+            int buttonTop = groupBoxLaneColors.Bottom + 18;
+            bOK.Top = buttonTop;
+            bCancel.Top = buttonTop;
+            ClientSize = new Size(ClientSize.Width, buttonTop + bOK.Height + 16);
+            groupBoxLaneColors.PerformLayout();
         }
 
         private void laneColorButton_Click(object? sender, EventArgs e)
