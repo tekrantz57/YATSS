@@ -14,6 +14,7 @@ namespace tlp
         LapEdge Edge,
         bool CountFirstEdgeAsLap,
         bool FastestLapEligible,
+        int? FirstLapMilliseconds,
         string Detail);
 
     public sealed record HeatRaceSnapshot(
@@ -311,12 +312,12 @@ namespace tlp
             {
                 if (State != HeatRaceState.Running)
                 {
-                    return new HeatRaceEdgeDecision(false, edge, false, false, "heat is not running");
+                    return new HeatRaceEdgeDecision(false, edge, false, false, null, "heat is not running");
                 }
 
                 if (string.IsNullOrWhiteSpace(_laneRacers[edge.LaneIndex].Name))
                 {
-                    return new HeatRaceEdgeDecision(false, edge, false, false, "lane is unoccupied");
+                    return new HeatRaceEdgeDecision(false, edge, false, false, null, "lane is unoccupied");
                 }
 
                 bool isFirstLaneEdge = !_laneSeenThisHeat[edge.LaneIndex];
@@ -324,14 +325,19 @@ namespace tlp
 
                 bool countFirstEdgeAsLap = isFirstLaneEdge && !_isFirstHeat;
                 bool fastestLapEligible = !isFirstLaneEdge || _isFirstHeat;
-                uint adjustedTimestamp = (uint)(_raceTimestampBase + GetElapsedMillisecondsCore(edge.TimestampMillis));
+                long elapsedHeatMilliseconds = GetElapsedMillisecondsCore(edge.TimestampMillis);
+                uint adjustedTimestamp = (uint)(_raceTimestampBase + elapsedHeatMilliseconds);
                 LapEdge adjustedEdge = edge with { TimestampMillis = adjustedTimestamp };
+                int? firstLapMilliseconds = countFirstEdgeAsLap
+                    ? (int)Math.Min(elapsedHeatMilliseconds, int.MaxValue)
+                    : null;
 
                 return new HeatRaceEdgeDecision(
                     true,
                     adjustedEdge,
                     countFirstEdgeAsLap,
                     fastestLapEligible,
+                    firstLapMilliseconds,
                     isFirstLaneEdge ? "first lane edge in heat" : "heat edge");
             }
         }

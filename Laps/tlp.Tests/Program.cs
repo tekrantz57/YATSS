@@ -76,6 +76,18 @@ Assert(!countedFirstEdge.LapMilliseconds.HasValue, "first counted edge should no
 Assert(carriedCountRace.GetLane(0).getCount() == 5, "first counted edge should increment carried count");
 Assert(carriedCountRace.GetLane(0).getMedian() == 0, "first counted edge should not affect timing samples");
 
+LapRace timedFirstLapRace = new(new LapRaceOptions(1000, 600000, 155.0));
+timedFirstLapRace.ResetTimingForHeat(new[] { 4, 0, 0, 0, 0, 0, 0, 0 });
+LapUpdate timedFirstLap = timedFirstLapRace.Process(
+    new LapEdge(0, 1, 61000),
+    countFirstEdgeAsLap: true,
+    fastestLapEligible: false,
+    firstLapMilliseconds: 1000);
+Assert(timedFirstLap.LapMilliseconds == 1000, "successive heat first lap should report heat-start timing");
+Assert(timedFirstLapRace.GetLane(0).getCount() == 5, "timed first lap should increment carried count");
+Assert(timedFirstLapRace.GetLane(0).getMedian() == 1000, "timed first lap should contribute to median");
+Assert(timedFirstLapRace.GetLane(0).best_time == int.MaxValue, "timed first lap should be excluded from fastest lap");
+
 LapRace wrapRace = new(new LapRaceOptions(1000, 600000, 155.0));
 Assert(wrapRace.Process(new LapEdge(0, uint.MaxValue, uint.MaxValue - 500)).Kind == LapUpdateKind.Started, "wrap race should start");
 LapUpdate wrappedTime = wrapRace.Process(new LapEdge(0, 0, 1500));
@@ -141,6 +153,7 @@ HeatRaceEdgeDecision secondHeatFirstEdge = heat.PrepareEdge(new LapEdge(0, 3, 81
 Assert(secondHeatFirstEdge.Edge.TimestampMillis == 61000, "second heat adjusted time should continue after heat 1");
 Assert(secondHeatFirstEdge.CountFirstEdgeAsLap, "first lane edge after heat 1 should count as a lap");
 Assert(!secondHeatFirstEdge.FastestLapEligible, "first lane edge after heat 1 should not be fastest eligible");
+Assert(secondHeatFirstEdge.FirstLapMilliseconds == 1000, "successive heat first lap should use active time since heat start");
 
 HeatRaceController fourLaneHeat = new();
 fourLaneHeat.Configure(1, 0, new[] { "A", "B", "C", "D", "E" }, activeLaneCount: 4);

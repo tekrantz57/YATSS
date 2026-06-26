@@ -114,7 +114,11 @@ namespace tlp
         public LapUpdate Process(LapEdge edge) =>
             Process(edge, countFirstEdgeAsLap: false, fastestLapEligible: true);
 
-        public LapUpdate Process(LapEdge edge, bool countFirstEdgeAsLap, bool fastestLapEligible)
+        public LapUpdate Process(
+            LapEdge edge,
+            bool countFirstEdgeAsLap,
+            bool fastestLapEligible,
+            int? firstLapMilliseconds = null)
         {
             if (edge.LaneIndex < 0 || edge.LaneIndex >= _lanes.Length)
             {
@@ -153,6 +157,17 @@ namespace tlp
                     lane.LastAcceptedTimestamp = edge.TimestampMillis;
                     if (countFirstEdgeAsLap)
                     {
+                        if (firstLapMilliseconds.HasValue)
+                        {
+                            lane.Stats.AddLap(firstLapMilliseconds.Value, eligibleForBest: false);
+                            return new LapUpdate(
+                                LapUpdateKind.Counted,
+                                edge.LaneIndex,
+                                firstLapMilliseconds.Value,
+                                lane.MissedFrames,
+                                "first edge counted with heat-start timing; excluded from fastest lap");
+                        }
+
                         lane.Stats.AddLapCountOnly();
                         return new LapUpdate(LapUpdateKind.Counted, edge.LaneIndex, null, lane.MissedFrames, "first edge counted without lap timing");
                     }

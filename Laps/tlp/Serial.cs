@@ -509,7 +509,8 @@ namespace tlp
                 update = _race.Process(
                     heatDecision.Edge,
                     heatDecision.CountFirstEdgeAsLap,
-                    heatDecision.FastestLapEligible);
+                    heatDecision.FastestLapEligible,
+                    heatDecision.FirstLapMilliseconds);
             }
 
             if (update.Kind == LapUpdateKind.TooFast)
