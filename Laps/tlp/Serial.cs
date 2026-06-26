@@ -38,8 +38,15 @@ namespace tlp
         public void ApplySettings()
         {
             LapRaceOptions options = _race.Options;
-            _race.SetOptions(options with { MinLapMilliseconds = _form.MinLapMilliseconds });
-            _log.Info($"minimum lap time set to {_form.MinLapMilliseconds} ms; sound on too-fast laps is {_form.SoundOnTooFastLap}");
+            _race.SetOptions(options with
+            {
+                MinLapMilliseconds = _form.MinLapMilliseconds,
+                TrackLengthFeet = _form.TrackLengthFeet
+            });
+            _log.Info(
+                $"minimum lap time set to {_form.MinLapMilliseconds} ms; " +
+                $"track length set to {_form.TrackLengthFeet:0.##} ft; " +
+                $"sound on too-fast laps is {_form.SoundOnTooFastLap}");
             if (_heatRace.State == HeatRaceState.Practice)
             {
                 WriteLine(GetTrackPowerCommand());
@@ -105,11 +112,13 @@ namespace tlp
         }
 
         public void ConfigureHeatRace(
+            string raceName,
             int heatLengthMinutes,
             int betweenHeatsSeconds,
             IReadOnlyList<string> racers,
             int activeLaneCount,
-            IReadOnlyList<LaneConfiguration> laneConfigurations)
+            IReadOnlyList<LaneConfiguration> laneConfigurations,
+            double trackLengthFeet)
         {
             CancelStartCountdown();
             CancelBetweenHeatsTimer();
@@ -120,7 +129,9 @@ namespace tlp
                 betweenHeatsSeconds,
                 racers,
                 activeLaneCount,
-                laneConfigurations);
+                laneConfigurations,
+                raceName,
+                trackLengthFeet);
             PublishHeatRaceStatus("Ready");
             SetTrackPowerEnabled(false, null, $"Heat 1 ready: {heatLengthMinutes} minute heat. Press Space to start.");
             _log.Info($"heat race configured for {heatLengthMinutes} minute(s), {betweenHeatsSeconds} second(s) between heats");

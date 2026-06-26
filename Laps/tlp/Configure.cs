@@ -9,6 +9,7 @@ namespace tlp
         public string SelectedPort { get; private set; } = "";
         public string SelectedSpeechVoice { get; private set; } = "";
         public int ActiveLaneCount { get; private set; }
+        public double TrackLengthFeet { get; private set; }
         public IReadOnlyList<LaneConfiguration> LaneConfigurations { get; private set; }
         private readonly TextBox[] _laneNameTextBoxes = new TextBox[LapProtocolParser.LaneCount];
         private readonly Button[] _laneColorButtons = new Button[LapProtocolParser.LaneCount];
@@ -22,6 +23,7 @@ namespace tlp
             string selectedPort,
             string selectedSpeechVoice,
             int activeLaneCount,
+            double trackLengthFeet,
             IReadOnlyList<LaneConfiguration> laneConfigurations)
         {
             InitializeComponent();
@@ -30,10 +32,15 @@ namespace tlp
             SelectedPort = selectedPort;
             SelectedSpeechVoice = selectedSpeechVoice;
             ActiveLaneCount = activeLaneCount;
+            TrackLengthFeet = trackLengthFeet;
             LaneConfigurations = NormalizeLaneConfigurations(laneConfigurations);
             nudMinLapMilliseconds.Value = Math.Clamp(minLapMilliseconds, (int)nudMinLapMilliseconds.Minimum, (int)nudMinLapMilliseconds.Maximum);
             cbSoundOnTooFastLap.Checked = soundOnTooFastLap;
             nudActiveLaneCount.Value = Math.Clamp(activeLaneCount, (int)nudActiveLaneCount.Minimum, (int)nudActiveLaneCount.Maximum);
+            nudTrackLengthFeet.Value = Math.Clamp(
+                (decimal)trackLengthFeet,
+                nudTrackLengthFeet.Minimum,
+                nudTrackLengthFeet.Maximum);
             BuildLaneColorEditor();
             nudActiveLaneCount.ValueChanged += (_, _) => ApplyActiveLaneEditors();
             LoadSerialPorts(selectedPort);
@@ -75,6 +82,7 @@ namespace tlp
             SelectedPort = cbSerialPort.Text.Trim();
             SelectedSpeechVoice = cbSpeechVoice.Text.Trim();
             ActiveLaneCount = (int)nudActiveLaneCount.Value;
+            TrackLengthFeet = (double)nudTrackLengthFeet.Value;
             LaneConfigurations = Enumerable.Range(0, LapProtocolParser.LaneCount)
                 .Select(lane => new LaneConfiguration(
                     GetLaneName(lane),

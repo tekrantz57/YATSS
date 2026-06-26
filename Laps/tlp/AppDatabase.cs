@@ -2,7 +2,10 @@ using Microsoft.Data.Sqlite;
 
 namespace tlp
 {
-    internal sealed record HeatRaceSetupSettings(int HeatLengthMinutes, int BetweenHeatsSeconds);
+    internal sealed record HeatRaceSetupSettings(
+        int HeatLengthMinutes,
+        int BetweenHeatsSeconds,
+        string RaceName);
     internal sealed record AppSettings(
         int MinLapMilliseconds,
         bool SoundOnTooFastLap,
@@ -99,6 +102,28 @@ namespace tlp
             command.Parameters.AddWithValue("$soundOnTooFastLap", settings.SoundOnTooFastLap);
             command.Parameters.AddWithValue("$speechVoiceName", settings.SpeechVoiceName.Trim());
             command.Parameters.AddWithValue("$activeLaneCount", settings.ActiveLaneCount);
+            command.ExecuteNonQuery();
+        }
+
+        public static double LoadTrackLengthFeet(double defaultValue)
+        {
+            using SqliteCommand command = Connection.CreateCommand();
+            command.CommandText = @"SELECT track_length_feet FROM track_configuration WHERE id = 1";
+            object? value = command.ExecuteScalar();
+            return value == null || value == DBNull.Value
+                ? defaultValue
+                : Convert.ToDouble(value, System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        public static void SaveTrackLengthFeet(double trackLengthFeet)
+        {
+            using SqliteCommand command = Connection.CreateCommand();
+            command.CommandText = @"
+                INSERT INTO track_configuration (id, track_length_feet)
+                VALUES (1, $trackLengthFeet)
+                ON CONFLICT(id) DO UPDATE SET
+                    track_length_feet = excluded.track_length_feet";
+            command.Parameters.AddWithValue("$trackLengthFeet", trackLengthFeet);
             command.ExecuteNonQuery();
         }
 
@@ -239,7 +264,11 @@ namespace tlp
 
             int heatLengthMinutes = reader.IsDBNull(0) ? defaults.HeatLengthMinutes : reader.GetInt32(0);
             int betweenHeatsSeconds = reader.IsDBNull(1) ? defaults.BetweenHeatsSeconds : reader.GetInt32(1);
-            return new HeatRaceSetupSettings(heatLengthMinutes, betweenHeatsSeconds);
+            reader.Close();
+            using SqliteCommand raceNameCommand = Connection.CreateCommand();
+            raceNameCommand.CommandText = @"SELECT race_name FROM heat_race_identity WHERE id = 1";
+            string raceName = raceNameCommand.ExecuteScalar()?.ToString()?.Trim() ?? defaults.RaceName;
+            return new HeatRaceSetupSettings(heatLengthMinutes, betweenHeatsSeconds, raceName);
         }
 
         public static void SaveHeatRaceSettings(HeatRaceSetupSettings settings)
@@ -254,6 +283,14 @@ namespace tlp
             command.Parameters.AddWithValue("$heatLengthMinutes", settings.HeatLengthMinutes);
             command.Parameters.AddWithValue("$betweenHeatsSeconds", settings.BetweenHeatsSeconds);
             command.ExecuteNonQuery();
+
+            using SqliteCommand raceNameCommand = Connection.CreateCommand();
+            raceNameCommand.CommandText = @"
+                INSERT INTO heat_race_identity (id, race_name)
+                VALUES (1, $raceName)
+                ON CONFLICT(id) DO UPDATE SET race_name = excluded.race_name";
+            raceNameCommand.Parameters.AddWithValue("$raceName", settings.RaceName.Trim());
+            raceNameCommand.ExecuteNonQuery();
         }
 
         private static void EnsureSchema()
@@ -285,6 +322,16 @@ namespace tlp
                     lane_index INTEGER PRIMARY KEY CHECK (lane_index BETWEEN 0 AND 7),
                     display_name TEXT NOT NULL,
                     color_argb INTEGER NOT NULL
+                )");
+            ExecuteNonQuery(@"
+                CREATE TABLE IF NOT EXISTS heat_race_identity (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    race_name TEXT NOT NULL
+                )");
+            ExecuteNonQuery(@"
+                CREATE TABLE IF NOT EXISTS track_configuration (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    track_length_feet REAL NOT NULL
                 )");
         }
 

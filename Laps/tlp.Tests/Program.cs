@@ -46,6 +46,10 @@ LapUpdate counted = race.Process(new LapEdge(0, 3, 3500));
 Assert(counted.Kind == LapUpdateKind.Counted, "valid edge should count lap");
 Assert(counted.LapMilliseconds == 2500, "lap duration should be computed from last accepted edge");
 Assert(race.GetLane(0).getCount() == 1, "lane should have one counted lap");
+LapRace hundredFootRace = new(new LapRaceOptions(1000, 600000, 100.0));
+Assert(
+    Math.Abs(hundredFootRace.CalculateMilesPerHour(10000) - 6.8166325835) < 0.000001,
+    "MPH should use configured track length");
 Assert(race.AdjustLapCount(0, 1) == 2, "manual add should increase lap count");
 Assert(race.AdjustLapCount(0, -1) == 1, "manual subtract should decrease lap count");
 Assert(race.AdjustLapCount(0, -5) == 0, "manual subtract should not create negative lap count");
@@ -182,7 +186,12 @@ Assert(customLaneReport.LaneNames[0] == "Aqua", "report should use configured la
 Assert(customLaneReport.LaneColorArgb[1] == System.Drawing.Color.HotPink.ToArgb(), "report should use configured lane colors");
 
 HeatRaceController reportHeat = new();
-reportHeat.Configure(1, 0, new[] { "Ada", "Grace" });
+reportHeat.Configure(
+    1,
+    0,
+    new[] { "Ada", "Grace" },
+    raceName: "Thursday Night",
+    trackLengthFeet: 123.5);
 Assert(reportHeat.Start(0), "report heat should start");
 Assert(reportHeat.Pause(1000), "paused heat should allow lap adjustment");
 Assert(reportHeat.CanAdjustLapCounts, "paused heat should allow manual lap adjustment");
@@ -190,6 +199,8 @@ reportHeat.RecordHeatResults(
     new[] { 5, 4, 0, 0, 0, 0, 0, 0 },
     new int?[] { 2100, 2200, null, null, null, null, null, null });
 HeatRaceReport report = reportHeat.CreateReport();
+Assert(report.RaceName == "Thursday Night", "report should include race name");
+Assert(report.TrackLengthFeet == 123.5, "report should include configured track length");
 Assert(report.HeatLengthMinutes == 1, "report should include heat length");
 Assert(report.BetweenHeatsSeconds == 0, "report should include between-heat seconds");
 Assert(report.Notes.Contains("Manual lap adjustments", StringComparison.OrdinalIgnoreCase), "report should include manual adjustment note");

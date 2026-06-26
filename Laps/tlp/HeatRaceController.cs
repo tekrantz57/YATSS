@@ -42,8 +42,10 @@ namespace tlp
 
     public sealed record HeatRaceReport(
         DateTime CreatedLocal,
+        string RaceName,
         int HeatLengthMinutes,
         int BetweenHeatsSeconds,
+        double TrackLengthFeet,
         int TotalHeats,
         IReadOnlyList<string> LaneNames,
         IReadOnlyList<int> LaneColorArgb,
@@ -85,6 +87,8 @@ namespace tlp
         private int[] _laneColorArgb = DefaultLaneConfigurations
             .Select(lane => lane.ColorArgb)
             .ToArray();
+        private string _raceName = string.Empty;
+        private double _trackLengthFeet = LapRaceOptions.Default.TrackLengthFeet;
 
         public HeatRaceState State { get; private set; } = HeatRaceState.Practice;
         public int HeatNumber { get; private set; }
@@ -117,7 +121,9 @@ namespace tlp
             int betweenHeatsSeconds,
             IReadOnlyList<string> racers,
             int activeLaneCount = LapProtocolParser.LaneCount,
-            IReadOnlyList<LaneConfiguration>? laneConfigurations = null)
+            IReadOnlyList<LaneConfiguration>? laneConfigurations = null,
+            string raceName = "",
+            double trackLengthFeet = 155.0)
         {
             lock (_gate)
             {
@@ -138,6 +144,8 @@ namespace tlp
                             ? laneConfigurations[lane].ColorArgb
                             : DefaultLaneConfigurations[lane].ColorArgb)
                     .ToArray();
+                _raceName = raceName.Trim();
+                _trackLengthFeet = Math.Clamp(trackLengthFeet, 1.0, 10000.0);
                 _heatLengthMilliseconds = Math.Max(1, heatLengthMinutes) * 60000L;
                 _betweenHeatsSeconds = Math.Clamp(betweenHeatsSeconds, 0, 300);
                 _activeMillisecondsBeforeRun = 0;
@@ -424,8 +432,10 @@ namespace tlp
 
                 return new HeatRaceReport(
                     DateTime.Now,
+                    _raceName,
                     HeatLengthMinutes,
                     BetweenHeatsSeconds,
+                    _trackLengthFeet,
                     TotalHeats,
                     _laneNames.Take(TotalHeats).ToArray(),
                     _laneColorArgb.Take(TotalHeats).ToArray(),

@@ -41,6 +41,8 @@ namespace tlp
             groupBoxTrack = new GroupBox();
             activeLaneCountLabel = new Label();
             nudActiveLaneCount = new NumericUpDown();
+            trackLengthLabel = new Label();
+            nudTrackLengthFeet = new NumericUpDown();
             groupBoxLaneColors = new GroupBox();
             groupBox3.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)nudMinLapMilliseconds).BeginInit();
@@ -48,6 +50,7 @@ namespace tlp
             groupBox5.SuspendLayout();
             groupBoxTrack.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)nudActiveLaneCount).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)nudTrackLengthFeet).BeginInit();
             groupBoxLaneColors.SuspendLayout();
             SuspendLayout();
             //
@@ -134,6 +137,8 @@ namespace tlp
             //
             groupBoxTrack.Controls.Add(activeLaneCountLabel);
             groupBoxTrack.Controls.Add(nudActiveLaneCount);
+            groupBoxTrack.Controls.Add(trackLengthLabel);
+            groupBoxTrack.Controls.Add(nudTrackLengthFeet);
             groupBoxTrack.Location = new Point(12, 242);
             groupBoxTrack.Name = "groupBoxTrack";
             groupBoxTrack.Size = new Size(399, 53);
@@ -159,6 +164,27 @@ namespace tlp
             nudActiveLaneCount.Size = new Size(64, 23);
             nudActiveLaneCount.TabIndex = 0;
             nudActiveLaneCount.Value = new decimal(new int[] { 8, 0, 0, 0 });
+            //
+            // trackLengthLabel
+            //
+            trackLengthLabel.AutoSize = true;
+            trackLengthLabel.Location = new Point(225, 25);
+            trackLengthLabel.Name = "trackLengthLabel";
+            trackLengthLabel.Size = new Size(97, 15);
+            trackLengthLabel.TabIndex = 2;
+            trackLengthLabel.Text = "Track length (ft)";
+            //
+            // nudTrackLengthFeet
+            //
+            nudTrackLengthFeet.DecimalPlaces = 2;
+            nudTrackLengthFeet.Increment = new decimal(new int[] { 25, 0, 0, 131072 });
+            nudTrackLengthFeet.Location = new Point(328, 21);
+            nudTrackLengthFeet.Maximum = new decimal(new int[] { 10000, 0, 0, 0 });
+            nudTrackLengthFeet.Minimum = new decimal(new int[] { 1, 0, 0, 0 });
+            nudTrackLengthFeet.Name = "nudTrackLengthFeet";
+            nudTrackLengthFeet.Size = new Size(59, 23);
+            nudTrackLengthFeet.TabIndex = 3;
+            nudTrackLengthFeet.Value = new decimal(new int[] { 155, 0, 0, 0 });
             //
             // groupBoxLaneColors
             //
@@ -217,6 +243,7 @@ namespace tlp
             groupBoxTrack.ResumeLayout(false);
             groupBoxTrack.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)nudActiveLaneCount).EndInit();
+            ((System.ComponentModel.ISupportInitialize)nudTrackLengthFeet).EndInit();
             groupBoxLaneColors.ResumeLayout(false);
             ResumeLayout(false);
         }
@@ -236,6 +263,8 @@ namespace tlp
         private GroupBox groupBoxTrack;
         private Label activeLaneCountLabel;
         private NumericUpDown nudActiveLaneCount;
+        private Label trackLengthLabel;
+        private NumericUpDown nudTrackLengthFeet;
         private GroupBox groupBoxLaneColors;
     }
 }

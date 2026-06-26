@@ -8,6 +8,7 @@ namespace tlp
         private readonly Label _queueLabel = new();
         private readonly NumericUpDown _heatLengthMinutes = new();
         private readonly NumericUpDown _betweenHeatsSeconds = new();
+        private readonly TextBox _raceName = new();
         private readonly Button _okButton = new();
         private readonly Random _random = new();
         private readonly List<string> _selectedNames = new();
@@ -20,6 +21,7 @@ namespace tlp
 
         public int HeatLengthMinutes => (int)_heatLengthMinutes.Value;
         public int BetweenHeatsSeconds => (int)_betweenHeatsSeconds.Value;
+        public string RaceName => _raceName.Text.Trim();
         public IReadOnlyList<string> SelectedRacers => _selectedNames.ToArray();
         public IReadOnlyList<string> FirstHeatLaneRacers => GetFirstHeatLaneRacers();
 
@@ -140,13 +142,32 @@ namespace tlp
             TableLayoutPanel heatLayout = new()
             {
                 Dock = DockStyle.Fill,
-                RowCount = 3,
+                RowCount = 4,
                 Padding = new Padding(8)
             };
+            heatLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38F));
             heatLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42F));
             heatLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 70F));
             heatLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 30F));
             heatGroup.Controls.Add(heatLayout);
+
+            FlowLayoutPanel raceIdentity = new()
+            {
+                Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false
+            };
+            heatLayout.Controls.Add(raceIdentity, 0, 0);
+
+            raceIdentity.Controls.Add(new Label
+            {
+                Text = "Race name",
+                AutoSize = true,
+                Margin = new Padding(0, 6, 8, 0)
+            });
+            _raceName.Width = 360;
+            _raceName.MaxLength = 80;
+            raceIdentity.Controls.Add(_raceName);
 
             FlowLayoutPanel heatSettings = new()
             {
@@ -154,7 +175,7 @@ namespace tlp
                 FlowDirection = FlowDirection.LeftToRight,
                 WrapContents = false
             };
-            heatLayout.Controls.Add(heatSettings, 0, 0);
+            heatLayout.Controls.Add(heatSettings, 0, 1);
 
             Label heatLengthLabel = new()
             {
@@ -185,14 +206,14 @@ namespace tlp
             heatSettings.Controls.Add(_betweenHeatsSeconds);
 
             ConfigureLaneGrid();
-            heatLayout.Controls.Add(_laneGrid, 0, 1);
+            heatLayout.Controls.Add(_laneGrid, 0, 2);
 
             GroupBox selectedGroup = new()
             {
                 Text = "Rotation Queue",
                 Dock = DockStyle.Fill
             };
-            heatLayout.Controls.Add(selectedGroup, 0, 2);
+            heatLayout.Controls.Add(selectedGroup, 0, 3);
 
             _selectedRacers.Dock = DockStyle.Fill;
             selectedGroup.Controls.Add(_selectedRacers);
@@ -272,7 +293,10 @@ namespace tlp
         private void LoadSettings()
         {
             HeatRaceSetupSettings settings = AppDatabase.LoadHeatRaceSettings(
-                new HeatRaceSetupSettings((int)_heatLengthMinutes.Value, (int)_betweenHeatsSeconds.Value));
+                new HeatRaceSetupSettings(
+                    (int)_heatLengthMinutes.Value,
+                    (int)_betweenHeatsSeconds.Value,
+                    string.Empty));
             _heatLengthMinutes.Value = Math.Clamp(
                 settings.HeatLengthMinutes,
                 (int)_heatLengthMinutes.Minimum,
@@ -281,11 +305,15 @@ namespace tlp
                 settings.BetweenHeatsSeconds,
                 (int)_betweenHeatsSeconds.Minimum,
                 (int)_betweenHeatsSeconds.Maximum);
+            _raceName.Text = settings.RaceName;
         }
 
         private void SaveSettings()
         {
-            AppDatabase.SaveHeatRaceSettings(new HeatRaceSetupSettings(HeatLengthMinutes, BetweenHeatsSeconds));
+            AppDatabase.SaveHeatRaceSettings(new HeatRaceSetupSettings(
+                HeatLengthMinutes,
+                BetweenHeatsSeconds,
+                RaceName));
         }
 
         private void SetAllRacersChecked(bool isChecked)

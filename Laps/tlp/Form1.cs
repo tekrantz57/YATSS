@@ -17,11 +17,13 @@ namespace tlp
         private Label _heatTimerLabel = null!;
         private Label _onDeckLabel = null!;
         private const string EmptyRacerName = "          ";
+        private const string DefaultWindowTitle = "MKTS";
         public string port = "";
         public int MinLapMilliseconds { get; private set; } = LapRaceOptions.Default.MinLapMilliseconds;
         public bool SoundOnTooFastLap { get; private set; } = true;
         public string SpeechVoiceName { get; private set; } = "";
         public int ActiveLaneCount { get; private set; } = LapProtocolParser.LaneCount;
+        public double TrackLengthFeet { get; private set; } = LapRaceOptions.Default.TrackLengthFeet;
         public IReadOnlyList<LaneConfiguration> LaneConfigurations { get; private set; } =
             LaneConfiguration.CreateDefaults();
 
@@ -42,6 +44,10 @@ namespace tlp
             SoundOnTooFastLap = settings.SoundOnTooFastLap;
             SpeechVoiceName = settings.SpeechVoiceName;
             ActiveLaneCount = Math.Clamp(settings.ActiveLaneCount, 2, LapProtocolParser.LaneCount);
+            TrackLengthFeet = Math.Clamp(
+                AppDatabase.LoadTrackLengthFeet(TrackLengthFeet),
+                1.0,
+                10000.0);
             LaneConfigurations = AppDatabase.LoadLaneConfigurations(LaneConfigurations);
             ApplyLaneColors();
             ApplyActiveLaneLayout();
@@ -107,6 +113,7 @@ namespace tlp
         private void resetToolStripMenuItem_Click(object sender, EventArgs e)
         {
             Trace.WriteLine("practice reset");
+            SetRaceTitle(null);
             s.ResetRace(resetArduino: true);
         }
 
@@ -123,17 +130,21 @@ namespace tlp
             {
                 SetHeatRaceMode();
                 s.ConfigureHeatRace(
+                    heatRaceSetup.RaceName,
                     heatRaceSetup.HeatLengthMinutes,
                     heatRaceSetup.BetweenHeatsSeconds,
                     heatRaceSetup.SelectedRacers,
                     ActiveLaneCount,
-                    LaneConfigurations);
+                    LaneConfigurations,
+                    TrackLengthFeet);
+                SetRaceTitle(heatRaceSetup.RaceName);
                 SetLaneRacerNames(heatRaceSetup.FirstHeatLaneRacers);
             }
         }
 
         private void SetPracticeMode()
         {
+            SetRaceTitle(null);
             practiceToolStripMenuItem.Checked = true;
             heatRaceToolStripMenuItem.Checked = false;
         }
@@ -142,6 +153,16 @@ namespace tlp
         {
             practiceToolStripMenuItem.Checked = false;
             heatRaceToolStripMenuItem.Checked = true;
+        }
+
+        public void SetRaceTitle(string? raceName)
+        {
+            RunOnUiThread(() =>
+            {
+                Text = string.IsNullOrWhiteSpace(raceName)
+                    ? DefaultWindowTitle
+                    : $"{DefaultWindowTitle} - {raceName.Trim()}";
+            });
         }
 
         private void WireBestLapResetClicks()
@@ -592,6 +613,7 @@ namespace tlp
                 port,
                 SpeechVoiceName,
                 ActiveLaneCount,
+                TrackLengthFeet,
                 LaneConfigurations);
             if (config.ShowDialog(this) == DialogResult.OK)
             {
@@ -599,6 +621,7 @@ namespace tlp
                 SoundOnTooFastLap = config.SoundOnTooFastLap;
                 SpeechVoiceName = config.SelectedSpeechVoice;
                 ActiveLaneCount = config.ActiveLaneCount;
+                TrackLengthFeet = config.TrackLengthFeet;
                 LaneConfigurations = config.LaneConfigurations;
                 ApplyLaneColors();
                 ApplyActiveLaneLayout();
@@ -608,6 +631,7 @@ namespace tlp
                     SpeechVoiceName,
                     ActiveLaneCount));
                 AppDatabase.SaveLaneConfigurations(LaneConfigurations);
+                AppDatabase.SaveTrackLengthFeet(TrackLengthFeet);
                 SpeechAnnouncer.WarmUpAsync(SpeechVoiceName);
                 s.ApplySettings();
                 s.SetPort(config.SelectedPort);
