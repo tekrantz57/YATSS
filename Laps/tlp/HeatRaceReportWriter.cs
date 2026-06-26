@@ -103,7 +103,7 @@ namespace tlp
                 string rowClass = result.HeatNumber % 2 == 0 ? " class=\"heat-alt\"" : string.Empty;
                 html.AppendLine($"<tr{rowClass}>");
                 html.AppendLine($"<td>{result.HeatNumber}</td>");
-                html.AppendLine($"<td>{WebUtility.HtmlEncode(result.LaneName)}</td>");
+                html.AppendLine($"<td style=\"{GetLaneCellStyle(report, result.LaneIndex)}\">{WebUtility.HtmlEncode(result.LaneName)}</td>");
                 html.AppendLine($"<td>{WebUtility.HtmlEncode(result.RacerName)}</td>");
                 html.AppendLine($"<td>{FormatCount(result.HeatLaps)}</td>");
                 html.AppendLine($"<td>{FormatCount(result.TotalLaps)}</td>");
@@ -118,9 +118,9 @@ namespace tlp
         {
             html.AppendLine("<h2>Fast Laps By Lane</h2>");
             html.AppendLine("<table><thead><tr><th>Racer</th>");
-            foreach (string laneName in report.LaneNames)
+            for (int lane = 0; lane < report.LaneNames.Count; lane++)
             {
-                html.AppendLine($"<th>{WebUtility.HtmlEncode(laneName)}</th>");
+                html.AppendLine($"<th style=\"{GetLaneCellStyle(report, lane)}\">{WebUtility.HtmlEncode(report.LaneNames[lane])}</th>");
             }
 
             html.AppendLine("</tr></thead><tbody>");
@@ -161,6 +161,19 @@ namespace tlp
             }
 
             return fastest;
+        }
+
+        private static string GetLaneCellStyle(HeatRaceReport report, int laneIndex)
+        {
+            if (laneIndex < 0 || laneIndex >= report.LaneColorArgb.Count)
+            {
+                return string.Empty;
+            }
+
+            Color color = Color.FromArgb(report.LaneColorArgb[laneIndex]);
+            double luminance = (0.299 * color.R) + (0.587 * color.G) + (0.114 * color.B);
+            string foreground = luminance >= 150 ? "#000000" : "#ffffff";
+            return $"background:#{color.R:X2}{color.G:X2}{color.B:X2};color:{foreground};font-weight:700";
         }
 
         private static string FormatLap(int? milliseconds) =>

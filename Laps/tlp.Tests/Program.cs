@@ -159,6 +159,15 @@ Assert(fourLaneSecondHeat.LaneRacers[3] == "C", "green racer should rotate to or
 Assert(fourLaneSecondHeat.LaneRacers[1] == "D", "orange racer should rotate to white");
 Assert(fourLaneSecondHeat.OnDeckRacer == "B", "white racer should rotate out");
 
+LaneConfiguration[] customLanes = LaneConfiguration.CreateDefaults().ToArray();
+customLanes[0] = new LaneConfiguration("Aqua", System.Drawing.Color.Aqua.ToArgb());
+customLanes[1] = new LaneConfiguration("Pink", System.Drawing.Color.HotPink.ToArgb());
+HeatRaceController customLaneHeat = new();
+customLaneHeat.Configure(1, 0, new[] { "A", "B" }, activeLaneCount: 4, laneConfigurations: customLanes);
+HeatRaceReport customLaneReport = customLaneHeat.CreateReport();
+Assert(customLaneReport.LaneNames[0] == "Aqua", "report should use configured lane names");
+Assert(customLaneReport.LaneColorArgb[1] == System.Drawing.Color.HotPink.ToArgb(), "report should use configured lane colors");
+
 HeatRaceController reportHeat = new();
 reportHeat.Configure(1, 0, new[] { "Ada", "Grace" });
 Assert(reportHeat.Start(0), "report heat should start");

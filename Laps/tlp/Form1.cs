@@ -22,6 +22,8 @@ namespace tlp
         public bool SoundOnTooFastLap { get; private set; } = true;
         public string SpeechVoiceName { get; private set; } = "";
         public int ActiveLaneCount { get; private set; } = LapProtocolParser.LaneCount;
+        public IReadOnlyList<LaneConfiguration> LaneConfigurations { get; private set; } =
+            LaneConfiguration.CreateDefaults();
 
         public MKTS()
         {
@@ -40,6 +42,8 @@ namespace tlp
             SoundOnTooFastLap = settings.SoundOnTooFastLap;
             SpeechVoiceName = settings.SpeechVoiceName;
             ActiveLaneCount = Math.Clamp(settings.ActiveLaneCount, 2, LapProtocolParser.LaneCount);
+            LaneConfigurations = AppDatabase.LoadLaneConfigurations(LaneConfigurations);
+            ApplyLaneColors();
             ApplyActiveLaneLayout();
             SpeechAnnouncer.WarmUpAsync(SpeechVoiceName);
 
@@ -114,7 +118,7 @@ namespace tlp
 
         private void heatRaceToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            using HeatRaceSetup heatRaceSetup = new(ActiveLaneCount);
+            using HeatRaceSetup heatRaceSetup = new(ActiveLaneCount, LaneConfigurations);
             if (heatRaceSetup.ShowDialog(this) == DialogResult.OK)
             {
                 SetHeatRaceMode();
@@ -122,7 +126,8 @@ namespace tlp
                     heatRaceSetup.HeatLengthMinutes,
                     heatRaceSetup.BetweenHeatsSeconds,
                     heatRaceSetup.SelectedRacers,
-                    ActiveLaneCount);
+                    ActiveLaneCount,
+                    LaneConfigurations);
                 SetLaneRacerNames(heatRaceSetup.FirstHeatLaneRacers);
             }
         }
@@ -209,6 +214,44 @@ namespace tlp
             }
 
             timingBoardLayout.PerformLayout();
+        }
+
+        private void ApplyLaneColors()
+        {
+            Label[][] valueLabels =
+            {
+                _lapLabels,
+                _lastLapLabels,
+                _bestLapLabels,
+                _medianLapLabels,
+                _mphLabels
+            };
+
+            for (int lane = 0; lane < LapProtocolParser.LaneCount; lane++)
+            {
+                Color background = LaneConfigurations[lane].Color;
+                Color foreground = GetContrastingTextColor(background);
+                for (int column = 1; column < timingBoardLayout.ColumnCount; column++)
+                {
+                    if (timingBoardLayout.GetControlFromPosition(column, lane + 1) is Control cell)
+                    {
+                        cell.BackColor = background;
+                    }
+
+                    valueLabels[column - 1][lane].ForeColor = foreground;
+                }
+            }
+
+            timingBoardLayout.Invalidate();
+        }
+
+        private static Color GetContrastingTextColor(Color background)
+        {
+            double luminance =
+                (0.299 * background.R) +
+                (0.587 * background.G) +
+                (0.114 * background.B);
+            return luminance >= 150 ? Color.Black : Color.White;
         }
 
         private void MKTS_Resize(object sender, EventArgs e)
@@ -536,19 +579,23 @@ namespace tlp
                 SoundOnTooFastLap,
                 port,
                 SpeechVoiceName,
-                ActiveLaneCount);
+                ActiveLaneCount,
+                LaneConfigurations);
             if (config.ShowDialog(this) == DialogResult.OK)
             {
                 MinLapMilliseconds = config.MinLapMilliseconds;
                 SoundOnTooFastLap = config.SoundOnTooFastLap;
                 SpeechVoiceName = config.SelectedSpeechVoice;
                 ActiveLaneCount = config.ActiveLaneCount;
+                LaneConfigurations = config.LaneConfigurations;
+                ApplyLaneColors();
                 ApplyActiveLaneLayout();
                 AppDatabase.SaveAppSettings(new AppSettings(
                     MinLapMilliseconds,
                     SoundOnTooFastLap,
                     SpeechVoiceName,
                     ActiveLaneCount));
+                AppDatabase.SaveLaneConfigurations(LaneConfigurations);
                 SpeechAnnouncer.WarmUpAsync(SpeechVoiceName);
                 s.ApplySettings();
                 s.SetPort(config.SelectedPort);

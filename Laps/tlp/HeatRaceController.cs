@@ -45,23 +45,17 @@ namespace tlp
         int BetweenHeatsSeconds,
         int TotalHeats,
         IReadOnlyList<string> LaneNames,
+        IReadOnlyList<int> LaneColorArgb,
         IReadOnlyList<HeatRaceRacerReport> Racers,
         IReadOnlyList<HeatRaceLaneResult> LaneResults,
         string Notes);
 
     public sealed class HeatRaceController
     {
+        private static readonly LaneConfiguration[] DefaultLaneConfigurations =
+            LaneConfiguration.CreateDefaults().ToArray();
         private static readonly string[] LaneNameValues =
-        {
-            "Red",
-            "White",
-            "Green",
-            "Orange",
-            "Blue",
-            "Yellow",
-            "Purple",
-            "Black"
-        };
+            DefaultLaneConfigurations.Select(lane => lane.Name).ToArray();
         private static readonly int[] InitialLaneOrder = { 0, 1, 2, 3, 4, 5, 6, 7 };
         private static readonly int[] RotationLaneOrder = { 0, 2, 4, 6, 7, 5, 3, 1 };
         public static IReadOnlyList<string> LaneNames => LaneNameValues;
@@ -86,6 +80,10 @@ namespace tlp
         private bool _isFirstHeat = true;
         private int[] _initialLaneIndexes = InitialLaneOrder;
         private int[] _rotationLaneIndexes = RotationLaneOrder;
+        private string[] _laneNames = LaneNameValues.ToArray();
+        private int[] _laneColorArgb = DefaultLaneConfigurations
+            .Select(lane => lane.ColorArgb)
+            .ToArray();
 
         public HeatRaceState State { get; private set; } = HeatRaceState.Practice;
         public int HeatNumber { get; private set; }
@@ -117,13 +115,28 @@ namespace tlp
             int heatLengthMinutes,
             int betweenHeatsSeconds,
             IReadOnlyList<string> racers,
-            int activeLaneCount = LapProtocolParser.LaneCount)
+            int activeLaneCount = LapProtocolParser.LaneCount,
+            IReadOnlyList<LaneConfiguration>? laneConfigurations = null)
         {
             lock (_gate)
             {
                 TotalHeats = Math.Clamp(activeLaneCount, 2, LapProtocolParser.LaneCount);
                 _initialLaneIndexes = GetInitialLaneIndexes(TotalHeats).ToArray();
                 _rotationLaneIndexes = GetRotationLaneIndexes(TotalHeats).ToArray();
+                _laneNames = Enumerable.Range(0, LapProtocolParser.LaneCount)
+                    .Select(lane =>
+                        laneConfigurations != null &&
+                        lane < laneConfigurations.Count &&
+                        !string.IsNullOrWhiteSpace(laneConfigurations[lane].Name)
+                            ? laneConfigurations[lane].Name.Trim()
+                            : LaneNameValues[lane])
+                    .ToArray();
+                _laneColorArgb = Enumerable.Range(0, LapProtocolParser.LaneCount)
+                    .Select(lane =>
+                        laneConfigurations != null && lane < laneConfigurations.Count
+                            ? laneConfigurations[lane].ColorArgb
+                            : DefaultLaneConfigurations[lane].ColorArgb)
+                    .ToArray();
                 _heatLengthMilliseconds = Math.Max(1, heatLengthMinutes) * 60000L;
                 _betweenHeatsSeconds = Math.Clamp(betweenHeatsSeconds, 0, 300);
                 _activeMillisecondsBeforeRun = 0;
@@ -358,7 +371,7 @@ namespace tlp
                     _laneResults.Add(new HeatRaceLaneResult(
                         HeatNumber,
                         i,
-                        LaneNameValues[i],
+                        _laneNames[i],
                         racerName,
                         heatLaps,
                         totalLaps,
@@ -408,7 +421,8 @@ namespace tlp
                     HeatLengthMinutes,
                     BetweenHeatsSeconds,
                     TotalHeats,
-                    LaneNameValues.Take(TotalHeats).ToArray(),
+                    _laneNames.Take(TotalHeats).ToArray(),
+                    _laneColorArgb.Take(TotalHeats).ToArray(),
                     racers
                         .OrderByDescending(racer => racer.TotalLaps)
                         .ThenBy(racer => racer.RacerName, StringComparer.OrdinalIgnoreCase)

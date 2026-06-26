@@ -2,18 +2,6 @@ namespace tlp
 {
     public sealed class HeatRaceSetup : Form
     {
-        private static readonly string[] AllLaneNames =
-        {
-            "Red",
-            "White",
-            "Green",
-            "Orange",
-            "Blue",
-            "Yellow",
-            "Purple",
-            "Black"
-        };
-
         private readonly CheckedListBox _racerList = new();
         private readonly ListBox _selectedRacers = new();
         private readonly DataGridView _laneGrid = new();
@@ -26,6 +14,8 @@ namespace tlp
         private readonly int _activeLaneCount;
         private readonly IReadOnlyList<int> _initialLaneIndexes;
         private readonly IReadOnlyList<int> _rotationLaneIndexes;
+        private readonly string[] _laneNames;
+        private readonly Color[] _laneColors;
         private bool _loadingRacers;
 
         public int HeatLengthMinutes => (int)_heatLengthMinutes.Value;
@@ -33,11 +23,23 @@ namespace tlp
         public IReadOnlyList<string> SelectedRacers => _selectedNames.ToArray();
         public IReadOnlyList<string> FirstHeatLaneRacers => GetFirstHeatLaneRacers();
 
-        public HeatRaceSetup(int activeLaneCount)
+        public HeatRaceSetup(
+            int activeLaneCount,
+            IReadOnlyList<LaneConfiguration> laneConfigurations)
         {
             _activeLaneCount = Math.Clamp(activeLaneCount, 2, LapProtocolParser.LaneCount);
             _initialLaneIndexes = HeatRaceController.GetInitialLaneIndexes(_activeLaneCount);
             _rotationLaneIndexes = HeatRaceController.GetRotationLaneIndexes(_activeLaneCount);
+            _laneNames = LaneConfiguration.CreateDefaults()
+                .Select((lane, index) => index < laneConfigurations.Count
+                    ? laneConfigurations[index].Name
+                    : lane.Name)
+                .ToArray();
+            _laneColors = LaneConfiguration.CreateDefaults()
+                .Select((lane, index) => index < laneConfigurations.Count
+                    ? laneConfigurations[index].Color
+                    : lane.Color)
+                .ToArray();
             Text = "Heat Race";
             StartPosition = FormStartPosition.CenterParent;
             MinimumSize = new Size(760, 520);
@@ -378,21 +380,27 @@ namespace tlp
             {
                 string racer = lane < laneRacers.Count ? laneRacers[lane] : "";
                 string nextLane = GetNextRotationLaneName(lane);
-                _laneGrid.Rows.Add(AllLaneNames[lane], racer, nextLane);
+                int rowIndex = _laneGrid.Rows.Add(_laneNames[lane], racer, nextLane);
+                DataGridViewCell laneCell = _laneGrid.Rows[rowIndex].Cells[0];
+                laneCell.Style.BackColor = _laneColors[lane];
+                laneCell.Style.ForeColor = GetContrastingTextColor(_laneColors[lane]);
+                laneCell.Style.SelectionBackColor = _laneColors[lane];
+                laneCell.Style.SelectionForeColor = GetContrastingTextColor(_laneColors[lane]);
             }
 
             _selectedRacers.Items.Clear();
             for (int i = 0; i < _selectedNames.Count; i++)
             {
                 string prefix = i < _initialLaneIndexes.Count
-                    ? AllLaneNames[_initialLaneIndexes[i]]
+                    ? _laneNames[_initialLaneIndexes[i]]
                     : "Waiting";
                 _selectedRacers.Items.Add($"{prefix}: {_selectedNames[i]}");
             }
 
             int waiting = Math.Max(0, _selectedNames.Count - _activeLaneCount);
-            string rotateOutLane = AllLaneNames[_rotationLaneIndexes[_rotationLaneIndexes.Count - 1]];
-            _queueLabel.Text = $"{_selectedNames.Count} selected; {waiting} waiting. New racers enter on Red after {rotateOutLane} rotates out.";
+            string entryLane = _laneNames[_rotationLaneIndexes[0]];
+            string rotateOutLane = _laneNames[_rotationLaneIndexes[_rotationLaneIndexes.Count - 1]];
+            _queueLabel.Text = $"{_selectedNames.Count} selected; {waiting} waiting. New racers enter on {entryLane} after {rotateOutLane} rotates out.";
             _okButton.Enabled = _selectedNames.Count >= 2;
         }
 
@@ -420,10 +428,19 @@ namespace tlp
 
                 return i == _rotationLaneIndexes.Count - 1
                     ? "Rotate out"
-                    : AllLaneNames[_rotationLaneIndexes[i + 1]];
+                    : _laneNames[_rotationLaneIndexes[i + 1]];
             }
 
             return "Rotate out";
+        }
+
+        private static Color GetContrastingTextColor(Color background)
+        {
+            double luminance =
+                (0.299 * background.R) +
+                (0.587 * background.G) +
+                (0.114 * background.B);
+            return luminance >= 150 ? Color.Black : Color.White;
         }
     }
 }

@@ -41,12 +41,14 @@ namespace tlp
             groupBoxTrack = new GroupBox();
             activeLaneCountLabel = new Label();
             nudActiveLaneCount = new NumericUpDown();
+            groupBoxLaneColors = new GroupBox();
             groupBox3.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)nudMinLapMilliseconds).BeginInit();
             groupBox4.SuspendLayout();
             groupBox5.SuspendLayout();
             groupBoxTrack.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)nudActiveLaneCount).BeginInit();
+            groupBoxLaneColors.SuspendLayout();
             SuspendLayout();
             //
             // groupBox3
@@ -158,22 +160,31 @@ namespace tlp
             nudActiveLaneCount.TabIndex = 0;
             nudActiveLaneCount.Value = new decimal(new int[] { 8, 0, 0, 0 });
             //
+            // groupBoxLaneColors
+            //
+            groupBoxLaneColors.Location = new Point(12, 308);
+            groupBoxLaneColors.Name = "groupBoxLaneColors";
+            groupBoxLaneColors.Size = new Size(399, 174);
+            groupBoxLaneColors.TabIndex = 4;
+            groupBoxLaneColors.TabStop = false;
+            groupBoxLaneColors.Text = "Lane Names and Colors";
+            //
             // bOK
             //
-            bOK.Location = new Point(255, 313);
+            bOK.Location = new Point(255, 500);
             bOK.Name = "bOK";
             bOK.Size = new Size(75, 23);
-            bOK.TabIndex = 4;
+            bOK.TabIndex = 5;
             bOK.Text = "OK";
             bOK.UseVisualStyleBackColor = true;
             bOK.Click += bOK_Click;
             //
             // bCancel
             //
-            bCancel.Location = new Point(336, 313);
+            bCancel.Location = new Point(336, 500);
             bCancel.Name = "bCancel";
             bCancel.Size = new Size(75, 23);
-            bCancel.TabIndex = 5;
+            bCancel.TabIndex = 6;
             bCancel.Text = "Cancel";
             bCancel.UseVisualStyleBackColor = true;
             bCancel.Click += bCancel_Click;
@@ -184,13 +195,14 @@ namespace tlp
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             CancelButton = bCancel;
-            ClientSize = new Size(428, 352);
+            ClientSize = new Size(428, 539);
             Controls.Add(bCancel);
             Controls.Add(bOK);
             Controls.Add(groupBox5);
             Controls.Add(groupBox4);
             Controls.Add(groupBox3);
             Controls.Add(groupBoxTrack);
+            Controls.Add(groupBoxLaneColors);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             MinimizeBox = false;
@@ -205,6 +217,7 @@ namespace tlp
             groupBoxTrack.ResumeLayout(false);
             groupBoxTrack.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)nudActiveLaneCount).EndInit();
+            groupBoxLaneColors.ResumeLayout(false);
             ResumeLayout(false);
         }
 
@@ -223,5 +236,6 @@ namespace tlp
         private GroupBox groupBoxTrack;
         private Label activeLaneCountLabel;
         private NumericUpDown nudActiveLaneCount;
+        private GroupBox groupBoxLaneColors;
     }
 }

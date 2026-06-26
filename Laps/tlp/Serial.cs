@@ -108,13 +108,19 @@ namespace tlp
             int heatLengthMinutes,
             int betweenHeatsSeconds,
             IReadOnlyList<string> racers,
-            int activeLaneCount)
+            int activeLaneCount,
+            IReadOnlyList<LaneConfiguration> laneConfigurations)
         {
             CancelStartCountdown();
             CancelBetweenHeatsTimer();
             _race.Reset();
             _form.ResetBoardDisplay(clearRacers: false);
-            _heatRace.Configure(heatLengthMinutes, betweenHeatsSeconds, racers, activeLaneCount);
+            _heatRace.Configure(
+                heatLengthMinutes,
+                betweenHeatsSeconds,
+                racers,
+                activeLaneCount,
+                laneConfigurations);
             PublishHeatRaceStatus("Ready");
             SetTrackPowerEnabled(false, null, $"Heat 1 ready: {heatLengthMinutes} minute heat. Press Space to start.");
             _log.Info($"heat race configured for {heatLengthMinutes} minute(s), {betweenHeatsSeconds} second(s) between heats");

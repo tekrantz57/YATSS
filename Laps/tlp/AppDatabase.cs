@@ -102,6 +102,58 @@ namespace tlp
             command.ExecuteNonQuery();
         }
 
+        public static IReadOnlyList<LaneConfiguration> LoadLaneConfigurations(
+            IReadOnlyList<LaneConfiguration> defaults)
+        {
+            LaneConfiguration[] lanes = defaults.ToArray();
+            using SqliteCommand command = Connection.CreateCommand();
+            command.CommandText = @"
+                SELECT lane_index, display_name, color_argb
+                FROM lane_settings
+                ORDER BY lane_index";
+
+            using SqliteDataReader reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                int laneIndex = reader.GetInt32(0);
+                if (laneIndex < 0 || laneIndex >= lanes.Length)
+                {
+                    continue;
+                }
+
+                string name = reader.IsDBNull(1) ? lanes[laneIndex].Name : reader.GetString(1).Trim();
+                int colorArgb = reader.IsDBNull(2) ? lanes[laneIndex].ColorArgb : reader.GetInt32(2);
+                lanes[laneIndex] = new LaneConfiguration(
+                    string.IsNullOrWhiteSpace(name) ? lanes[laneIndex].Name : name,
+                    colorArgb);
+            }
+
+            return lanes;
+        }
+
+        public static void SaveLaneConfigurations(IReadOnlyList<LaneConfiguration> lanes)
+        {
+            using SqliteTransaction transaction = Connection.BeginTransaction();
+            for (int laneIndex = 0; laneIndex < lanes.Count; laneIndex++)
+            {
+                LaneConfiguration lane = lanes[laneIndex];
+                using SqliteCommand command = Connection.CreateCommand();
+                command.Transaction = transaction;
+                command.CommandText = @"
+                    INSERT INTO lane_settings (lane_index, display_name, color_argb)
+                    VALUES ($laneIndex, $displayName, $colorArgb)
+                    ON CONFLICT(lane_index) DO UPDATE SET
+                        display_name = excluded.display_name,
+                        color_argb = excluded.color_argb";
+                command.Parameters.AddWithValue("$laneIndex", laneIndex);
+                command.Parameters.AddWithValue("$displayName", lane.Name.Trim());
+                command.Parameters.AddWithValue("$colorArgb", lane.ColorArgb);
+                command.ExecuteNonQuery();
+            }
+
+            transaction.Commit();
+        }
+
         public static List<string> LoadRacerNames()
         {
             List<string> racerNames = new();
@@ -227,6 +279,12 @@ namespace tlp
                     sound_on_too_fast_lap INTEGER NOT NULL,
                     speech_voice_name TEXT NOT NULL,
                     active_lane_count INTEGER NOT NULL
+                )");
+            ExecuteNonQuery(@"
+                CREATE TABLE IF NOT EXISTS lane_settings (
+                    lane_index INTEGER PRIMARY KEY CHECK (lane_index BETWEEN 0 AND 7),
+                    display_name TEXT NOT NULL,
+                    color_argb INTEGER NOT NULL
                 )");
         }
 
