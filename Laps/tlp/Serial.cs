@@ -548,7 +548,7 @@ namespace tlp
             string lapSeconds = FormatSeconds(lapMilliseconds);
             string bestSeconds = lane.best_time == int.MaxValue ? string.Empty : FormatSeconds(lane.best_time);
             string medianSeconds = FormatOptionalSeconds(lane.getMedian());
-            string mph = _race.CalculateMilesPerHour(lapMilliseconds).ToString("F1", CultureInfo.InvariantCulture);
+            string mph = _race.CalculateMilesPerHour(lapMilliseconds).ToString("F3", CultureInfo.InvariantCulture);
 
             _form.UpdateLaneDisplay(laneIndex, lane.getCount(), lapSeconds, bestSeconds, medianSeconds, mph);
 
