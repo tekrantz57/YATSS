@@ -539,6 +539,17 @@ namespace tlp
             if (update.Kind == LapUpdateKind.Started || update.Kind == LapUpdateKind.Duplicate || update.Kind == LapUpdateKind.Invalid)
             {
                 _log.Info($"lane {edge.LaneIndex}: {update.Detail}");
+                if (update.Kind == LapUpdateKind.Started)
+                {
+                    _form.UpdateLaneDisplay(
+                        edge.LaneIndex,
+                        0,
+                        string.Empty,
+                        string.Empty,
+                        string.Empty,
+                        string.Empty);
+                }
+
                 if (update.Kind == LapUpdateKind.Invalid)
                 {
                     _form.SetStatusMessage($"Lane {edge.LaneIndex + 1}: {update.Detail}");
