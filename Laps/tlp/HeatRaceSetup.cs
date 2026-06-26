@@ -379,7 +379,9 @@ namespace tlp
             for (int lane = 0; lane < _activeLaneCount; lane++)
             {
                 string racer = lane < laneRacers.Count ? laneRacers[lane] : "";
-                string nextLane = GetNextRotationLaneName(lane);
+                string nextLane = string.IsNullOrWhiteSpace(racer)
+                    ? string.Empty
+                    : GetNextRotationLaneName(lane);
                 int rowIndex = _laneGrid.Rows.Add(_laneNames[lane], racer, nextLane);
                 DataGridViewCell laneCell = _laneGrid.Rows[rowIndex].Cells[0];
                 laneCell.Style.BackColor = _laneColors[lane];
@@ -400,7 +402,9 @@ namespace tlp
             int waiting = Math.Max(0, _selectedNames.Count - _activeLaneCount);
             string entryLane = _laneNames[_rotationLaneIndexes[0]];
             string rotateOutLane = _laneNames[_rotationLaneIndexes[_rotationLaneIndexes.Count - 1]];
-            _queueLabel.Text = $"{_selectedNames.Count} selected; {waiting} waiting. New racers enter on {entryLane} after {rotateOutLane} rotates out.";
+            _queueLabel.Text = waiting > 0
+                ? $"{_selectedNames.Count} selected; {waiting} waiting. New racers enter on {entryLane} after {rotateOutLane} rotates out."
+                : $"{_selectedNames.Count} selected; no racers waiting. Racers cycle from {rotateOutLane} back to {entryLane}.";
             _okButton.Enabled = _selectedNames.Count >= 2;
         }
 
@@ -426,9 +430,14 @@ namespace tlp
                     continue;
                 }
 
-                return i == _rotationLaneIndexes.Count - 1
+                if (i < _rotationLaneIndexes.Count - 1)
+                {
+                    return _laneNames[_rotationLaneIndexes[i + 1]];
+                }
+
+                return _selectedNames.Count > _activeLaneCount
                     ? "Rotate out"
-                    : _laneNames[_rotationLaneIndexes[i + 1]];
+                    : _laneNames[_rotationLaneIndexes[0]];
             }
 
             return "Rotate out";
