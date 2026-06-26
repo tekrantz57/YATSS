@@ -142,6 +142,23 @@ Assert(secondHeatFirstEdge.Edge.TimestampMillis == 61000, "second heat adjusted 
 Assert(secondHeatFirstEdge.CountFirstEdgeAsLap, "first lane edge after heat 1 should count as a lap");
 Assert(!secondHeatFirstEdge.FastestLapEligible, "first lane edge after heat 1 should not be fastest eligible");
 
+HeatRaceController fourLaneHeat = new();
+fourLaneHeat.Configure(1, 0, new[] { "A", "B", "C", "D", "E" }, activeLaneCount: 4);
+Assert(fourLaneHeat.TotalHeats == 4, "four-lane race should run four heats");
+HeatRaceSnapshot fourLaneFirstHeat = fourLaneHeat.GetSnapshot(0);
+Assert(fourLaneFirstHeat.LaneRacers.Take(4).SequenceEqual(new[] { "A", "B", "C", "D" }), "four-lane first heat should fill its four physical lanes");
+Assert(fourLaneHeat.GetOccupiedLaneMask() == 0x0F, "four-lane heat should power only its four physical lanes");
+Assert(fourLaneFirstHeat.OnDeckRacer == "E", "fifth racer should wait in a four-lane race");
+Assert(fourLaneHeat.Start(0), "four-lane first heat should start");
+Assert(fourLaneHeat.Complete(), "four-lane first heat should complete");
+Assert(fourLaneHeat.PrepareNextHeat(new[] { 1, 2, 3, 4, 0, 0, 0, 0 }), "four-lane second heat should prepare");
+HeatRaceSnapshot fourLaneSecondHeat = fourLaneHeat.GetSnapshot(0);
+Assert(fourLaneSecondHeat.LaneRacers[0] == "E", "waiting racer should enter on red");
+Assert(fourLaneSecondHeat.LaneRacers[2] == "A", "red racer should rotate to green");
+Assert(fourLaneSecondHeat.LaneRacers[3] == "C", "green racer should rotate to orange");
+Assert(fourLaneSecondHeat.LaneRacers[1] == "D", "orange racer should rotate to white");
+Assert(fourLaneSecondHeat.OnDeckRacer == "B", "white racer should rotate out");
+
 HeatRaceController reportHeat = new();
 reportHeat.Configure(1, 0, new[] { "Ada", "Grace" });
 Assert(reportHeat.Start(0), "report heat should start");

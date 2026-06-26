@@ -40,6 +40,11 @@ namespace tlp
             LapRaceOptions options = _race.Options;
             _race.SetOptions(options with { MinLapMilliseconds = _form.MinLapMilliseconds });
             _log.Info($"minimum lap time set to {_form.MinLapMilliseconds} ms; sound on too-fast laps is {_form.SoundOnTooFastLap}");
+            if (_heatRace.State == HeatRaceState.Practice)
+            {
+                WriteLine(GetTrackPowerCommand());
+            }
+
             _form.SetStatusMessage($"Minimum lap time {_form.MinLapMilliseconds} ms");
         }
 
@@ -99,13 +104,17 @@ namespace tlp
                 enabled ? "Track power restore requested" : "Track power cut requested");
         }
 
-        public void ConfigureHeatRace(int heatLengthMinutes, int betweenHeatsSeconds, IReadOnlyList<string> racers)
+        public void ConfigureHeatRace(
+            int heatLengthMinutes,
+            int betweenHeatsSeconds,
+            IReadOnlyList<string> racers,
+            int activeLaneCount)
         {
             CancelStartCountdown();
             CancelBetweenHeatsTimer();
             _race.Reset();
             _form.ResetBoardDisplay(clearRacers: false);
-            _heatRace.Configure(heatLengthMinutes, betweenHeatsSeconds, racers);
+            _heatRace.Configure(heatLengthMinutes, betweenHeatsSeconds, racers, activeLaneCount);
             PublishHeatRaceStatus("Ready");
             SetTrackPowerEnabled(false, null, $"Heat 1 ready: {heatLengthMinutes} minute heat. Press Space to start.");
             _log.Info($"heat race configured for {heatLengthMinutes} minute(s), {betweenHeatsSeconds} second(s) between heats");
@@ -152,6 +161,12 @@ namespace tlp
 
         public bool AdjustStoppedHeatLap(int laneIndex, int delta)
         {
+            if (laneIndex < 0 || laneIndex >= _form.ActiveLaneCount)
+            {
+                _form.SetStatusMessage($"Lane {laneIndex + 1} is not configured");
+                return false;
+            }
+
             if (!_heatRace.CanAdjustLapCounts)
             {
                 _form.SetStatusMessage("Lap adjustment is only available during stopped heat time");
@@ -453,13 +468,19 @@ namespace tlp
             }
 
             byte enabledLaneMask = _heatRace.State == HeatRaceState.Practice
-                ? byte.MaxValue
+                ? (byte)((1 << _form.ActiveLaneCount) - 1)
                 : _heatRace.GetOccupiedLaneMask();
             return $"TRACK_POWER:MASK:{enabledLaneMask:X2}";
         }
 
         private void HandleEdge(LapEdge edge)
         {
+            if (edge.LaneIndex >= _form.ActiveLaneCount)
+            {
+                _log.Info($"lane {edge.LaneIndex}: ignored edge because lane is not configured");
+                return;
+            }
+
             if (CheckHeatExpired(edge.TimestampMillis))
             {
                 return;
@@ -544,7 +565,7 @@ namespace tlp
                 RecordCurrentHeatResults();
                 PublishHeatRaceStatus("Complete");
                 string completionSpeech = _heatRace.HasMoreHeats
-                    ? $"Heat {_heatRace.HeatNumber} of {HeatRaceController.TotalHeats} over"
+                    ? $"Heat {_heatRace.HeatNumber} of {_heatRace.TotalHeats} over"
                     : "Race over";
                 SetTrackPowerEnabled(false, completionSpeech, "Heat complete");
                 _log.Info($"heat {_heatRace.HeatNumber} complete");

@@ -43,6 +43,7 @@ namespace tlp
         DateTime CreatedLocal,
         int HeatLengthMinutes,
         int BetweenHeatsSeconds,
+        int TotalHeats,
         IReadOnlyList<string> LaneNames,
         IReadOnlyList<HeatRaceRacerReport> Racers,
         IReadOnlyList<HeatRaceLaneResult> LaneResults,
@@ -50,7 +51,6 @@ namespace tlp
 
     public sealed class HeatRaceController
     {
-        public const int TotalHeats = 8;
         private static readonly string[] LaneNameValues =
         {
             "Red",
@@ -65,8 +65,10 @@ namespace tlp
         private static readonly int[] InitialLaneOrder = { 0, 1, 2, 3, 4, 5, 6, 7 };
         private static readonly int[] RotationLaneOrder = { 0, 2, 4, 6, 7, 5, 3, 1 };
         public static IReadOnlyList<string> LaneNames => LaneNameValues;
-        public static IReadOnlyList<int> InitialLaneIndexes => InitialLaneOrder;
-        public static IReadOnlyList<int> RotationLaneIndexes => RotationLaneOrder;
+        public static IReadOnlyList<int> GetInitialLaneIndexes(int activeLaneCount) =>
+            InitialLaneOrder.Where(lane => lane < Math.Clamp(activeLaneCount, 2, LapProtocolParser.LaneCount)).ToArray();
+        public static IReadOnlyList<int> GetRotationLaneIndexes(int activeLaneCount) =>
+            RotationLaneOrder.Where(lane => lane < Math.Clamp(activeLaneCount, 2, LapProtocolParser.LaneCount)).ToArray();
 
         private readonly bool[] _laneSeenThisHeat = new bool[LapProtocolParser.LaneCount];
         private readonly RacerEntry[] _laneRacers = Enumerable.Range(0, LapProtocolParser.LaneCount)
@@ -82,9 +84,12 @@ namespace tlp
         private uint _runStartedAt;
         private bool _hasRunStartedAt;
         private bool _isFirstHeat = true;
+        private int[] _initialLaneIndexes = InitialLaneOrder;
+        private int[] _rotationLaneIndexes = RotationLaneOrder;
 
         public HeatRaceState State { get; private set; } = HeatRaceState.Practice;
         public int HeatNumber { get; private set; }
+        public int TotalHeats { get; private set; } = LapProtocolParser.LaneCount;
         public bool HasMoreHeats => HeatNumber > 0 && HeatNumber < TotalHeats;
         public int BetweenHeatsSeconds
         {
@@ -108,10 +113,17 @@ namespace tlp
             }
         }
 
-        public void Configure(int heatLengthMinutes, int betweenHeatsSeconds, IReadOnlyList<string> racers)
+        public void Configure(
+            int heatLengthMinutes,
+            int betweenHeatsSeconds,
+            IReadOnlyList<string> racers,
+            int activeLaneCount = LapProtocolParser.LaneCount)
         {
             lock (_gate)
             {
+                TotalHeats = Math.Clamp(activeLaneCount, 2, LapProtocolParser.LaneCount);
+                _initialLaneIndexes = GetInitialLaneIndexes(TotalHeats).ToArray();
+                _rotationLaneIndexes = GetRotationLaneIndexes(TotalHeats).ToArray();
                 _heatLengthMilliseconds = Math.Max(1, heatLengthMinutes) * 60000L;
                 _betweenHeatsSeconds = Math.Clamp(betweenHeatsSeconds, 0, 300);
                 _activeMillisecondsBeforeRun = 0;
@@ -395,7 +407,8 @@ namespace tlp
                     DateTime.Now,
                     HeatLengthMinutes,
                     BetweenHeatsSeconds,
-                    LaneNameValues,
+                    TotalHeats,
+                    LaneNameValues.Take(TotalHeats).ToArray(),
                     racers
                         .OrderByDescending(racer => racer.TotalLaps)
                         .ThenBy(racer => racer.RacerName, StringComparer.OrdinalIgnoreCase)
@@ -440,9 +453,9 @@ namespace tlp
                     continue;
                 }
 
-                if (i < InitialLaneIndexes.Count)
+                if (i < _initialLaneIndexes.Length)
                 {
-                    _laneRacers[InitialLaneIndexes[i]] = new RacerEntry(racer);
+                    _laneRacers[_initialLaneIndexes[i]] = new RacerEntry(racer);
                 }
                 else
                 {
@@ -453,16 +466,16 @@ namespace tlp
 
         private void RotateRacers()
         {
-            int whiteLaneIndex = RotationLaneIndexes[RotationLaneIndexes.Count - 1];
-            RacerEntry rotatingOut = _laneRacers[whiteLaneIndex];
-            for (int i = RotationLaneIndexes.Count - 1; i > 0; i--)
+            int lastLaneIndex = _rotationLaneIndexes[_rotationLaneIndexes.Length - 1];
+            RacerEntry rotatingOut = _laneRacers[lastLaneIndex];
+            for (int i = _rotationLaneIndexes.Length - 1; i > 0; i--)
             {
-                _laneRacers[RotationLaneIndexes[i]] = _laneRacers[RotationLaneIndexes[i - 1]];
+                _laneRacers[_rotationLaneIndexes[i]] = _laneRacers[_rotationLaneIndexes[i - 1]];
             }
 
             if (_waitingRacers.Count > 0)
             {
-                _laneRacers[RotationLaneIndexes[0]] = _waitingRacers.Dequeue();
+                _laneRacers[_rotationLaneIndexes[0]] = _waitingRacers.Dequeue();
                 if (!string.IsNullOrWhiteSpace(rotatingOut.Name))
                 {
                     _waitingRacers.Enqueue(rotatingOut);
@@ -470,7 +483,7 @@ namespace tlp
             }
             else
             {
-                _laneRacers[RotationLaneIndexes[0]] = rotatingOut;
+                _laneRacers[_rotationLaneIndexes[0]] = rotatingOut;
             }
         }
 

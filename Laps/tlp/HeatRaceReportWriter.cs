@@ -70,7 +70,7 @@ namespace tlp
         {
             html.AppendLine("<h2>Finish Order</h2>");
             html.AppendLine("<table><thead><tr><th>Place</th><th>Racer</th><th>Total Laps</th>");
-            for (int heat = 1; heat <= HeatRaceController.TotalHeats; heat++)
+            for (int heat = 1; heat <= report.TotalHeats; heat++)
             {
                 html.AppendLine($"<th>Heat {heat}</th>");
             }

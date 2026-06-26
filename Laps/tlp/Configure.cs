@@ -8,16 +8,24 @@ namespace tlp
         public bool SoundOnTooFastLap { get; private set; }
         public string SelectedPort { get; private set; } = "";
         public string SelectedSpeechVoice { get; private set; } = "";
+        public int ActiveLaneCount { get; private set; }
 
-        public Configure(int minLapMilliseconds, bool soundOnTooFastLap, string selectedPort, string selectedSpeechVoice)
+        public Configure(
+            int minLapMilliseconds,
+            bool soundOnTooFastLap,
+            string selectedPort,
+            string selectedSpeechVoice,
+            int activeLaneCount)
         {
             InitializeComponent();
             MinLapMilliseconds = minLapMilliseconds;
             SoundOnTooFastLap = soundOnTooFastLap;
             SelectedPort = selectedPort;
             SelectedSpeechVoice = selectedSpeechVoice;
+            ActiveLaneCount = activeLaneCount;
             nudMinLapMilliseconds.Value = Math.Clamp(minLapMilliseconds, (int)nudMinLapMilliseconds.Minimum, (int)nudMinLapMilliseconds.Maximum);
             cbSoundOnTooFastLap.Checked = soundOnTooFastLap;
+            nudActiveLaneCount.Value = Math.Clamp(activeLaneCount, (int)nudActiveLaneCount.Minimum, (int)nudActiveLaneCount.Maximum);
             LoadSerialPorts(selectedPort);
             LoadSpeechVoices(selectedSpeechVoice);
         }
@@ -56,6 +64,7 @@ namespace tlp
             SoundOnTooFastLap = cbSoundOnTooFastLap.Checked;
             SelectedPort = cbSerialPort.Text.Trim();
             SelectedSpeechVoice = cbSpeechVoice.Text.Trim();
+            ActiveLaneCount = (int)nudActiveLaneCount.Value;
             DialogResult = DialogResult.OK;
             Close();
         }

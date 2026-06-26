@@ -38,10 +38,15 @@ namespace tlp
             cbSerialPort = new ComboBox();
             groupBox5 = new GroupBox();
             cbSpeechVoice = new ComboBox();
+            groupBoxTrack = new GroupBox();
+            activeLaneCountLabel = new Label();
+            nudActiveLaneCount = new NumericUpDown();
             groupBox3.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)nudMinLapMilliseconds).BeginInit();
             groupBox4.SuspendLayout();
             groupBox5.SuspendLayout();
+            groupBoxTrack.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)nudActiveLaneCount).BeginInit();
             SuspendLayout();
             //
             // groupBox3
@@ -123,22 +128,52 @@ namespace tlp
             cbSpeechVoice.Size = new Size(370, 23);
             cbSpeechVoice.TabIndex = 0;
             //
+            // groupBoxTrack
+            //
+            groupBoxTrack.Controls.Add(activeLaneCountLabel);
+            groupBoxTrack.Controls.Add(nudActiveLaneCount);
+            groupBoxTrack.Location = new Point(12, 242);
+            groupBoxTrack.Name = "groupBoxTrack";
+            groupBoxTrack.Size = new Size(399, 53);
+            groupBoxTrack.TabIndex = 3;
+            groupBoxTrack.TabStop = false;
+            groupBoxTrack.Text = "Track";
+            //
+            // activeLaneCountLabel
+            //
+            activeLaneCountLabel.AutoSize = true;
+            activeLaneCountLabel.Location = new Point(81, 25);
+            activeLaneCountLabel.Name = "activeLaneCountLabel";
+            activeLaneCountLabel.Size = new Size(138, 15);
+            activeLaneCountLabel.TabIndex = 1;
+            activeLaneCountLabel.Text = "Number of lanes (2-8)";
+            //
+            // nudActiveLaneCount
+            //
+            nudActiveLaneCount.Location = new Point(11, 21);
+            nudActiveLaneCount.Maximum = new decimal(new int[] { 8, 0, 0, 0 });
+            nudActiveLaneCount.Minimum = new decimal(new int[] { 2, 0, 0, 0 });
+            nudActiveLaneCount.Name = "nudActiveLaneCount";
+            nudActiveLaneCount.Size = new Size(64, 23);
+            nudActiveLaneCount.TabIndex = 0;
+            nudActiveLaneCount.Value = new decimal(new int[] { 8, 0, 0, 0 });
+            //
             // bOK
             //
-            bOK.Location = new Point(255, 247);
+            bOK.Location = new Point(255, 313);
             bOK.Name = "bOK";
             bOK.Size = new Size(75, 23);
-            bOK.TabIndex = 3;
+            bOK.TabIndex = 4;
             bOK.Text = "OK";
             bOK.UseVisualStyleBackColor = true;
             bOK.Click += bOK_Click;
             //
             // bCancel
             //
-            bCancel.Location = new Point(336, 247);
+            bCancel.Location = new Point(336, 313);
             bCancel.Name = "bCancel";
             bCancel.Size = new Size(75, 23);
-            bCancel.TabIndex = 4;
+            bCancel.TabIndex = 5;
             bCancel.Text = "Cancel";
             bCancel.UseVisualStyleBackColor = true;
             bCancel.Click += bCancel_Click;
@@ -149,12 +184,13 @@ namespace tlp
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             CancelButton = bCancel;
-            ClientSize = new Size(428, 286);
+            ClientSize = new Size(428, 352);
             Controls.Add(bCancel);
             Controls.Add(bOK);
             Controls.Add(groupBox5);
             Controls.Add(groupBox4);
             Controls.Add(groupBox3);
+            Controls.Add(groupBoxTrack);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             MinimizeBox = false;
@@ -166,6 +202,9 @@ namespace tlp
             ((System.ComponentModel.ISupportInitialize)nudMinLapMilliseconds).EndInit();
             groupBox4.ResumeLayout(false);
             groupBox5.ResumeLayout(false);
+            groupBoxTrack.ResumeLayout(false);
+            groupBoxTrack.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)nudActiveLaneCount).EndInit();
             ResumeLayout(false);
         }
 
@@ -181,5 +220,8 @@ namespace tlp
         private ComboBox cbSerialPort;
         private GroupBox groupBox5;
         private ComboBox cbSpeechVoice;
+        private GroupBox groupBoxTrack;
+        private Label activeLaneCountLabel;
+        private NumericUpDown nudActiveLaneCount;
     }
 }

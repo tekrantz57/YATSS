@@ -3,6 +3,11 @@ using Microsoft.Data.Sqlite;
 namespace tlp
 {
     internal sealed record HeatRaceSetupSettings(int HeatLengthMinutes, int BetweenHeatsSeconds);
+    internal sealed record AppSettings(
+        int MinLapMilliseconds,
+        bool SoundOnTooFastLap,
+        string SpeechVoiceName,
+        int ActiveLaneCount);
 
     internal static class AppDatabase
     {
@@ -55,6 +60,46 @@ namespace tlp
             insert.CommandText = @"INSERT INTO comports (name) VALUES ($name)";
             insert.Parameters.AddWithValue("$name", portName.Trim());
             insert.ExecuteNonQuery();
+        }
+
+        public static AppSettings LoadAppSettings(AppSettings defaults)
+        {
+            using SqliteCommand command = Connection.CreateCommand();
+            command.CommandText = @"
+                SELECT min_lap_milliseconds, sound_on_too_fast_lap, speech_voice_name, active_lane_count
+                FROM app_settings
+                WHERE id = 1";
+
+            using SqliteDataReader reader = command.ExecuteReader();
+            if (!reader.Read())
+            {
+                return defaults;
+            }
+
+            return new AppSettings(
+                reader.IsDBNull(0) ? defaults.MinLapMilliseconds : reader.GetInt32(0),
+                reader.IsDBNull(1) ? defaults.SoundOnTooFastLap : reader.GetBoolean(1),
+                reader.IsDBNull(2) ? defaults.SpeechVoiceName : reader.GetString(2),
+                reader.IsDBNull(3) ? defaults.ActiveLaneCount : reader.GetInt32(3));
+        }
+
+        public static void SaveAppSettings(AppSettings settings)
+        {
+            using SqliteCommand command = Connection.CreateCommand();
+            command.CommandText = @"
+                INSERT INTO app_settings (
+                    id, min_lap_milliseconds, sound_on_too_fast_lap, speech_voice_name, active_lane_count)
+                VALUES (1, $minLapMilliseconds, $soundOnTooFastLap, $speechVoiceName, $activeLaneCount)
+                ON CONFLICT(id) DO UPDATE SET
+                    min_lap_milliseconds = excluded.min_lap_milliseconds,
+                    sound_on_too_fast_lap = excluded.sound_on_too_fast_lap,
+                    speech_voice_name = excluded.speech_voice_name,
+                    active_lane_count = excluded.active_lane_count";
+            command.Parameters.AddWithValue("$minLapMilliseconds", settings.MinLapMilliseconds);
+            command.Parameters.AddWithValue("$soundOnTooFastLap", settings.SoundOnTooFastLap);
+            command.Parameters.AddWithValue("$speechVoiceName", settings.SpeechVoiceName.Trim());
+            command.Parameters.AddWithValue("$activeLaneCount", settings.ActiveLaneCount);
+            command.ExecuteNonQuery();
         }
 
         public static List<string> LoadRacerNames()
@@ -174,6 +219,14 @@ namespace tlp
                     id INTEGER PRIMARY KEY CHECK (id = 1),
                     heat_length_minutes INTEGER NOT NULL,
                     between_heats_seconds INTEGER NOT NULL
+                )");
+            ExecuteNonQuery(@"
+                CREATE TABLE IF NOT EXISTS app_settings (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    min_lap_milliseconds INTEGER NOT NULL,
+                    sound_on_too_fast_lap INTEGER NOT NULL,
+                    speech_voice_name TEXT NOT NULL,
+                    active_lane_count INTEGER NOT NULL
                 )");
         }
 

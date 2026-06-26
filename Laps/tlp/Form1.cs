@@ -21,16 +21,27 @@ namespace tlp
         public int MinLapMilliseconds { get; private set; } = LapRaceOptions.Default.MinLapMilliseconds;
         public bool SoundOnTooFastLap { get; private set; } = true;
         public string SpeechVoiceName { get; private set; } = "";
+        public int ActiveLaneCount { get; private set; } = LapProtocolParser.LaneCount;
 
         public MKTS()
         {
             InitializeComponent();
             Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? Icon;
             KeyPreview = true;
-            SpeechAnnouncer.WarmUpAsync(SpeechVoiceName);
             ConfigureBoardLayout();
             AppDatabase.Open();
             port = AppDatabase.LoadSerialPort();
+            AppSettings settings = AppDatabase.LoadAppSettings(new AppSettings(
+                MinLapMilliseconds,
+                SoundOnTooFastLap,
+                SpeechVoiceName,
+                ActiveLaneCount));
+            MinLapMilliseconds = Math.Clamp(settings.MinLapMilliseconds, 100, 60000);
+            SoundOnTooFastLap = settings.SoundOnTooFastLap;
+            SpeechVoiceName = settings.SpeechVoiceName;
+            ActiveLaneCount = Math.Clamp(settings.ActiveLaneCount, 2, LapProtocolParser.LaneCount);
+            ApplyActiveLaneLayout();
+            SpeechAnnouncer.WarmUpAsync(SpeechVoiceName);
 
             s = new Serial(this);
             WireBestLapResetClicks();
@@ -103,14 +114,15 @@ namespace tlp
 
         private void heatRaceToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            using HeatRaceSetup heatRaceSetup = new();
+            using HeatRaceSetup heatRaceSetup = new(ActiveLaneCount);
             if (heatRaceSetup.ShowDialog(this) == DialogResult.OK)
             {
                 SetHeatRaceMode();
                 s.ConfigureHeatRace(
                     heatRaceSetup.HeatLengthMinutes,
                     heatRaceSetup.BetweenHeatsSeconds,
-                    heatRaceSetup.SelectedRacers);
+                    heatRaceSetup.SelectedRacers,
+                    ActiveLaneCount);
                 SetLaneRacerNames(heatRaceSetup.FirstHeatLaneRacers);
             }
         }
@@ -185,6 +197,18 @@ namespace tlp
         private void MKTS_Load(object sender, EventArgs e)
         {
             ApplyBoardFonts();
+        }
+
+        private void ApplyActiveLaneLayout()
+        {
+            for (int lane = 0; lane < LapProtocolParser.LaneCount; lane++)
+            {
+                RowStyle row = timingBoardLayout.RowStyles[lane + 1];
+                row.SizeType = lane < ActiveLaneCount ? SizeType.Percent : SizeType.Absolute;
+                row.Height = lane < ActiveLaneCount ? 100F / ActiveLaneCount : 0F;
+            }
+
+            timingBoardLayout.PerformLayout();
         }
 
         private void MKTS_Resize(object sender, EventArgs e)
@@ -487,12 +511,24 @@ namespace tlp
 
         private void configureToolStripMenuItem1_Click(object sender, EventArgs e)
         {
-            using Configure config = new Configure(MinLapMilliseconds, SoundOnTooFastLap, port, SpeechVoiceName);
+            using Configure config = new Configure(
+                MinLapMilliseconds,
+                SoundOnTooFastLap,
+                port,
+                SpeechVoiceName,
+                ActiveLaneCount);
             if (config.ShowDialog(this) == DialogResult.OK)
             {
                 MinLapMilliseconds = config.MinLapMilliseconds;
                 SoundOnTooFastLap = config.SoundOnTooFastLap;
                 SpeechVoiceName = config.SelectedSpeechVoice;
+                ActiveLaneCount = config.ActiveLaneCount;
+                ApplyActiveLaneLayout();
+                AppDatabase.SaveAppSettings(new AppSettings(
+                    MinLapMilliseconds,
+                    SoundOnTooFastLap,
+                    SpeechVoiceName,
+                    ActiveLaneCount));
                 SpeechAnnouncer.WarmUpAsync(SpeechVoiceName);
                 s.ApplySettings();
                 s.SetPort(config.SelectedPort);
