@@ -337,11 +337,16 @@ namespace tlp
             });
         }
 
-        public void UpdateHeatRaceStatus(int heatNumber, string state, TimeSpan remaining, string onDeckRacer)
+        public void UpdateHeatRaceStatus(
+            int heatNumber,
+            int totalHeats,
+            string state,
+            TimeSpan remaining,
+            string onDeckRacer)
         {
             RunOnUiThread(() =>
             {
-                _heatStatusLabel.Text = heatNumber > 0 ? $"Heat {heatNumber}/8 {state}" : state;
+                _heatStatusLabel.Text = heatNumber > 0 ? $"Heat {heatNumber}/{totalHeats} {state}" : state;
                 _heatTimerLabel.Text = $"Timer {FormatClock(remaining)}";
                 _onDeckLabel.Text = string.IsNullOrWhiteSpace(onDeckRacer) ? "On deck: " : $"On deck: {onDeckRacer}";
             });

@@ -638,7 +638,12 @@ namespace tlp
             TimeSpan remaining = state == "Intermission" && _nextHeatStartUtc.HasValue
                 ? _nextHeatStartUtc.Value - DateTime.UtcNow
                 : snapshot.Remaining;
-            _form.UpdateHeatRaceStatus(snapshot.HeatNumber, state, remaining, snapshot.OnDeckRacer);
+            _form.UpdateHeatRaceStatus(
+                snapshot.HeatNumber,
+                _heatRace.TotalHeats,
+                state,
+                remaining,
+                snapshot.OnDeckRacer);
         }
 
         private void RecordCurrentHeatResults()
