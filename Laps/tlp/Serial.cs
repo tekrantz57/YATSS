@@ -873,7 +873,9 @@ namespace tlp
             {
                 PublishHeatRaceStatus("Race complete");
                 _form.SetStatusMessage("Heat race complete");
-                WriteHeatRaceReport();
+                HeatRaceReport report = _heatRace.CreateReport();
+                AnnouncePodium(report);
+                WriteHeatRaceReport(report);
                 return;
             }
 
@@ -953,11 +955,25 @@ namespace tlp
             _heatRace.RecordHeatResults(_race.GetLapCounts(), _race.GetBestLapMilliseconds());
         }
 
-        private void WriteHeatRaceReport()
+        private void AnnouncePodium(HeatRaceReport report)
+        {
+            string[] placeNames = { "First", "Second", "Third" };
+            string announcement = string.Join(
+                ". ",
+                report.Racers
+                    .Take(placeNames.Length)
+                    .Select((racer, index) => $"{placeNames[index]} place, {racer.RacerName}"));
+            if (!string.IsNullOrWhiteSpace(announcement))
+            {
+                SpeechAnnouncer.SpeakAsync(announcement, _form.SpeechVoiceName);
+            }
+        }
+
+        private void WriteHeatRaceReport(HeatRaceReport? report = null)
         {
             try
             {
-                string path = HeatRaceReportWriter.Write(_heatRace.CreateReport());
+                string path = HeatRaceReportWriter.Write(report ?? _heatRace.CreateReport());
                 HeatRaceReportWriter.Open(path);
                 _log.Info($"heat race report written to {path}");
                 _form.SetStatusMessage($"Heat race report written: {path}");
