@@ -775,6 +775,9 @@ namespace tlp
             }
 
             SetTrackPowerEnabled(false, null, "Qualifier complete");
+            SpeechAnnouncer.SpeakAsync(
+                $"{completedRacer}, qualifying complete",
+                _form.SpeechVoiceName);
             _log.Info(
                 bestLap.HasValue
                     ? $"{completedRacer} qualifier complete; best {FormatSeconds(bestLap.Value)}s"
