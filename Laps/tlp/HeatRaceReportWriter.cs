@@ -62,6 +62,7 @@ namespace tlp
             {
                 html.AppendLine($"<p class=\"muted\">{WebUtility.HtmlEncode(report.Notes)}</p>");
             }
+            AppendQualifyingResults(html, report);
             AppendFinishOrder(html, report);
             AppendFastLaps(html, report, fastestByLane);
             AppendHeatDetails(html, report);
@@ -99,6 +100,28 @@ namespace tlp
                     html.AppendLine($"<td>{FormatCount(heatLaps)}</td>");
                 }
 
+                html.AppendLine("</tr>");
+            }
+
+            html.AppendLine("</tbody></table>");
+        }
+
+        private static void AppendQualifyingResults(StringBuilder html, HeatRaceReport report)
+        {
+            if (report.QualifyingResults.Count == 0)
+            {
+                return;
+            }
+
+            html.AppendLine("<h2>Qualifying</h2>");
+            html.AppendLine("<table><thead><tr><th>Position</th><th>Racer</th><th>Best Lap</th></tr></thead><tbody>");
+            for (int i = 0; i < report.QualifyingResults.Count; i++)
+            {
+                QualifyingResult result = report.QualifyingResults[i];
+                html.AppendLine("<tr>");
+                html.AppendLine($"<td>{i + 1}</td>");
+                html.AppendLine($"<td>{WebUtility.HtmlEncode(result.RacerName)}</td>");
+                html.AppendLine($"<td>{(result.BestLapMilliseconds.HasValue ? FormatLap(result.BestLapMilliseconds) : "No valid lap")}</td>");
                 html.AppendLine("</tr>");
             }
 

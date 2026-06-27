@@ -114,17 +114,29 @@ namespace tlp
         {
             Trace.WriteLine("practice reset");
             SetRaceTitle(null);
+            SetQualifyingAvailable(false);
             s.ResetRace(resetArduino: true);
         }
 
         private void practiceToolStripMenuItem_Click(object sender, EventArgs e)
         {
+            if (!ConfirmAbandonQualifying())
+            {
+                return;
+            }
+
             SetPracticeMode();
             s.SetPracticeMode();
         }
 
         private void heatRaceToolStripMenuItem_Click(object sender, EventArgs e)
         {
+            if (!ConfirmAbandonQualifying())
+            {
+                return;
+            }
+
+            s.CancelQualifying();
             using HeatRaceSetup heatRaceSetup = new(ActiveLaneCount, LaneConfigurations);
             if (heatRaceSetup.ShowDialog(this) == DialogResult.OK)
             {
@@ -139,12 +151,36 @@ namespace tlp
                     TrackLengthFeet);
                 SetRaceTitle(heatRaceSetup.RaceName);
                 SetLaneRacerNames(heatRaceSetup.FirstHeatLaneRacers);
+                SetQualifyingAvailable(true);
             }
+        }
+
+        private void qualifyingToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            using QualifyingSetup qualifyingSetup = new(ActiveLaneCount, LaneConfigurations);
+            if (qualifyingSetup.ShowDialog(this) == DialogResult.OK)
+            {
+                s.ConfigureQualifying(
+                    qualifyingSetup.LaneIndex,
+                    qualifyingSetup.DurationSeconds);
+            }
+        }
+
+        private bool ConfirmAbandonQualifying()
+        {
+            return !s.QualifyingActive ||
+                MessageBox.Show(
+                    this,
+                    "Changing modes will discard the current qualifying session.",
+                    "Discard Qualifying?",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Warning) == DialogResult.Yes;
         }
 
         private void SetPracticeMode()
         {
             SetRaceTitle(null);
+            SetQualifyingAvailable(false);
             practiceToolStripMenuItem.Checked = true;
             heatRaceToolStripMenuItem.Checked = false;
         }
@@ -162,6 +198,43 @@ namespace tlp
                 Text = string.IsNullOrWhiteSpace(raceName)
                     ? DefaultWindowTitle
                     : $"{DefaultWindowTitle} - {raceName.Trim()}";
+            });
+        }
+
+        public void SetQualifyingAvailable(bool available)
+        {
+            RunOnUiThread(() => qualifyingToolStripMenuItem.Enabled = available);
+        }
+
+        public void UpdateQualifyingStatus(
+            int qualifierNumber,
+            int qualifierCount,
+            string state,
+            TimeSpan remaining,
+            string racerName)
+        {
+            RunOnUiThread(() =>
+            {
+                _heatStatusLabel.Text = $"Qualifying {qualifierNumber}/{qualifierCount} {state}";
+                _heatTimerLabel.Text = $"Timer {FormatClock(remaining)}";
+                _onDeckLabel.Text = $"Qualifier: {racerName}";
+            });
+        }
+
+        public void ShowQualifyingLaneSelection(
+            IReadOnlyList<QualifyingResult> rankedResults,
+            Action<IReadOnlyList<string>> completed)
+        {
+            RunOnUiThread(() =>
+            {
+                using QualifyingLaneSelection selection = new(
+                    rankedResults,
+                    ActiveLaneCount,
+                    LaneConfigurations);
+                if (selection.ShowDialog(this) == DialogResult.OK)
+                {
+                    completed(selection.SeededRacers);
+                }
             });
         }
 

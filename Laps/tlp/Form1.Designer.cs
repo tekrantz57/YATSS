@@ -143,6 +143,7 @@ namespace tlp
             modeToolStripMenuItem = new ToolStripMenuItem();
             practiceToolStripMenuItem = new ToolStripMenuItem();
             heatRaceToolStripMenuItem = new ToolStripMenuItem();
+            qualifyingToolStripMenuItem = new ToolStripMenuItem();
             menuStrip1 = new MenuStrip();
             appStatusStrip = new StatusStrip();
             statusLabel = new ToolStripStatusLabel();
@@ -1404,7 +1405,7 @@ namespace tlp
             //
             // modeToolStripMenuItem
             //
-            modeToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { practiceToolStripMenuItem, heatRaceToolStripMenuItem });
+            modeToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { practiceToolStripMenuItem, heatRaceToolStripMenuItem, qualifyingToolStripMenuItem });
             modeToolStripMenuItem.Name = "modeToolStripMenuItem";
             modeToolStripMenuItem.Size = new Size(50, 20);
             modeToolStripMenuItem.Text = "Mode";
@@ -1424,6 +1425,14 @@ namespace tlp
             heatRaceToolStripMenuItem.Size = new Size(180, 22);
             heatRaceToolStripMenuItem.Text = "Heat Race";
             heatRaceToolStripMenuItem.Click += heatRaceToolStripMenuItem_Click;
+            //
+            // qualifyingToolStripMenuItem
+            //
+            qualifyingToolStripMenuItem.Enabled = false;
+            qualifyingToolStripMenuItem.Name = "qualifyingToolStripMenuItem";
+            qualifyingToolStripMenuItem.Size = new Size(180, 22);
+            qualifyingToolStripMenuItem.Text = "Qualifying";
+            qualifyingToolStripMenuItem.Click += qualifyingToolStripMenuItem_Click;
             //
             // menuStrip1
             //
@@ -1692,6 +1701,7 @@ namespace tlp
         private ToolStripMenuItem modeToolStripMenuItem;
         private ToolStripMenuItem practiceToolStripMenuItem;
         private ToolStripMenuItem heatRaceToolStripMenuItem;
+        private ToolStripMenuItem qualifyingToolStripMenuItem;
         private StatusStrip appStatusStrip;
         private ToolStripStatusLabel statusLabel;
     }

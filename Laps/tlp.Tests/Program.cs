@@ -191,7 +191,12 @@ reportHeat.Configure(
     0,
     new[] { "Ada", "Grace" },
     raceName: "Thursday Night",
-    trackLengthFeet: 123.5);
+    trackLengthFeet: 123.5,
+    qualifyingResults: new[]
+    {
+        new QualifyingResult("Ada", 0, 1900),
+        new QualifyingResult("Grace", 1, 2100)
+    });
 Assert(reportHeat.Start(0), "report heat should start");
 Assert(reportHeat.Pause(1000), "paused heat should allow lap adjustment");
 Assert(reportHeat.CanAdjustLapCounts, "paused heat should allow manual lap adjustment");
@@ -201,6 +206,7 @@ reportHeat.RecordHeatResults(
 HeatRaceReport report = reportHeat.CreateReport();
 Assert(report.RaceName == "Thursday Night", "report should include race name");
 Assert(report.TrackLengthFeet == 123.5, "report should include configured track length");
+Assert(report.QualifyingResults[0].RacerName == "Ada", "report should include qualifying order");
 Assert(report.HeatLengthMinutes == 1, "report should include heat length");
 Assert(report.BetweenHeatsSeconds == 0, "report should include between-heat seconds");
 Assert(report.Notes.Contains("Manual lap adjustments", StringComparison.OrdinalIgnoreCase), "report should include manual adjustment note");
@@ -208,5 +214,36 @@ Assert(report.Racers[0].RacerName == "Ada", "report should sort finish order by 
 Assert(report.Racers[0].TotalLaps == 5, "report should include total laps");
 Assert(report.Racers[0].HeatLaps[0] == 5, "report should include heat laps");
 Assert(report.Racers[0].BestLapByLaneMilliseconds[0] == 2100, "report should include fast lap by lane");
+
+QualifyingController qualifying = new();
+qualifying.Configure(new[] { "Slow", "No Lap", "Fast" }, laneIndex: 2, durationSeconds: 30);
+Assert(qualifying.State == QualifyingState.Ready, "qualifying should be ready after configuration");
+Assert(qualifying.CurrentRacer == "Slow", "qualifying should preserve initial racer order");
+Assert(qualifying.Start(1000), "first qualifier should start");
+Assert(!qualifying.IsExpired(30999), "qualifier should not expire early");
+Assert(qualifying.IsExpired(31000), "qualifier should expire at configured duration");
+Assert(qualifying.CompleteCurrent(2500), "first qualifier should complete");
+Assert(qualifying.CurrentRacer == "No Lap", "qualifying should advance to next racer");
+Assert(qualifying.Start(40000), "second qualifier should start");
+Assert(qualifying.CompleteCurrent(null), "no-lap qualifier should complete");
+Assert(qualifying.Start(80000), "third qualifier should start");
+Assert(qualifying.CompleteCurrent(2100), "third qualifier should complete");
+Assert(qualifying.State == QualifyingState.Complete, "qualifying should complete after every racer");
+IReadOnlyList<QualifyingResult> rankedQualifiers = qualifying.GetRankedResults();
+Assert(rankedQualifiers[0].RacerName == "Fast", "fastest qualifier should rank first");
+Assert(rankedQualifiers[1].RacerName == "Slow", "slower valid qualifier should rank next");
+Assert(rankedQualifiers[2].RacerName == "No Lap", "qualifier without a lap should rank last");
+IReadOnlyList<string> seededQualifiers = QualifyingController.BuildSeededRacers(
+    new[]
+    {
+        new QualifyingResult("A", 0, 1000),
+        new QualifyingResult("B", 1, 1100),
+        new QualifyingResult("C", 2, 1200),
+        new QualifyingResult("D", 3, 1300),
+        new QualifyingResult("E", 4, 1400)
+    },
+    new[] { 2, 0, 3, 1 },
+    activeLaneCount: 4);
+Assert(seededQualifiers.SequenceEqual(new[] { "B", "D", "A", "C", "E" }), "lane choices should seed physical lanes and preserve qualifying queue order");
 
 Console.WriteLine("Protocol and lap race tests passed.");

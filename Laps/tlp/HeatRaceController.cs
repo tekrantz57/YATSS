@@ -49,6 +49,7 @@ namespace tlp
         int TotalHeats,
         IReadOnlyList<string> LaneNames,
         IReadOnlyList<int> LaneColorArgb,
+        IReadOnlyList<QualifyingResult> QualifyingResults,
         IReadOnlyList<HeatRaceRacerReport> Racers,
         IReadOnlyList<HeatRaceLaneResult> LaneResults,
         string Notes);
@@ -89,6 +90,7 @@ namespace tlp
             .ToArray();
         private string _raceName = string.Empty;
         private double _trackLengthFeet = LapRaceOptions.Default.TrackLengthFeet;
+        private IReadOnlyList<QualifyingResult> _qualifyingResults = Array.Empty<QualifyingResult>();
 
         public HeatRaceState State { get; private set; } = HeatRaceState.Practice;
         public int HeatNumber { get; private set; }
@@ -123,7 +125,8 @@ namespace tlp
             int activeLaneCount = LapProtocolParser.LaneCount,
             IReadOnlyList<LaneConfiguration>? laneConfigurations = null,
             string raceName = "",
-            double trackLengthFeet = 155.0)
+            double trackLengthFeet = 155.0,
+            IReadOnlyList<QualifyingResult>? qualifyingResults = null)
         {
             lock (_gate)
             {
@@ -146,6 +149,7 @@ namespace tlp
                     .ToArray();
                 _raceName = raceName.Trim();
                 _trackLengthFeet = Math.Clamp(trackLengthFeet, 1.0, 10000.0);
+                _qualifyingResults = qualifyingResults?.ToArray() ?? Array.Empty<QualifyingResult>();
                 _heatLengthMilliseconds = Math.Max(1, heatLengthMinutes) * 60000L;
                 _betweenHeatsSeconds = Math.Clamp(betweenHeatsSeconds, 0, 300);
                 _activeMillisecondsBeforeRun = 0;
@@ -439,6 +443,7 @@ namespace tlp
                     TotalHeats,
                     _laneNames.Take(TotalHeats).ToArray(),
                     _laneColorArgb.Take(TotalHeats).ToArray(),
+                    _qualifyingResults,
                     racers
                         .OrderByDescending(racer => racer.TotalLaps)
                         .ThenBy(racer => racer.RacerName, StringComparer.OrdinalIgnoreCase)

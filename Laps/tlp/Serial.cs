@@ -9,6 +9,7 @@ namespace tlp
         private readonly MKTS _form;
         private readonly LapRace _race = new();
         private readonly HeatRaceController _heatRace = new();
+        private readonly QualifyingController _qualifying = new();
         private readonly SerialLog _log = new();
         private readonly CancellationTokenSource _stop = new();
         private readonly object _portGate = new();
@@ -24,6 +25,16 @@ namespace tlp
         private bool _trackPowerEnabled = true;
         private bool _startCountdownInProgress;
         private int _startCountdownVersion;
+        private bool _qualifyingLaneSelectionPending;
+        private string _configuredRaceName = string.Empty;
+        private int _configuredHeatLengthMinutes;
+        private int _configuredBetweenHeatsSeconds;
+        private int _configuredActiveLaneCount = LapProtocolParser.LaneCount;
+        private double _configuredTrackLengthFeet = LapRaceOptions.Default.TrackLengthFeet;
+        private IReadOnlyList<string> _configuredRacers = Array.Empty<string>();
+        private IReadOnlyList<LaneConfiguration> _configuredLaneConfigurations =
+            LaneConfiguration.CreateDefaults();
+        private IReadOnlyList<QualifyingResult> _qualifyingResults = Array.Empty<QualifyingResult>();
         private static readonly TimeSpan ControllerPingInterval = TimeSpan.FromSeconds(3);
         private static readonly TimeSpan ControllerPingTimeout = TimeSpan.FromSeconds(3);
 
@@ -34,6 +45,8 @@ namespace tlp
             ApplySettings();
             _readerTask = Task.Run(ReadLoopAsync);
         }
+
+        public bool QualifyingActive => _qualifying.State != QualifyingState.Inactive;
 
         public void ApplySettings()
         {
@@ -74,10 +87,13 @@ namespace tlp
         {
             CancelStartCountdown();
             CancelBetweenHeatsTimer();
+            _qualifying.Reset();
+            _qualifyingLaneSelectionPending = false;
             _heatRace.SetPracticeMode();
             _race.Reset();
             _form.ResetBoardDisplay(clearRacers: true);
             _form.ClearHeatRaceStatus();
+            _form.SetQualifyingAvailable(false);
             _log.Info("race state reset");
             _form.SetStatusMessage("Practice reset");
         }
@@ -122,8 +138,18 @@ namespace tlp
         {
             CancelStartCountdown();
             CancelBetweenHeatsTimer();
+            _qualifying.Reset();
+            _qualifyingLaneSelectionPending = false;
             _race.Reset();
             _form.ResetBoardDisplay(clearRacers: false);
+            _configuredRaceName = raceName;
+            _configuredHeatLengthMinutes = heatLengthMinutes;
+            _configuredBetweenHeatsSeconds = betweenHeatsSeconds;
+            _configuredRacers = racers.ToArray();
+            _configuredActiveLaneCount = activeLaneCount;
+            _configuredLaneConfigurations = laneConfigurations.ToArray();
+            _configuredTrackLengthFeet = trackLengthFeet;
+            _qualifyingResults = Array.Empty<QualifyingResult>();
             _heatRace.Configure(
                 heatLengthMinutes,
                 betweenHeatsSeconds,
@@ -131,7 +157,8 @@ namespace tlp
                 activeLaneCount,
                 laneConfigurations,
                 raceName,
-                trackLengthFeet);
+                trackLengthFeet,
+                _qualifyingResults);
             PublishHeatRaceStatus("Ready");
             SetTrackPowerEnabled(false, null, $"Heat 1 ready: {heatLengthMinutes} minute heat. Press Space to start.");
             _log.Info($"heat race configured for {heatLengthMinutes} minute(s), {betweenHeatsSeconds} second(s) between heats");
@@ -141,16 +168,32 @@ namespace tlp
         {
             CancelStartCountdown();
             CancelBetweenHeatsTimer();
+            _qualifying.Reset();
+            _qualifyingLaneSelectionPending = false;
             _heatRace.SetPracticeMode();
             _race.Reset();
             _form.ResetBoardDisplay(clearRacers: true);
             _form.ClearHeatRaceStatus();
+            _form.SetQualifyingAvailable(false);
             _form.SetStatusMessage("Practice mode");
         }
 
         public void HandleSpaceBar()
         {
             uint controllerTimestamp = GetControllerTimestamp();
+            switch (_qualifying.State)
+            {
+                case QualifyingState.Ready:
+                    QueueQualifyingCountdown();
+                    return;
+                case QualifyingState.Running:
+                    _form.SetStatusMessage("Track calls are not available during qualifying");
+                    return;
+                case QualifyingState.Complete:
+                    _form.SetStatusMessage("Complete the qualifying lane selections");
+                    return;
+            }
+
             switch (_heatRace.State)
             {
                 case HeatRaceState.Ready:
@@ -174,6 +217,57 @@ namespace tlp
                     SetTrackPowerEnabled(!_trackPowerEnabled);
                     break;
             }
+        }
+
+        public void ConfigureQualifying(int laneIndex, int durationSeconds)
+        {
+            if (_heatRace.State != HeatRaceState.Ready || _configuredRacers.Count == 0)
+            {
+                _form.SetStatusMessage("Configure a heat race before qualifying");
+                return;
+            }
+
+            CancelStartCountdown();
+            CancelBetweenHeatsTimer();
+            _qualifying.Configure(_configuredRacers, laneIndex, durationSeconds);
+            _qualifyingLaneSelectionPending = false;
+            _race.Reset();
+            PrepareCurrentQualifier();
+            SetTrackPowerEnabled(false, null, "Qualifying ready. Press Space to start the first qualifier.");
+            _form.SetQualifyingAvailable(false);
+            _log.Info(
+                $"qualifying configured on lane {laneIndex + 1} for {durationSeconds} second(s) per racer");
+        }
+
+        public void CancelQualifying()
+        {
+            if (_qualifying.State == QualifyingState.Inactive)
+            {
+                return;
+            }
+
+            CancelStartCountdown();
+            _qualifying.Reset();
+            _qualifyingLaneSelectionPending = false;
+            _qualifyingResults = Array.Empty<QualifyingResult>();
+            _race.Reset();
+            _heatRace.Configure(
+                _configuredHeatLengthMinutes,
+                _configuredBetweenHeatsSeconds,
+                _configuredRacers,
+                _configuredActiveLaneCount,
+                _configuredLaneConfigurations,
+                _configuredRaceName,
+                _configuredTrackLengthFeet,
+                _qualifyingResults);
+            HeatRaceSnapshot snapshot = _heatRace.GetSnapshot(GetControllerTimestamp());
+            _form.ResetBoardDisplay(clearRacers: false);
+            _form.SetLaneRacerNames(snapshot.LaneRacers);
+            _form.ResetHeatTimingDisplay(snapshot.LaneLapCounts);
+            PublishHeatRaceStatus("Ready");
+            SetTrackPowerEnabled(false, null, "Qualifying discarded. Heat 1 ready.");
+            _form.SetQualifyingAvailable(true);
+            _log.Info("qualifying discarded");
         }
 
         public bool AdjustStoppedHeatLap(int laneIndex, int delta)
@@ -237,9 +331,58 @@ namespace tlp
             _startCountdownInProgress = true;
             int countdownVersion = ++_startCountdownVersion;
             _trackPowerEnabled = true;
+            _form.SetQualifyingAvailable(false);
             _form.SetStatusMessage(resumePausedHeat ? "Heat restart countdown" : $"Heat {_heatRace.HeatNumber} countdown");
             _log.Info(resumePausedHeat ? "heat restart countdown queued" : $"heat {_heatRace.HeatNumber} start countdown queued");
             SpeechAnnouncer.SpeakCountdownAsync(_form.SpeechVoiceName, () => CompleteStartCountdown(resumePausedHeat, manualStart, countdownVersion));
+        }
+
+        private void QueueQualifyingCountdown()
+        {
+            if (_startCountdownInProgress || _qualifying.State != QualifyingState.Ready)
+            {
+                return;
+            }
+
+            _startCountdownInProgress = true;
+            int countdownVersion = ++_startCountdownVersion;
+            _trackPowerEnabled = true;
+            _form.SetQualifyingAvailable(false);
+            _form.SetStatusMessage(
+                $"Qualifier {_qualifying.CurrentNumber}/{_qualifying.RacerCount} countdown");
+            _log.Info($"qualifier {_qualifying.CurrentNumber} start countdown queued");
+            SpeechAnnouncer.SpeakCountdownAsync(
+                _form.SpeechVoiceName,
+                () => CompleteQualifyingCountdown(countdownVersion));
+        }
+
+        private void CompleteQualifyingCountdown(int countdownVersion)
+        {
+            try
+            {
+                if (countdownVersion != _startCountdownVersion ||
+                    _qualifying.State != QualifyingState.Ready)
+                {
+                    return;
+                }
+
+                WriteLine(GetTrackPowerCommand());
+                uint controllerTimestamp = GetControllerTimestamp();
+                if (!_qualifying.Start(controllerTimestamp))
+                {
+                    return;
+                }
+
+                PublishQualifyingStatus("Running");
+                _form.SetStatusMessage(
+                    $"{_qualifying.CurrentRacer} qualifying; " +
+                    $"{_qualifying.DurationSeconds} seconds remaining");
+                _log.Info($"qualifier {_qualifying.CurrentNumber} started");
+            }
+            finally
+            {
+                _startCountdownInProgress = false;
+            }
         }
 
         private void CompleteStartCountdown(bool resumePausedHeat, bool manualStart, int countdownVersion)
@@ -455,7 +598,16 @@ namespace tlp
                     _log.Info(message.Detail);
                     break;
                 case LapProtocolMessageKind.Heartbeat:
-                    if (!CheckHeatExpired(message.ControllerTimestampMillis) && _heatRace.State == HeatRaceState.Practice)
+                    if (CheckQualifyingExpired(message.ControllerTimestampMillis))
+                    {
+                        break;
+                    }
+
+                    if (_qualifying.State != QualifyingState.Inactive)
+                    {
+                        PublishQualifyingStatus(GetQualifyingStateDisplayName());
+                    }
+                    else if (!CheckHeatExpired(message.ControllerTimestampMillis) && _heatRace.State == HeatRaceState.Practice)
                     {
                         _form.SetStatusMessage(FormatControllerRespondingStatus());
                     }
@@ -484,7 +636,9 @@ namespace tlp
                 return "TRACK_POWER:MASK:00";
             }
 
-            byte enabledLaneMask = _heatRace.State == HeatRaceState.Practice
+            byte enabledLaneMask = _qualifying.State != QualifyingState.Inactive
+                ? (byte)(1 << _qualifying.LaneIndex)
+                : _heatRace.State == HeatRaceState.Practice
                 ? (byte)((1 << _form.ActiveLaneCount) - 1)
                 : _heatRace.GetOccupiedLaneMask();
             return $"TRACK_POWER:MASK:{enabledLaneMask:X2}";
@@ -495,6 +649,12 @@ namespace tlp
             if (edge.LaneIndex >= _form.ActiveLaneCount)
             {
                 _log.Info($"lane {edge.LaneIndex}: ignored edge because lane is not configured");
+                return;
+            }
+
+            if (_qualifying.State != QualifyingState.Inactive)
+            {
+                HandleQualifyingEdge(edge);
                 return;
             }
 
@@ -524,6 +684,28 @@ namespace tlp
                     heatDecision.FirstLapMilliseconds);
             }
 
+            PublishLapUpdate(edge, update);
+        }
+
+        private void HandleQualifyingEdge(LapEdge edge)
+        {
+            if (CheckQualifyingExpired(edge.TimestampMillis) ||
+                _qualifying.State != QualifyingState.Running)
+            {
+                return;
+            }
+
+            if (edge.LaneIndex != _qualifying.LaneIndex)
+            {
+                _log.Info($"lane {edge.LaneIndex}: ignored edge during qualifying");
+                return;
+            }
+
+            PublishLapUpdate(edge, _race.Process(edge));
+        }
+
+        private void PublishLapUpdate(LapEdge edge, LapUpdate update)
+        {
             if (update.Kind == LapUpdateKind.TooFast)
             {
                 if (_form.SoundOnTooFastLap)
@@ -575,6 +757,90 @@ namespace tlp
 
         private uint GetControllerTimestamp() =>
             _hasControllerTimestamp ? _latestControllerTimestamp : 0;
+
+        private bool CheckQualifyingExpired(uint? controllerTimestamp)
+        {
+            if (!controllerTimestamp.HasValue ||
+                !_qualifying.IsExpired(controllerTimestamp.Value))
+            {
+                return false;
+            }
+
+            Lane lane = _race.GetLane(_qualifying.LaneIndex);
+            int? bestLap = lane.best_time == int.MaxValue ? null : lane.best_time;
+            string completedRacer = _qualifying.CurrentRacer;
+            if (!_qualifying.CompleteCurrent(bestLap))
+            {
+                return false;
+            }
+
+            SetTrackPowerEnabled(false, null, "Qualifier complete");
+            _log.Info(
+                bestLap.HasValue
+                    ? $"{completedRacer} qualifier complete; best {FormatSeconds(bestLap.Value)}s"
+                    : $"{completedRacer} qualifier complete without a valid lap");
+
+            if (_qualifying.State == QualifyingState.Ready)
+            {
+                PrepareCurrentQualifier();
+                _form.SetStatusMessage(
+                    $"{_qualifying.CurrentRacer} ready to qualify. Press Space to start.");
+            }
+            else
+            {
+                PublishQualifyingStatus("Complete");
+                BeginQualifyingLaneSelection();
+            }
+
+            return true;
+        }
+
+        private void PrepareCurrentQualifier()
+        {
+            _race.Reset();
+            _form.ResetBoardDisplay(clearRacers: true);
+            string[] names = new string[LapProtocolParser.LaneCount];
+            Array.Fill(names, string.Empty);
+            names[_qualifying.LaneIndex] = _qualifying.CurrentRacer;
+            _form.SetLaneRacerNames(names);
+            PublishQualifyingStatus("Ready");
+        }
+
+        private void BeginQualifyingLaneSelection()
+        {
+            if (_qualifyingLaneSelectionPending)
+            {
+                return;
+            }
+
+            _qualifyingLaneSelectionPending = true;
+            IReadOnlyList<QualifyingResult> rankedResults = _qualifying.GetRankedResults();
+            _form.ShowQualifyingLaneSelection(rankedResults, seededRacers =>
+            {
+                _qualifyingResults = rankedResults;
+                _configuredRacers = seededRacers.ToArray();
+                _qualifying.Reset();
+                _qualifyingLaneSelectionPending = false;
+                _race.Reset();
+                _heatRace.Configure(
+                    _configuredHeatLengthMinutes,
+                    _configuredBetweenHeatsSeconds,
+                    _configuredRacers,
+                    _configuredActiveLaneCount,
+                    _configuredLaneConfigurations,
+                    _configuredRaceName,
+                    _configuredTrackLengthFeet,
+                    _qualifyingResults);
+                HeatRaceSnapshot snapshot = _heatRace.GetSnapshot(GetControllerTimestamp());
+                _form.ResetBoardDisplay(clearRacers: false);
+                _form.SetLaneRacerNames(snapshot.LaneRacers);
+                _form.ResetHeatTimingDisplay(snapshot.LaneLapCounts);
+                PublishHeatRaceStatus("Ready");
+                SetTrackPowerEnabled(false, null, "Qualifying complete. Press Space to start Heat 1.");
+                _form.SetQualifyingAvailable(false);
+                _log.Info("qualifying lane selections complete; heat race reseeded");
+            });
+        }
 
         private bool CheckHeatExpired(uint? controllerTimestamp)
         {
@@ -669,6 +935,16 @@ namespace tlp
                 snapshot.OnDeckRacer);
         }
 
+        private void PublishQualifyingStatus(string state)
+        {
+            _form.UpdateQualifyingStatus(
+                _qualifying.CurrentNumber,
+                _qualifying.RacerCount,
+                state,
+                _qualifying.GetRemaining(GetControllerTimestamp()),
+                _qualifying.CurrentRacer);
+        }
+
         private void RecordCurrentHeatResults()
         {
             _heatRace.RecordHeatResults(_race.GetLapCounts(), _race.GetBestLapMilliseconds());
@@ -710,6 +986,15 @@ namespace tlp
                 HeatRaceState.Paused => "Paused",
                 HeatRaceState.Complete => "Complete",
                 _ => "Practice"
+            };
+
+        private string GetQualifyingStateDisplayName() =>
+            _qualifying.State switch
+            {
+                QualifyingState.Ready => "Ready",
+                QualifyingState.Running => "Running",
+                QualifyingState.Complete => "Complete",
+                _ => string.Empty
             };
 
         private static string FormatSeconds(int milliseconds) =>

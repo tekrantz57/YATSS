@@ -6,6 +6,7 @@ namespace tlp
         int HeatLengthMinutes,
         int BetweenHeatsSeconds,
         string RaceName);
+    internal sealed record QualifyingSetupSettings(int LaneIndex, int DurationSeconds);
     internal sealed record AppSettings(
         int MinLapMilliseconds,
         bool SoundOnTooFastLap,
@@ -124,6 +125,33 @@ namespace tlp
                 ON CONFLICT(id) DO UPDATE SET
                     track_length_feet = excluded.track_length_feet";
             command.Parameters.AddWithValue("$trackLengthFeet", trackLengthFeet);
+            command.ExecuteNonQuery();
+        }
+
+        public static QualifyingSetupSettings LoadQualifyingSettings(QualifyingSetupSettings defaults)
+        {
+            using SqliteCommand command = Connection.CreateCommand();
+            command.CommandText = @"
+                SELECT lane_index, duration_seconds
+                FROM qualifying_settings
+                WHERE id = 1";
+            using SqliteDataReader reader = command.ExecuteReader();
+            return reader.Read()
+                ? new QualifyingSetupSettings(reader.GetInt32(0), reader.GetInt32(1))
+                : defaults;
+        }
+
+        public static void SaveQualifyingSettings(QualifyingSetupSettings settings)
+        {
+            using SqliteCommand command = Connection.CreateCommand();
+            command.CommandText = @"
+                INSERT INTO qualifying_settings (id, lane_index, duration_seconds)
+                VALUES (1, $laneIndex, $durationSeconds)
+                ON CONFLICT(id) DO UPDATE SET
+                    lane_index = excluded.lane_index,
+                    duration_seconds = excluded.duration_seconds";
+            command.Parameters.AddWithValue("$laneIndex", settings.LaneIndex);
+            command.Parameters.AddWithValue("$durationSeconds", settings.DurationSeconds);
             command.ExecuteNonQuery();
         }
 
@@ -332,6 +360,12 @@ namespace tlp
                 CREATE TABLE IF NOT EXISTS track_configuration (
                     id INTEGER PRIMARY KEY CHECK (id = 1),
                     track_length_feet REAL NOT NULL
+                )");
+            ExecuteNonQuery(@"
+                CREATE TABLE IF NOT EXISTS qualifying_settings (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    lane_index INTEGER NOT NULL,
+                    duration_seconds INTEGER NOT NULL
                 )");
         }
 
