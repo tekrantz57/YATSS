@@ -23,7 +23,7 @@ const byte LaneCount = 8;
 const byte QueueSize = 32;
 const unsigned long SerialBaud = 115200;
 const unsigned long HeartbeatIntervalMillis = 1000;
-#define EDGE_DEBOUNCE_MILLIS 500UL
+#define EDGE_DEBOUNCE_MILLIS 50UL
 #define TRACK_POWER_CUT_ACTIVE_LEVEL HIGH
 
 const byte sensorPins[LaneCount] = { 2, 3, 4, 5, 6, 7, 8, 9 };

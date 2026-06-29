@@ -41,7 +41,7 @@ namespace tlp
             html.AppendLine("body{font-family:Segoe UI,Arial,sans-serif;margin:32px;color:#202020}");
             html.AppendLine("h1{margin:0 0 6px;font-size:28px} h2{margin-top:28px;font-size:20px}");
             html.AppendLine("table{border-collapse:collapse;width:100%;margin-top:10px} th,td{border:1px solid #bbb;padding:6px 8px;text-align:right} th:first-child,td:first-child{text-align:left}");
-            html.AppendLine("th{background:#efefef}.highlight{background:#fff0a8;font-weight:700}.heat-alt{background:#f7f9fc}.muted{color:#666}.total{font-weight:700}");
+            html.AppendLine("th{background:#efefef}.highlight{background:#fff0a8;font-weight:700}.heat-alt{background:#dfe8f2}.muted{color:#666}.total{font-weight:700}");
             html.AppendLine("</style></head><body>");
             html.AppendLine($"<h1>{WebUtility.HtmlEncode(reportTitle)}</h1>");
             html.AppendLine("<table style=\"width:auto;margin-top:8px\"><tbody>");
