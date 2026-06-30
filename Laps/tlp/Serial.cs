@@ -60,7 +60,7 @@ namespace tlp
                 $"minimum lap time set to {_form.MinLapMilliseconds} ms; " +
                 $"track length set to {_form.TrackLengthFeet:0.##} ft; " +
                 $"sound on too-fast laps is {_form.SoundOnTooFastLap}");
-            if (_heatRace.State == HeatRaceState.Practice)
+            if (_heatRace.State == HeatRaceState.Practice && IsPortOpen())
             {
                 WriteLine(GetTrackPowerCommand());
             }
@@ -427,6 +427,14 @@ namespace tlp
 
         public void Write(string value) => WriteLine(value);
 
+        private bool IsPortOpen()
+        {
+            lock (_portGate)
+            {
+                return _port?.IsOpen == true;
+            }
+        }
+
         public void WriteLine(string value)
         {
             SerialPort? port;
@@ -482,6 +490,7 @@ namespace tlp
 
                     _log.Info($"serial port open on {portName}");
                     _form.SetStatusMessage($"Serial open on {portName}; waiting for controller");
+                    WriteLine(GetTrackPowerCommand());
                     DateTime lastLineReceived = DateTime.UtcNow;
                     DateTime lastPingSent = DateTime.MinValue;
                     bool waitingForPingReply = false;
