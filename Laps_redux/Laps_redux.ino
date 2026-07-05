@@ -76,8 +76,6 @@ void (*isrHandlers[LaneCount])() = {
   isrLane4, isrLane5, isrLane6, isrLane7
 };
 
-void (*resetFunc)(void) = 0;
-
 void setup() {
   Serial.begin(SerialBaud);
   delay(1000);
@@ -160,8 +158,9 @@ void handleCommands() {
 
   if (command == "RESET" || command == "R") {
     sendFrame(String(F("HELLO:RESETTING")));
+    Serial.flush();
     delay(100);
-    resetFunc();
+    ESP.restart();
   } else if (command == "TRACK_POWER:OFF") {
     setTrackPowerMask(0);
     sendFrame(String(F("HELLO:TRACK_POWER:OFF")));
