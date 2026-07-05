@@ -41,17 +41,22 @@ volatile byte queueTail = 0;
 volatile unsigned long laneSequences[LaneCount] = { 0, 0, 0, 0, 0, 0, 0, 0 };
 volatile unsigned long lastEdgeMillis[LaneCount] = { 0, 0, 0, 0, 0, 0, 0, 0 };
 volatile unsigned long droppedEvents = 0;
+portMUX_TYPE queueMux = portMUX_INITIALIZER_UNLOCKED;
 unsigned long lastHeartbeatMillis = 0;
 
 void enqueueEdge(byte lane) {
   unsigned long now = millis();
+
+  portENTER_CRITICAL_ISR(&queueMux);
   if (lastEdgeMillis[lane] != 0 && now - lastEdgeMillis[lane] < EDGE_DEBOUNCE_MILLIS) {
+    portEXIT_CRITICAL_ISR(&queueMux);
     return;
   }
 
   byte nextHead = (byte)((queueHead + 1) % QueueSize);
   if (nextHead == queueTail) {
     droppedEvents++;
+    portEXIT_CRITICAL_ISR(&queueMux);
     return;
   }
 
@@ -60,6 +65,7 @@ void enqueueEdge(byte lane) {
   queue[queueHead].timestampMillis = now;
   lastEdgeMillis[lane] = now;
   queueHead = nextHead;
+  portEXIT_CRITICAL_ISR(&queueMux);
 }
 
 void isrLane0() { enqueueEdge(0); }
@@ -104,9 +110,9 @@ void publishQueuedEdges() {
   while (true) {
     EdgeEvent event;
 
-    noInterrupts();
+    portENTER_CRITICAL(&queueMux);
     if (queueTail == queueHead) {
-      interrupts();
+      portEXIT_CRITICAL(&queueMux);
       return;
     }
 
@@ -114,7 +120,7 @@ void publishQueuedEdges() {
     event.sequence = queue[queueTail].sequence;
     event.timestampMillis = queue[queueTail].timestampMillis;
     queueTail = (byte)((queueTail + 1) % QueueSize);
-    interrupts();
+    portEXIT_CRITICAL(&queueMux);
 
     sendFrame(String(F("EDGE:")) + event.lane + F(":") + event.sequence + F(":") + event.timestampMillis);
   }
@@ -123,10 +129,10 @@ void publishQueuedEdges() {
 void publishDroppedEvents() {
   unsigned long dropped;
 
-  noInterrupts();
+  portENTER_CRITICAL(&queueMux);
   dropped = droppedEvents;
   droppedEvents = 0;
-  interrupts();
+  portEXIT_CRITICAL(&queueMux);
 
   if (dropped > 0) {
     sendFrame(String(F("ERR:QUEUE_FULL:")) + dropped);
