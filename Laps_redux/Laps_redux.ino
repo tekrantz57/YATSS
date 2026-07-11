@@ -26,8 +26,8 @@ const unsigned long HeartbeatIntervalMillis = 1000;
 #define EDGE_DEBOUNCE_MILLIS 50UL
 #define TRACK_POWER_CUT_ACTIVE_LEVEL HIGH
 
-const byte sensorPins[LaneCount] = { 2, 3, 4, 5, 6, 7, 8, 9 };
-const byte trackPowerCutPins[LaneCount] = { 10, 11, 12, 13, A0, A1, A2, A3 };
+const byte sensorPins[LaneCount] = { D2, D3, D4, D5, D6, D7, D8, D9 };
+const byte trackPowerCutPins[LaneCount] = { D10, D11, D12, D13, A0, A1, A2, A3 };
 
 struct EdgeEvent {
   byte lane;
@@ -44,7 +44,7 @@ volatile unsigned long droppedEvents = 0;
 portMUX_TYPE queueMux = portMUX_INITIALIZER_UNLOCKED;
 unsigned long lastHeartbeatMillis = 0;
 
-void enqueueEdge(byte lane) {
+void IRAM_ATTR enqueueEdge(byte lane) {
   unsigned long now = millis();
 
   portENTER_CRITICAL_ISR(&queueMux);
@@ -68,14 +68,14 @@ void enqueueEdge(byte lane) {
   portEXIT_CRITICAL_ISR(&queueMux);
 }
 
-void isrLane0() { enqueueEdge(0); }
-void isrLane1() { enqueueEdge(1); }
-void isrLane2() { enqueueEdge(2); }
-void isrLane3() { enqueueEdge(3); }
-void isrLane4() { enqueueEdge(4); }
-void isrLane5() { enqueueEdge(5); }
-void isrLane6() { enqueueEdge(6); }
-void isrLane7() { enqueueEdge(7); }
+void IRAM_ATTR isrLane0() { enqueueEdge(0); }
+void IRAM_ATTR isrLane1() { enqueueEdge(1); }
+void IRAM_ATTR isrLane2() { enqueueEdge(2); }
+void IRAM_ATTR isrLane3() { enqueueEdge(3); }
+void IRAM_ATTR isrLane4() { enqueueEdge(4); }
+void IRAM_ATTR isrLane5() { enqueueEdge(5); }
+void IRAM_ATTR isrLane6() { enqueueEdge(6); }
+void IRAM_ATTR isrLane7() { enqueueEdge(7); }
 
 void (*isrHandlers[LaneCount])() = {
   isrLane0, isrLane1, isrLane2, isrLane3,
