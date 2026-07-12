@@ -54,12 +54,14 @@ namespace tlp
             _race.SetOptions(options with
             {
                 MinLapMilliseconds = _form.MinLapMilliseconds,
-                TrackLengthFeet = _form.TrackLengthFeet
+                TrackLengthFeet = _form.TrackLengthFeet,
+                RawSensorLockoutMilliseconds = _form.RawSensorLockoutMilliseconds
             });
             _log.Info(
                 $"minimum lap time set to {_form.MinLapMilliseconds} ms; " +
                 $"track length set to {_form.TrackLengthFeet:0.##} ft; " +
                 $"controller debounce set to {_form.SensorDebounceMilliseconds} ms; " +
+                $"Windows raw edge lockout set to {_form.RawSensorLockoutMilliseconds} ms; " +
                 $"sound on too-fast laps is {_form.SoundOnTooFastLap}");
             if (_heatRace.State == HeatRaceState.Practice && IsPortOpen())
             {
@@ -722,6 +724,13 @@ namespace tlp
 
         private void PublishLapUpdate(LapEdge edge, LapUpdate update)
         {
+            if (update.Kind == LapUpdateKind.RawIgnored)
+            {
+                _log.Info($"lane {edge.LaneIndex}: {update.Detail}");
+                _form.SetStatusMessage($"Lane {edge.LaneIndex + 1}: {update.Detail}");
+                return;
+            }
+
             if (update.Kind == LapUpdateKind.TooFast)
             {
                 if (_form.SoundOnTooFastLap)

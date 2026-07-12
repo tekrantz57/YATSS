@@ -11,6 +11,7 @@ namespace tlp
         public int ActiveLaneCount { get; private set; }
         public double TrackLengthFeet { get; private set; }
         public int SensorDebounceMilliseconds { get; private set; }
+        public int RawSensorLockoutMilliseconds { get; private set; }
         public IReadOnlyList<LaneConfiguration> LaneConfigurations { get; private set; }
         private readonly TextBox[] _laneNameTextBoxes = new TextBox[LapProtocolParser.LaneCount];
         private readonly Button[] _laneColorButtons = new Button[LapProtocolParser.LaneCount];
@@ -26,6 +27,7 @@ namespace tlp
             int activeLaneCount,
             double trackLengthFeet,
             int sensorDebounceMilliseconds,
+            int rawSensorLockoutMilliseconds,
             IReadOnlyList<LaneConfiguration> laneConfigurations)
         {
             InitializeComponent();
@@ -36,9 +38,11 @@ namespace tlp
             ActiveLaneCount = activeLaneCount;
             TrackLengthFeet = trackLengthFeet;
             SensorDebounceMilliseconds = sensorDebounceMilliseconds;
+            RawSensorLockoutMilliseconds = rawSensorLockoutMilliseconds;
             LaneConfigurations = NormalizeLaneConfigurations(laneConfigurations);
             nudMinLapMilliseconds.Value = Math.Clamp(minLapMilliseconds, (int)nudMinLapMilliseconds.Minimum, (int)nudMinLapMilliseconds.Maximum);
             nudSensorDebounceMilliseconds.Value = Math.Clamp(sensorDebounceMilliseconds, (int)nudSensorDebounceMilliseconds.Minimum, (int)nudSensorDebounceMilliseconds.Maximum);
+            nudRawSensorLockoutMilliseconds.Value = Math.Clamp(rawSensorLockoutMilliseconds, (int)nudRawSensorLockoutMilliseconds.Minimum, (int)nudRawSensorLockoutMilliseconds.Maximum);
             cbSoundOnTooFastLap.Checked = soundOnTooFastLap;
             nudActiveLaneCount.Value = Math.Clamp(activeLaneCount, (int)nudActiveLaneCount.Minimum, (int)nudActiveLaneCount.Maximum);
             nudTrackLengthFeet.Value = Math.Clamp(
@@ -88,6 +92,7 @@ namespace tlp
             ActiveLaneCount = (int)nudActiveLaneCount.Value;
             TrackLengthFeet = (double)nudTrackLengthFeet.Value;
             SensorDebounceMilliseconds = (int)nudSensorDebounceMilliseconds.Value;
+            RawSensorLockoutMilliseconds = (int)nudRawSensorLockoutMilliseconds.Value;
             LaneConfigurations = Enumerable.Range(0, LapProtocolParser.LaneCount)
                 .Select(lane => new LaneConfiguration(
                     GetLaneName(lane),

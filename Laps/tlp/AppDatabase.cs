@@ -17,6 +17,7 @@ namespace tlp
     {
         private const string ConnectionString = @"Data Source=c:\sqlite\data\laps.db";
         public const int DefaultSensorDebounceMilliseconds = 1800;
+        public const int DefaultRawSensorLockoutMilliseconds = 0;
         private static readonly object SyncRoot = new();
 
         public static SqliteConnection Connection { get; } = new(ConnectionString);
@@ -148,6 +149,28 @@ namespace tlp
                 ON CONFLICT(id) DO UPDATE SET
                     debounce_milliseconds = excluded.debounce_milliseconds";
             command.Parameters.AddWithValue("$debounceMilliseconds", debounceMilliseconds);
+            command.ExecuteNonQuery();
+        }
+
+        public static int LoadRawSensorLockoutMilliseconds(int defaultValue)
+        {
+            using SqliteCommand command = Connection.CreateCommand();
+            command.CommandText = @"SELECT raw_sensor_lockout_milliseconds FROM controller_settings WHERE id = 1";
+            object? value = command.ExecuteScalar();
+            return value == null || value == DBNull.Value
+                ? defaultValue
+                : Convert.ToInt32(value, System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        public static void SaveRawSensorLockoutMilliseconds(int rawSensorLockoutMilliseconds)
+        {
+            using SqliteCommand command = Connection.CreateCommand();
+            command.CommandText = @"
+                INSERT INTO controller_settings (id, raw_sensor_lockout_milliseconds)
+                VALUES (1, $rawSensorLockoutMilliseconds)
+                ON CONFLICT(id) DO UPDATE SET
+                    raw_sensor_lockout_milliseconds = excluded.raw_sensor_lockout_milliseconds";
+            command.Parameters.AddWithValue("$rawSensorLockoutMilliseconds", rawSensorLockoutMilliseconds);
             command.ExecuteNonQuery();
         }
 
@@ -395,6 +418,7 @@ namespace tlp
                     id INTEGER PRIMARY KEY CHECK (id = 1),
                     debounce_milliseconds INTEGER NOT NULL
                 )");
+            TryExecuteNonQuery(@"ALTER TABLE controller_settings ADD COLUMN raw_sensor_lockout_milliseconds INTEGER");
         }
 
         private static void ExecuteNonQuery(string commandText)
@@ -402,6 +426,17 @@ namespace tlp
             using SqliteCommand command = Connection.CreateCommand();
             command.CommandText = commandText;
             command.ExecuteNonQuery();
+        }
+
+        private static void TryExecuteNonQuery(string commandText)
+        {
+            try
+            {
+                ExecuteNonQuery(commandText);
+            }
+            catch (SqliteException)
+            {
+            }
         }
     }
 }

@@ -25,6 +25,7 @@ namespace tlp
         public int ActiveLaneCount { get; private set; } = LapProtocolParser.LaneCount;
         public double TrackLengthFeet { get; private set; } = LapRaceOptions.Default.TrackLengthFeet;
         public int SensorDebounceMilliseconds { get; private set; } = AppDatabase.DefaultSensorDebounceMilliseconds;
+        public int RawSensorLockoutMilliseconds { get; private set; } = AppDatabase.DefaultRawSensorLockoutMilliseconds;
         public IReadOnlyList<LaneConfiguration> LaneConfigurations { get; private set; } =
             LaneConfiguration.CreateDefaults();
 
@@ -51,6 +52,10 @@ namespace tlp
                 10000.0);
             SensorDebounceMilliseconds = Math.Clamp(
                 AppDatabase.LoadSensorDebounceMilliseconds(SensorDebounceMilliseconds),
+                0,
+                10000);
+            RawSensorLockoutMilliseconds = Math.Clamp(
+                AppDatabase.LoadRawSensorLockoutMilliseconds(RawSensorLockoutMilliseconds),
                 0,
                 10000);
             LaneConfigurations = AppDatabase.LoadLaneConfigurations(LaneConfigurations);
@@ -717,6 +722,7 @@ namespace tlp
                 ActiveLaneCount,
                 TrackLengthFeet,
                 SensorDebounceMilliseconds,
+                RawSensorLockoutMilliseconds,
                 LaneConfigurations);
             if (config.ShowDialog(this) == DialogResult.OK)
             {
@@ -726,6 +732,7 @@ namespace tlp
                 ActiveLaneCount = config.ActiveLaneCount;
                 TrackLengthFeet = config.TrackLengthFeet;
                 SensorDebounceMilliseconds = config.SensorDebounceMilliseconds;
+                RawSensorLockoutMilliseconds = config.RawSensorLockoutMilliseconds;
                 LaneConfigurations = config.LaneConfigurations;
                 ApplyLaneColors();
                 ApplyActiveLaneLayout();
@@ -737,6 +744,7 @@ namespace tlp
                 AppDatabase.SaveLaneConfigurations(LaneConfigurations);
                 AppDatabase.SaveTrackLengthFeet(TrackLengthFeet);
                 AppDatabase.SaveSensorDebounceMilliseconds(SensorDebounceMilliseconds);
+                AppDatabase.SaveRawSensorLockoutMilliseconds(RawSensorLockoutMilliseconds);
                 SpeechAnnouncer.WarmUpAsync(SpeechVoiceName);
                 s.ApplySettings();
                 s.SetPort(config.SelectedPort);

@@ -3,7 +3,8 @@ namespace tlp
     public sealed record LapRaceOptions(
         int MinLapMilliseconds,
         int MaxLapMilliseconds,
-        double TrackLengthFeet)
+        double TrackLengthFeet,
+        int RawSensorLockoutMilliseconds = 0)
     {
         public static LapRaceOptions Default { get; } = new(1000, 600000, 155.0);
     }
@@ -13,6 +14,7 @@ namespace tlp
         Started,
         Counted,
         Duplicate,
+        RawIgnored,
         TooFast,
         MissedFrame,
         Invalid
@@ -36,6 +38,7 @@ namespace tlp
 
             public Lane Stats { get; private set; }
             public uint? LastAcceptedTimestamp { get; set; }
+            public uint? LastRawTimestamp { get; set; }
             public uint? LastSequence { get; set; }
             public int MissedFrames { get; set; }
 
@@ -43,6 +46,7 @@ namespace tlp
             {
                 Stats = new Lane(laneIndex);
                 LastAcceptedTimestamp = null;
+                LastRawTimestamp = null;
                 LastSequence = null;
                 MissedFrames = 0;
             }
@@ -152,6 +156,26 @@ namespace tlp
 
                 lane.LastSequence = edge.Sequence ?? lane.LastSequence;
 
+                int rawSensorLockout = Math.Max(0, _options.RawSensorLockoutMilliseconds);
+                if (rawSensorLockout > 0 && lane.LastRawTimestamp.HasValue)
+                {
+                    uint rawElapsed = unchecked(edge.TimestampMillis - lane.LastRawTimestamp.Value);
+                    lane.LastRawTimestamp = edge.TimestampMillis;
+                    if (rawElapsed < rawSensorLockout)
+                    {
+                        return new LapUpdate(
+                            LapUpdateKind.RawIgnored,
+                            edge.LaneIndex,
+                            (int)Math.Min(rawElapsed, int.MaxValue),
+                            lane.MissedFrames,
+                            $"ignored {rawElapsed} ms raw edge below sensor lockout {rawSensorLockout} ms");
+                    }
+                }
+                else
+                {
+                    lane.LastRawTimestamp = edge.TimestampMillis;
+                }
+
                 if (!lane.LastAcceptedTimestamp.HasValue)
                 {
                     lane.LastAcceptedTimestamp = edge.TimestampMillis;
@@ -240,6 +264,7 @@ namespace tlp
                     int lapCount = i < lapCounts.Count ? Math.Max(0, lapCounts[i]) : 0;
                     _lanes[i].Stats.ResetTiming(lapCount);
                     _lanes[i].LastAcceptedTimestamp = null;
+                    _lanes[i].LastRawTimestamp = null;
                     _lanes[i].LastSequence = null;
                     _lanes[i].MissedFrames = 0;
                 }

@@ -46,6 +46,16 @@ LapUpdate counted = race.Process(new LapEdge(0, 3, 3500));
 Assert(counted.Kind == LapUpdateKind.Counted, "valid edge should count lap");
 Assert(counted.LapMilliseconds == 2500, "lap duration should be computed from last accepted edge");
 Assert(race.GetLane(0).getCount() == 1, "lane should have one counted lap");
+
+LapRace rawLockoutRace = new(new LapRaceOptions(1000, 600000, 155.0, RawSensorLockoutMilliseconds: 500));
+Assert(rawLockoutRace.Process(new LapEdge(0, 1, 1000)).Kind == LapUpdateKind.Started, "raw lockout race should start");
+LapUpdate rawIgnored = rawLockoutRace.Process(new LapEdge(0, 2, 1300));
+Assert(rawIgnored.Kind == LapUpdateKind.RawIgnored, "raw lockout should reject rapid raw edges before lap validation");
+Assert(rawIgnored.LapMilliseconds == 300, "raw lockout should report raw edge duration");
+LapUpdate rawLockoutCounted = rawLockoutRace.Process(new LapEdge(0, 3, 2600));
+Assert(rawLockoutCounted.Kind == LapUpdateKind.Counted, "edge after raw lockout and minimum lap should count");
+Assert(rawLockoutCounted.LapMilliseconds == 1600, "counted lap should still measure from the last accepted lap baseline");
+
 LapRace hundredFootRace = new(new LapRaceOptions(1000, 600000, 100.0));
 Assert(
     Math.Abs(hundredFootRace.CalculateMilesPerHour(10000) - 6.8166325835) < 0.000001,
