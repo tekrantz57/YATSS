@@ -3,6 +3,7 @@ namespace tlp
     public sealed class SerialLogTailForm : Form
     {
         private const int MaxCharacters = 60000;
+        private const int EmGetFirstVisibleLine = 0x00CE;
         private readonly TextBox _logTextBox = new();
         private readonly System.Windows.Forms.Timer _refreshTimer = new();
         private long _lastLength = -1;
@@ -41,9 +42,16 @@ namespace tlp
                 return;
             }
 
+            if (!force && !IsScrolledToEnd())
+            {
+                Text = "Serial Log Tail (paused)";
+                return;
+            }
+
             FileInfo fileInfo = new(path);
             if (!force && fileInfo.Length == _lastLength)
             {
+                Text = "Serial Log Tail";
                 return;
             }
 
@@ -65,6 +73,23 @@ namespace tlp
             _logTextBox.Text = text;
             _logTextBox.SelectionStart = _logTextBox.TextLength;
             _logTextBox.ScrollToCaret();
+            Text = "Serial Log Tail";
         }
+
+        private bool IsScrolledToEnd()
+        {
+            if (_logTextBox.TextLength == 0)
+            {
+                return true;
+            }
+
+            int firstVisibleLine = SendMessage(_logTextBox.Handle, EmGetFirstVisibleLine, 0, 0);
+            int visibleLines = Math.Max(1, _logTextBox.ClientSize.Height / _logTextBox.Font.Height);
+            int lastLine = _logTextBox.GetLineFromCharIndex(_logTextBox.TextLength);
+            return firstVisibleLine + visibleLines >= lastLine;
+        }
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern int SendMessage(IntPtr hWnd, int msg, int wParam, int lParam);
     }
 }
