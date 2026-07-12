@@ -144,11 +144,13 @@ namespace tlp
         {
             using SqliteCommand command = Connection.CreateCommand();
             command.CommandText = @"
-                INSERT INTO controller_settings (id, debounce_milliseconds)
-                VALUES (1, $debounceMilliseconds)
+                INSERT INTO controller_settings (
+                    id, debounce_milliseconds, raw_sensor_lockout_milliseconds)
+                VALUES (1, $debounceMilliseconds, $defaultRawSensorLockoutMilliseconds)
                 ON CONFLICT(id) DO UPDATE SET
                     debounce_milliseconds = excluded.debounce_milliseconds";
             command.Parameters.AddWithValue("$debounceMilliseconds", debounceMilliseconds);
+            command.Parameters.AddWithValue("$defaultRawSensorLockoutMilliseconds", DefaultRawSensorLockoutMilliseconds);
             command.ExecuteNonQuery();
         }
 
@@ -166,10 +168,12 @@ namespace tlp
         {
             using SqliteCommand command = Connection.CreateCommand();
             command.CommandText = @"
-                INSERT INTO controller_settings (id, raw_sensor_lockout_milliseconds)
-                VALUES (1, $rawSensorLockoutMilliseconds)
+                INSERT INTO controller_settings (
+                    id, debounce_milliseconds, raw_sensor_lockout_milliseconds)
+                VALUES (1, $defaultSensorDebounceMilliseconds, $rawSensorLockoutMilliseconds)
                 ON CONFLICT(id) DO UPDATE SET
                     raw_sensor_lockout_milliseconds = excluded.raw_sensor_lockout_milliseconds";
+            command.Parameters.AddWithValue("$defaultSensorDebounceMilliseconds", DefaultSensorDebounceMilliseconds);
             command.Parameters.AddWithValue("$rawSensorLockoutMilliseconds", rawSensorLockoutMilliseconds);
             command.ExecuteNonQuery();
         }
