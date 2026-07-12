@@ -27,7 +27,7 @@ const unsigned long HeartbeatIntervalMillis = 1000;
 #define MAX_EDGE_DEBOUNCE_MILLIS 10000UL
 #define TRACK_POWER_CUT_ACTIVE_LEVEL HIGH
 
-const byte sensorPins[LaneCount] = { D2, D3, D4, D5, D6, D7, D8, D9 };
+const byte sensorPins[LaneCount] = { D2, A4, D4, D5, D6, D7, D8, D9 };
 const byte trackPowerCutPins[LaneCount] = { D10, D11, D12, D13, A0, A1, A2, A3 };
 
 struct EdgeEvent {
