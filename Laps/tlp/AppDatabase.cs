@@ -16,6 +16,7 @@ namespace tlp
     internal static class AppDatabase
     {
         private const string ConnectionString = @"Data Source=c:\sqlite\data\laps.db";
+        public const int DefaultSensorDebounceMilliseconds = 1800;
         private static readonly object SyncRoot = new();
 
         public static SqliteConnection Connection { get; } = new(ConnectionString);
@@ -125,6 +126,28 @@ namespace tlp
                 ON CONFLICT(id) DO UPDATE SET
                     track_length_feet = excluded.track_length_feet";
             command.Parameters.AddWithValue("$trackLengthFeet", trackLengthFeet);
+            command.ExecuteNonQuery();
+        }
+
+        public static int LoadSensorDebounceMilliseconds(int defaultValue)
+        {
+            using SqliteCommand command = Connection.CreateCommand();
+            command.CommandText = @"SELECT debounce_milliseconds FROM controller_settings WHERE id = 1";
+            object? value = command.ExecuteScalar();
+            return value == null || value == DBNull.Value
+                ? defaultValue
+                : Convert.ToInt32(value, System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        public static void SaveSensorDebounceMilliseconds(int debounceMilliseconds)
+        {
+            using SqliteCommand command = Connection.CreateCommand();
+            command.CommandText = @"
+                INSERT INTO controller_settings (id, debounce_milliseconds)
+                VALUES (1, $debounceMilliseconds)
+                ON CONFLICT(id) DO UPDATE SET
+                    debounce_milliseconds = excluded.debounce_milliseconds";
+            command.Parameters.AddWithValue("$debounceMilliseconds", debounceMilliseconds);
             command.ExecuteNonQuery();
         }
 
@@ -366,6 +389,11 @@ namespace tlp
                     id INTEGER PRIMARY KEY CHECK (id = 1),
                     lane_index INTEGER NOT NULL,
                     duration_seconds INTEGER NOT NULL
+                )");
+            ExecuteNonQuery(@"
+                CREATE TABLE IF NOT EXISTS controller_settings (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    debounce_milliseconds INTEGER NOT NULL
                 )");
         }
 

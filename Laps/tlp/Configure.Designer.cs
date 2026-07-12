@@ -30,6 +30,8 @@ namespace tlp
         {
             groupBox3 = new GroupBox();
             cbSoundOnTooFastLap = new CheckBox();
+            sensorDebounceLabel = new Label();
+            nudSensorDebounceMilliseconds = new NumericUpDown();
             label1 = new Label();
             nudMinLapMilliseconds = new NumericUpDown();
             bOK = new Button();
@@ -45,6 +47,7 @@ namespace tlp
             nudTrackLengthFeet = new NumericUpDown();
             groupBoxLaneColors = new GroupBox();
             groupBox3.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)nudSensorDebounceMilliseconds).BeginInit();
             ((System.ComponentModel.ISupportInitialize)nudMinLapMilliseconds).BeginInit();
             groupBox4.SuspendLayout();
             groupBox5.SuspendLayout();
@@ -57,11 +60,13 @@ namespace tlp
             // groupBox3
             //
             groupBox3.Controls.Add(cbSoundOnTooFastLap);
+            groupBox3.Controls.Add(sensorDebounceLabel);
+            groupBox3.Controls.Add(nudSensorDebounceMilliseconds);
             groupBox3.Controls.Add(label1);
             groupBox3.Controls.Add(nudMinLapMilliseconds);
             groupBox3.Location = new Point(12, 12);
             groupBox3.Name = "groupBox3";
-            groupBox3.Size = new Size(399, 85);
+            groupBox3.Size = new Size(399, 111);
             groupBox3.TabIndex = 0;
             groupBox3.TabStop = false;
             groupBox3.Text = "Lap Timing";
@@ -69,12 +74,31 @@ namespace tlp
             // cbSoundOnTooFastLap
             //
             cbSoundOnTooFastLap.AutoSize = true;
-            cbSoundOnTooFastLap.Location = new Point(11, 55);
+            cbSoundOnTooFastLap.Location = new Point(11, 83);
             cbSoundOnTooFastLap.Name = "cbSoundOnTooFastLap";
             cbSoundOnTooFastLap.Size = new Size(231, 19);
             cbSoundOnTooFastLap.TabIndex = 2;
             cbSoundOnTooFastLap.Text = "Play sound when a lap is ignored";
             cbSoundOnTooFastLap.UseVisualStyleBackColor = true;
+            //
+            // sensorDebounceLabel
+            //
+            sensorDebounceLabel.AutoSize = true;
+            sensorDebounceLabel.Location = new Point(137, 55);
+            sensorDebounceLabel.Name = "sensorDebounceLabel";
+            sensorDebounceLabel.Size = new Size(209, 15);
+            sensorDebounceLabel.TabIndex = 4;
+            sensorDebounceLabel.Text = "Controller sensor debounce (ms)";
+            //
+            // nudSensorDebounceMilliseconds
+            //
+            nudSensorDebounceMilliseconds.Increment = new decimal(new int[] { 100, 0, 0, 0 });
+            nudSensorDebounceMilliseconds.Location = new Point(11, 51);
+            nudSensorDebounceMilliseconds.Maximum = new decimal(new int[] { 10000, 0, 0, 0 });
+            nudSensorDebounceMilliseconds.Name = "nudSensorDebounceMilliseconds";
+            nudSensorDebounceMilliseconds.Size = new Size(120, 23);
+            nudSensorDebounceMilliseconds.TabIndex = 3;
+            nudSensorDebounceMilliseconds.Value = new decimal(new int[] { 1800, 0, 0, 0 });
             //
             // label1
             //
@@ -99,7 +123,7 @@ namespace tlp
             // groupBox4
             //
             groupBox4.Controls.Add(cbSerialPort);
-            groupBox4.Location = new Point(12, 110);
+            groupBox4.Location = new Point(12, 136);
             groupBox4.Name = "groupBox4";
             groupBox4.Size = new Size(399, 53);
             groupBox4.TabIndex = 1;
@@ -117,7 +141,7 @@ namespace tlp
             // groupBox5
             //
             groupBox5.Controls.Add(cbSpeechVoice);
-            groupBox5.Location = new Point(12, 176);
+            groupBox5.Location = new Point(12, 202);
             groupBox5.Name = "groupBox5";
             groupBox5.Size = new Size(399, 53);
             groupBox5.TabIndex = 2;
@@ -139,7 +163,7 @@ namespace tlp
             groupBoxTrack.Controls.Add(nudActiveLaneCount);
             groupBoxTrack.Controls.Add(trackLengthLabel);
             groupBoxTrack.Controls.Add(nudTrackLengthFeet);
-            groupBoxTrack.Location = new Point(12, 242);
+            groupBoxTrack.Location = new Point(12, 268);
             groupBoxTrack.Name = "groupBoxTrack";
             groupBoxTrack.Size = new Size(399, 53);
             groupBoxTrack.TabIndex = 3;
@@ -188,7 +212,7 @@ namespace tlp
             //
             // groupBoxLaneColors
             //
-            groupBoxLaneColors.Location = new Point(12, 308);
+            groupBoxLaneColors.Location = new Point(12, 334);
             groupBoxLaneColors.Name = "groupBoxLaneColors";
             groupBoxLaneColors.Size = new Size(399, 174);
             groupBoxLaneColors.TabIndex = 4;
@@ -197,7 +221,7 @@ namespace tlp
             //
             // bOK
             //
-            bOK.Location = new Point(255, 500);
+            bOK.Location = new Point(255, 526);
             bOK.Name = "bOK";
             bOK.Size = new Size(75, 23);
             bOK.TabIndex = 5;
@@ -207,7 +231,7 @@ namespace tlp
             //
             // bCancel
             //
-            bCancel.Location = new Point(336, 500);
+            bCancel.Location = new Point(336, 526);
             bCancel.Name = "bCancel";
             bCancel.Size = new Size(75, 23);
             bCancel.TabIndex = 6;
@@ -221,7 +245,7 @@ namespace tlp
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             CancelButton = bCancel;
-            ClientSize = new Size(428, 539);
+            ClientSize = new Size(428, 565);
             Controls.Add(bCancel);
             Controls.Add(bOK);
             Controls.Add(groupBox5);
@@ -237,6 +261,7 @@ namespace tlp
             Text = "Configure";
             groupBox3.ResumeLayout(false);
             groupBox3.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)nudSensorDebounceMilliseconds).EndInit();
             ((System.ComponentModel.ISupportInitialize)nudMinLapMilliseconds).EndInit();
             groupBox4.ResumeLayout(false);
             groupBox5.ResumeLayout(false);
@@ -252,6 +277,8 @@ namespace tlp
 
         private GroupBox groupBox3;
         private CheckBox cbSoundOnTooFastLap;
+        private Label sensorDebounceLabel;
+        private NumericUpDown nudSensorDebounceMilliseconds;
         private Label label1;
         private NumericUpDown nudMinLapMilliseconds;
         private Button bOK;

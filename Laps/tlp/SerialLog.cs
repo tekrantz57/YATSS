@@ -7,14 +7,23 @@ namespace tlp
         private readonly object _gate = new();
         private readonly string _path;
 
+        public static string CurrentPath
+        {
+            get
+            {
+                string logDirectory = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "tlp",
+                    "logs");
+                return Path.Combine(logDirectory, $"serial-{DateTime.Now:yyyyMMdd}.log");
+            }
+        }
+
         public SerialLog()
         {
-            string logDirectory = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "tlp",
-                "logs");
+            string logDirectory = Path.GetDirectoryName(CurrentPath) ?? string.Empty;
             Directory.CreateDirectory(logDirectory);
-            _path = Path.Combine(logDirectory, $"serial-{DateTime.Now:yyyyMMdd}.log");
+            _path = CurrentPath;
         }
 
         public void Info(string message) => Write("INFO", message);

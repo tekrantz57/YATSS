@@ -59,9 +59,11 @@ namespace tlp
             _log.Info(
                 $"minimum lap time set to {_form.MinLapMilliseconds} ms; " +
                 $"track length set to {_form.TrackLengthFeet:0.##} ft; " +
+                $"controller debounce set to {_form.SensorDebounceMilliseconds} ms; " +
                 $"sound on too-fast laps is {_form.SoundOnTooFastLap}");
             if (_heatRace.State == HeatRaceState.Practice && IsPortOpen())
             {
+                WriteLine(GetSensorDebounceCommand());
                 WriteLine(GetTrackPowerCommand());
             }
 
@@ -490,6 +492,7 @@ namespace tlp
 
                     _log.Info($"serial port open on {portName}");
                     _form.SetStatusMessage($"Serial open on {portName}; waiting for controller");
+                    WriteLine(GetSensorDebounceCommand());
                     WriteLine(GetTrackPowerCommand());
                     DateTime lastLineReceived = DateTime.UtcNow;
                     DateTime lastPingSent = DateTime.MinValue;
@@ -597,6 +600,7 @@ namespace tlp
                 case LapProtocolMessageKind.Hello:
                     if (message.Detail.StartsWith("HELLO:LAPS_REDUX:", StringComparison.OrdinalIgnoreCase))
                     {
+                        WriteLine(GetSensorDebounceCommand());
                         WriteLine(GetTrackPowerCommand());
                     }
 
@@ -652,6 +656,9 @@ namespace tlp
                 : _heatRace.GetOccupiedLaneMask();
             return $"TRACK_POWER:MASK:{enabledLaneMask:X2}";
         }
+
+        private string GetSensorDebounceCommand() =>
+            $"CONFIG:DEBOUNCE:{_form.SensorDebounceMilliseconds}";
 
         private void HandleEdge(LapEdge edge)
         {

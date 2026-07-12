@@ -23,7 +23,8 @@ const byte LaneCount = 8;
 const byte QueueSize = 32;
 const unsigned long SerialBaud = 115200;
 const unsigned long HeartbeatIntervalMillis = 1000;
-#define EDGE_DEBOUNCE_MILLIS 50UL
+#define DEFAULT_EDGE_DEBOUNCE_MILLIS 1800UL
+#define MAX_EDGE_DEBOUNCE_MILLIS 10000UL
 #define TRACK_POWER_CUT_ACTIVE_LEVEL HIGH
 
 const byte sensorPins[LaneCount] = { D2, D3, D4, D5, D6, D7, D8, D9 };
@@ -42,13 +43,14 @@ volatile unsigned long laneSequences[LaneCount] = { 0, 0, 0, 0, 0, 0, 0, 0 };
 volatile unsigned long lastEdgeMillis[LaneCount] = { 0, 0, 0, 0, 0, 0, 0, 0 };
 volatile unsigned long droppedEvents = 0;
 portMUX_TYPE queueMux = portMUX_INITIALIZER_UNLOCKED;
+volatile unsigned long edgeDebounceMillis = DEFAULT_EDGE_DEBOUNCE_MILLIS;
 unsigned long lastHeartbeatMillis = 0;
 
 void IRAM_ATTR enqueueEdge(byte lane) {
   unsigned long now = millis();
 
   portENTER_CRITICAL_ISR(&queueMux);
-  if (lastEdgeMillis[lane] != 0 && now - lastEdgeMillis[lane] < EDGE_DEBOUNCE_MILLIS) {
+  if (lastEdgeMillis[lane] != 0 && now - lastEdgeMillis[lane] < edgeDebounceMillis) {
     portEXIT_CRITICAL_ISR(&queueMux);
     return;
   }
@@ -184,6 +186,19 @@ void handleCommands() {
 
     setTrackPowerMask((byte)mask);
     sendFrame(String(F("HELLO:TRACK_POWER:MASK:")) + maskText);
+  } else if (command.startsWith("CONFIG:DEBOUNCE:")) {
+    String debounceText = command.substring(16);
+    char *end = NULL;
+    unsigned long debounce = strtoul(debounceText.c_str(), &end, 10);
+    if (debounceText.length() == 0 || end == debounceText.c_str() || *end != '\0' || debounce > MAX_EDGE_DEBOUNCE_MILLIS) {
+      sendFrame(String(F("ERR:BAD_DEBOUNCE")));
+      return;
+    }
+
+    portENTER_CRITICAL(&queueMux);
+    edgeDebounceMillis = debounce;
+    portEXIT_CRITICAL(&queueMux);
+    sendFrame(String(F("HELLO:CONFIG:DEBOUNCE:")) + debounce);
   } else if (command == "PING") {
     sendFrame(String(F("HELLO:LAPS_REDUX:2:8")));
   } else if (command.length() > 0) {

@@ -24,6 +24,7 @@ namespace tlp
         public string SpeechVoiceName { get; private set; } = "";
         public int ActiveLaneCount { get; private set; } = LapProtocolParser.LaneCount;
         public double TrackLengthFeet { get; private set; } = LapRaceOptions.Default.TrackLengthFeet;
+        public int SensorDebounceMilliseconds { get; private set; } = AppDatabase.DefaultSensorDebounceMilliseconds;
         public IReadOnlyList<LaneConfiguration> LaneConfigurations { get; private set; } =
             LaneConfiguration.CreateDefaults();
 
@@ -48,6 +49,10 @@ namespace tlp
                 AppDatabase.LoadTrackLengthFeet(TrackLengthFeet),
                 1.0,
                 10000.0);
+            SensorDebounceMilliseconds = Math.Clamp(
+                AppDatabase.LoadSensorDebounceMilliseconds(SensorDebounceMilliseconds),
+                0,
+                10000);
             LaneConfigurations = AppDatabase.LoadLaneConfigurations(LaneConfigurations);
             ApplyLaneColors();
             ApplyActiveLaneLayout();
@@ -116,6 +121,12 @@ namespace tlp
             SetRaceTitle(null);
             SetQualifyingAvailable(false);
             s.ResetRace(resetArduino: true);
+        }
+
+        private void serialLogToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            SerialLogTailForm logTail = new();
+            logTail.Show(this);
         }
 
         private void practiceToolStripMenuItem_Click(object sender, EventArgs e)
@@ -705,6 +716,7 @@ namespace tlp
                 SpeechVoiceName,
                 ActiveLaneCount,
                 TrackLengthFeet,
+                SensorDebounceMilliseconds,
                 LaneConfigurations);
             if (config.ShowDialog(this) == DialogResult.OK)
             {
@@ -713,6 +725,7 @@ namespace tlp
                 SpeechVoiceName = config.SelectedSpeechVoice;
                 ActiveLaneCount = config.ActiveLaneCount;
                 TrackLengthFeet = config.TrackLengthFeet;
+                SensorDebounceMilliseconds = config.SensorDebounceMilliseconds;
                 LaneConfigurations = config.LaneConfigurations;
                 ApplyLaneColors();
                 ApplyActiveLaneLayout();
@@ -723,6 +736,7 @@ namespace tlp
                     ActiveLaneCount));
                 AppDatabase.SaveLaneConfigurations(LaneConfigurations);
                 AppDatabase.SaveTrackLengthFeet(TrackLengthFeet);
+                AppDatabase.SaveSensorDebounceMilliseconds(SensorDebounceMilliseconds);
                 SpeechAnnouncer.WarmUpAsync(SpeechVoiceName);
                 s.ApplySettings();
                 s.SetPort(config.SelectedPort);

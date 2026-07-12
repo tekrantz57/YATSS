@@ -137,6 +137,7 @@ namespace tlp
             titleLabel = new Label();
             fileToolStripMenuItem = new ToolStripMenuItem();
             configureToolStripMenuItem = new ToolStripMenuItem();
+            serialLogToolStripMenuItem = new ToolStripMenuItem();
             resetToolStripMenuItem = new ToolStripMenuItem();
             editUsersToolStripMenuItem = new ToolStripMenuItem();
             exitToolStripMenuItem = new ToolStripMenuItem();
@@ -1370,7 +1371,7 @@ namespace tlp
             //
             // fileToolStripMenuItem
             //
-            fileToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { configureToolStripMenuItem, resetToolStripMenuItem, editUsersToolStripMenuItem, exitToolStripMenuItem });
+            fileToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { configureToolStripMenuItem, serialLogToolStripMenuItem, resetToolStripMenuItem, editUsersToolStripMenuItem, exitToolStripMenuItem });
             fileToolStripMenuItem.Name = "fileToolStripMenuItem";
             fileToolStripMenuItem.Size = new Size(37, 20);
             fileToolStripMenuItem.Text = "File";
@@ -1382,24 +1383,31 @@ namespace tlp
             configureToolStripMenuItem.Text = "Configure";
             configureToolStripMenuItem.Click += configureToolStripMenuItem1_Click;
             //
+            // serialLogToolStripMenuItem
+            //
+            serialLogToolStripMenuItem.Name = "serialLogToolStripMenuItem";
+            serialLogToolStripMenuItem.Size = new Size(180, 22);
+            serialLogToolStripMenuItem.Text = "Serial Log";
+            serialLogToolStripMenuItem.Click += serialLogToolStripMenuItem_Click;
+            //
             // resetToolStripMenuItem
             //
             resetToolStripMenuItem.Name = "resetToolStripMenuItem";
-            resetToolStripMenuItem.Size = new Size(127, 22);
+            resetToolStripMenuItem.Size = new Size(180, 22);
             resetToolStripMenuItem.Text = "Practice Reset";
             resetToolStripMenuItem.Click += resetToolStripMenuItem_Click;
             //
             // editUsersToolStripMenuItem
             //
             editUsersToolStripMenuItem.Name = "editUsersToolStripMenuItem";
-            editUsersToolStripMenuItem.Size = new Size(127, 22);
+            editUsersToolStripMenuItem.Size = new Size(180, 22);
             editUsersToolStripMenuItem.Text = "Edit Users";
             editUsersToolStripMenuItem.Click += editUsersToolStripMenuItem_Click;
             //
             // exitToolStripMenuItem
             //
             exitToolStripMenuItem.Name = "exitToolStripMenuItem";
-            exitToolStripMenuItem.Size = new Size(127, 22);
+            exitToolStripMenuItem.Size = new Size(180, 22);
             exitToolStripMenuItem.Text = "Exit";
             exitToolStripMenuItem.Click += exitToolStripMenuItem_Click;
             //
@@ -1698,6 +1706,7 @@ namespace tlp
         private ToolStripMenuItem editUsersToolStripMenuItem;
         private ContextMenuStrip racerContextMenu;
         private ToolStripMenuItem configureToolStripMenuItem;
+        private ToolStripMenuItem serialLogToolStripMenuItem;
         private ToolStripMenuItem modeToolStripMenuItem;
         private ToolStripMenuItem practiceToolStripMenuItem;
         private ToolStripMenuItem heatRaceToolStripMenuItem;
