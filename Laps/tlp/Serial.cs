@@ -14,9 +14,12 @@ namespace tlp
         private readonly CancellationTokenSource _stop = new();
         private readonly object _portGate = new();
         private readonly object _reconnectGate = new();
+        private readonly object _demoGate = new();
         private TaskCompletionSource _reconnectNow = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private Task? _readerTask;
+        private Task? _demoTask;
         private SerialPort? _port;
+        private CancellationTokenSource? _demoStop;
         private System.Threading.Timer? _betweenHeatsTimer;
         private DateTime? _nextHeatStartUtc;
         private DateTime? _lastControllerResponseUtc;
@@ -47,6 +50,17 @@ namespace tlp
         }
 
         public bool QualifyingActive => _qualifying.State != QualifyingState.Inactive;
+
+        public bool DemoLapStreamActive
+        {
+            get
+            {
+                lock (_demoGate)
+                {
+                    return _demoTask is { IsCompleted: false };
+                }
+            }
+        }
 
         public void ApplySettings()
         {
@@ -89,6 +103,7 @@ namespace tlp
 
         public void Init()
         {
+            StopDemoLapStream();
             CancelStartCountdown();
             CancelBetweenHeatsTimer();
             _qualifying.Reset();
@@ -180,6 +195,26 @@ namespace tlp
             _form.ClearHeatRaceStatus();
             _form.SetQualifyingAvailable(false);
             _form.SetStatusMessage("Practice mode");
+        }
+
+        public bool ToggleDemoLapStream()
+        {
+            lock (_demoGate)
+            {
+                if (_demoTask is { IsCompleted: false })
+                {
+                    _demoStop?.Cancel();
+                    _form.SetStatusMessage("Demo lap stream stopping");
+                    return false;
+                }
+
+                _demoStop?.Dispose();
+                _demoStop = new CancellationTokenSource();
+                _demoTask = Task.Run(() => RunDemoLapStreamAsync(_demoStop.Token));
+                _form.SetStatusMessage("Demo lap stream started");
+                _log.Info("DEMO: lap stream started");
+                return true;
+            }
         }
 
         public void HandleSpaceBar()
@@ -642,6 +677,68 @@ namespace tlp
                     _form.SetStatusMessage($"Rejected serial line: {message.Detail}");
                     break;
             }
+        }
+
+        private async Task RunDemoLapStreamAsync(CancellationToken token)
+        {
+            try
+            {
+                const int demoClockStepMilliseconds = 250;
+                Random random = new(20260622);
+                uint sequence = 0;
+                uint demoTimestamp = _hasControllerTimestamp ? _latestControllerTimestamp + 1000 : 1000;
+                uint nextHeartbeat = demoTimestamp + 3000;
+                uint[] nextLaneEdge = new uint[LapProtocolParser.LaneCount];
+
+                for (int lane = 0; lane < nextLaneEdge.Length; lane++)
+                {
+                    nextLaneEdge[lane] = demoTimestamp + (uint)(lane * 350);
+                }
+
+                HandleDemoLine(LapProtocolParser.EncodeFrame("HELLO:DEMO_LAP_STREAM"));
+
+                while (!token.IsCancellationRequested)
+                {
+                    int activeLaneCount = Math.Clamp(_form.ActiveLaneCount, 2, LapProtocolParser.LaneCount);
+                    demoTimestamp += demoClockStepMilliseconds;
+
+                    for (int lane = 0; lane < activeLaneCount; lane++)
+                    {
+                        if (demoTimestamp < nextLaneEdge[lane])
+                        {
+                            continue;
+                        }
+
+                        string frame = LapProtocolParser.EncodeFrame(
+                            $"EDGE:{lane}:{++sequence}:{demoTimestamp}");
+                        HandleDemoLine(frame);
+                        nextLaneEdge[lane] = demoTimestamp + (uint)random.Next(2600, 5201);
+                    }
+
+                    if (demoTimestamp >= nextHeartbeat)
+                    {
+                        HandleDemoLine(LapProtocolParser.EncodeFrame($"HEARTBEAT:{demoTimestamp}"));
+                        nextHeartbeat = demoTimestamp + 3000;
+                    }
+
+                    await Task.Delay(100, token);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            finally
+            {
+                _log.Info("DEMO: lap stream stopped");
+                _form.SetStatusMessage("Demo lap stream stopped");
+                _form.SetDemoLapStreamChecked(false);
+            }
+        }
+
+        private void HandleDemoLine(string frame)
+        {
+            _log.Info($"DEMO: RX {frame}");
+            HandleLine(frame);
         }
 
         private string GetTrackPowerCommand()
@@ -1132,6 +1229,7 @@ namespace tlp
 
         public void Dispose()
         {
+            StopDemoLapStream();
             _stop.Cancel();
             CancelBetweenHeatsTimer();
             CloseActivePort();
@@ -1144,6 +1242,14 @@ namespace tlp
             }
 
             _stop.Dispose();
+        }
+
+        private void StopDemoLapStream()
+        {
+            lock (_demoGate)
+            {
+                _demoStop?.Cancel();
+            }
         }
     }
 }

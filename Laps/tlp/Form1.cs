@@ -182,6 +182,34 @@ namespace tlp
             }
         }
 
+        private void demoLapStreamToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            demoLapStreamToolStripMenuItem.Enabled = false;
+            try
+            {
+                demoLapStreamToolStripMenuItem.Checked = s.ToggleDemoLapStream();
+            }
+            finally
+            {
+                System.Windows.Forms.Timer reenableTimer = new()
+                {
+                    Interval = 400
+                };
+                reenableTimer.Tick += (_, _) =>
+                {
+                    reenableTimer.Stop();
+                    reenableTimer.Dispose();
+                    demoLapStreamToolStripMenuItem.Enabled = true;
+                };
+                reenableTimer.Start();
+            }
+        }
+
+        public void SetDemoLapStreamChecked(bool checkedState)
+        {
+            RunOnUiThread(() => demoLapStreamToolStripMenuItem.Checked = checkedState);
+        }
+
         private bool ConfirmAbandonQualifying()
         {
             return !s.QualifyingActive ||
