@@ -38,6 +38,18 @@ namespace tlp
         private IReadOnlyList<LaneConfiguration> _configuredLaneConfigurations =
             LaneConfiguration.CreateDefaults();
         private IReadOnlyList<QualifyingResult> _qualifyingResults = Array.Empty<QualifyingResult>();
+        private static readonly int[] DemoLanePaceMilliseconds =
+        {
+            2950,
+            3350,
+            3800,
+            4300,
+            4700,
+            5200,
+            5750,
+            6350
+        };
+
         private static readonly TimeSpan ControllerPingInterval = TimeSpan.FromSeconds(3);
         private static readonly TimeSpan ControllerPingTimeout = TimeSpan.FromSeconds(3);
 
@@ -683,7 +695,7 @@ namespace tlp
         {
             try
             {
-                const int demoClockStepMilliseconds = 250;
+                const int demoClockStepMilliseconds = 50;
                 Random random = new(20260622);
                 uint sequence = 0;
                 uint demoTimestamp = _hasControllerTimestamp ? _latestControllerTimestamp + 1000 : 1000;
@@ -692,7 +704,7 @@ namespace tlp
 
                 for (int lane = 0; lane < nextLaneEdge.Length; lane++)
                 {
-                    nextLaneEdge[lane] = demoTimestamp + (uint)(lane * 350);
+                    nextLaneEdge[lane] = demoTimestamp + (uint)(lane * 325);
                 }
 
                 HandleDemoLine(LapProtocolParser.EncodeFrame("HELLO:DEMO_LAP_STREAM"));
@@ -709,10 +721,11 @@ namespace tlp
                             continue;
                         }
 
+                        uint edgeTimestamp = nextLaneEdge[lane];
                         string frame = LapProtocolParser.EncodeFrame(
-                            $"EDGE:{lane}:{++sequence}:{demoTimestamp}");
+                            $"EDGE:{lane}:{++sequence}:{edgeTimestamp}");
                         HandleDemoLine(frame);
-                        nextLaneEdge[lane] = demoTimestamp + (uint)random.Next(2600, 5201);
+                        nextLaneEdge[lane] = edgeTimestamp + (uint)GetDemoLapIntervalMilliseconds(random, lane);
                     }
 
                     if (demoTimestamp >= nextHeartbeat)
@@ -733,6 +746,24 @@ namespace tlp
                 _form.SetStatusMessage("Demo lap stream stopped");
                 _form.SetDemoLapStreamChecked(false);
             }
+        }
+
+        private static int GetDemoLapIntervalMilliseconds(Random random, int lane)
+        {
+            int baseLap = DemoLanePaceMilliseconds[lane % DemoLanePaceMilliseconds.Length];
+            int interval = baseLap + random.Next(-850, 1051);
+
+            if (random.NextDouble() < 0.14)
+            {
+                interval -= random.Next(250, 701);
+            }
+
+            if (random.NextDouble() < 0.18)
+            {
+                interval += random.Next(600, 1801);
+            }
+
+            return Math.Clamp(interval, 1400, 9000);
         }
 
         private void HandleDemoLine(string frame)
