@@ -77,9 +77,56 @@ The working test circuit used:
 
 - DB107 bridge rectifier on the two dead-strip braid wires
 - H11L1 optocoupler / Schmitt trigger
-- Pullup on the H11L1 output to ESP32 3.3V
+- 470 ohm current-limit resistor from DB107 `+` to H11L1 pin 1
+- 7.5 kOhm pullup from H11L1 pin 4 to ESP32 3.3V
 - H11L1 output into the configured sensor pin
 - Optional 0.1 uF capacitor across H11L1 VCC/GND
 - Short, twisted pair from dead strip to circuit where practical
+
+One lane of the current circuit:
+
+```text
+                         isolated dead strip
+                         braid A      braid B
+                           |            |
+                           |            |
+                         DB107 bridge rectifier
+                         ~              ~
+                         +              -
+                         |              |
+                       470 ohm          |
+                         |              |
+                         |              |
+H11L1 input side      pin 1          pin 2
+                      anode        cathode
+
+
+ESP32 3.3V  --------------------+---------------- H11L1 pin 6 VCC
+                                |
+                              7.5 kOhm
+                                |
+sensor GPIO  -------------------+---------------- H11L1 pin 4 OUT
+
+ESP32 GND   ------------------------------------- H11L1 pin 5 GND
+
+Optional: 0.1 uF / 104 capacitor between H11L1 pin 6 VCC and pin 5 GND,
+placed close to the H11L1.
+```
+
+H11L1 pinout, viewed from the top with the notch/dot end at pin 1:
+
+```text
+        H11L1
+      +-------+
+  1 --|       |-- 6  VCC
+  2 --|       |-- 5  GND
+  3 --|       |-- 4  OUT
+      +-------+
+```
+
+The DB107 bridge makes the dead-strip input polarity-independent. The H11L1
+output is normally pulled high to 3.3V; when a car bridges the dead strip and
+the optocoupler trips, the output pulls the ESP32 sensor pin low. The sketch is
+therefore configured for `INPUT_PULLUP` and `FALLING` interrupts.
 
 See `..\PROTOCOL.md` for frame formats and commands.
