@@ -39,6 +39,7 @@ namespace tlp
             LaneConfiguration.CreateDefaults();
         private IReadOnlyList<QualifyingResult> _qualifyingResults = Array.Empty<QualifyingResult>();
         private const double DemoReferenceTrackLengthFeet = 155.0;
+        private const double DemoFirstBaselineLapFraction = 1.0 / 3.0;
         private const int DemoReferenceMinimumLapMilliseconds = 4200;
         private const int DemoReferenceMaximumLapMilliseconds = 6500;
         private static readonly int[] DemoReferenceLanePaceMilliseconds =
@@ -710,7 +711,7 @@ namespace tlp
                 {
                     nextLaneEdge[lane] = demoTimestamp +
                         (uint)random.Next(0, 201) +
-                        (uint)GetDemoLapIntervalMilliseconds(
+                        (uint)GetDemoFirstBaselineMilliseconds(
                             random,
                             demoLanePaceMilliseconds[lane],
                             _form.TrackLengthFeet,
@@ -761,6 +762,20 @@ namespace tlp
                 _form.SetStatusMessage("Demo lap stream stopped");
                 _form.SetDemoLapStreamChecked(false);
             }
+        }
+
+        private static int GetDemoFirstBaselineMilliseconds(
+            Random random,
+            int referenceBaseLapMilliseconds,
+            double trackLengthFeet,
+            int configuredMinimumLapMilliseconds)
+        {
+            int fullLapMilliseconds = GetDemoLapIntervalMilliseconds(
+                random,
+                referenceBaseLapMilliseconds,
+                trackLengthFeet,
+                configuredMinimumLapMilliseconds);
+            return Math.Max(1, (int)Math.Round(fullLapMilliseconds * DemoFirstBaselineLapFraction));
         }
 
         private static int GetDemoLapIntervalMilliseconds(
