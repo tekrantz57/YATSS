@@ -38,16 +38,19 @@ namespace tlp
         private IReadOnlyList<LaneConfiguration> _configuredLaneConfigurations =
             LaneConfiguration.CreateDefaults();
         private IReadOnlyList<QualifyingResult> _qualifyingResults = Array.Empty<QualifyingResult>();
-        private static readonly int[] DemoLanePaceMilliseconds =
+        private const double DemoReferenceTrackLengthFeet = 155.0;
+        private const int DemoReferenceMinimumLapMilliseconds = 4200;
+        private const int DemoReferenceMaximumLapMilliseconds = 6500;
+        private static readonly int[] DemoReferenceLanePaceMilliseconds =
         {
-            2950,
-            3350,
-            3800,
             4300,
-            4700,
-            5200,
-            5750,
-            6350
+            4550,
+            4800,
+            5050,
+            5300,
+            5550,
+            5800,
+            6050
         };
 
         private static readonly TimeSpan ControllerPingInterval = TimeSpan.FromSeconds(3);
@@ -725,7 +728,8 @@ namespace tlp
                         string frame = LapProtocolParser.EncodeFrame(
                             $"EDGE:{lane}:{++sequence}:{edgeTimestamp}");
                         HandleDemoLine(frame);
-                        nextLaneEdge[lane] = edgeTimestamp + (uint)GetDemoLapIntervalMilliseconds(random, lane);
+                        nextLaneEdge[lane] = edgeTimestamp +
+                            (uint)GetDemoLapIntervalMilliseconds(random, lane, _form.TrackLengthFeet);
                     }
 
                     if (demoTimestamp >= nextHeartbeat)
@@ -748,23 +752,31 @@ namespace tlp
             }
         }
 
-        private static int GetDemoLapIntervalMilliseconds(Random random, int lane)
+        private static int GetDemoLapIntervalMilliseconds(Random random, int lane, double trackLengthFeet)
         {
-            int baseLap = DemoLanePaceMilliseconds[lane % DemoLanePaceMilliseconds.Length];
-            int interval = baseLap + random.Next(-850, 1051);
+            double trackScale = Math.Clamp(trackLengthFeet, 1.0, 10000.0) / DemoReferenceTrackLengthFeet;
+            int minimumLap = ScaleDemoMilliseconds(DemoReferenceMinimumLapMilliseconds, trackScale);
+            int maximumLap = ScaleDemoMilliseconds(DemoReferenceMaximumLapMilliseconds, trackScale);
+            int baseLap = ScaleDemoMilliseconds(
+                DemoReferenceLanePaceMilliseconds[lane % DemoReferenceLanePaceMilliseconds.Length],
+                trackScale);
+            int interval = baseLap + ScaleDemoMilliseconds(random.Next(-280, 341), trackScale);
 
             if (random.NextDouble() < 0.14)
             {
-                interval -= random.Next(250, 701);
+                interval -= ScaleDemoMilliseconds(random.Next(120, 281), trackScale);
             }
 
             if (random.NextDouble() < 0.18)
             {
-                interval += random.Next(600, 1801);
+                interval += ScaleDemoMilliseconds(random.Next(250, 651), trackScale);
             }
 
-            return Math.Clamp(interval, 1400, 9000);
+            return Math.Clamp(interval, minimumLap, maximumLap);
         }
+
+        private static int ScaleDemoMilliseconds(int referenceMilliseconds, double trackScale) =>
+            Math.Max(1, (int)Math.Round(referenceMilliseconds * trackScale));
 
         private void HandleDemoLine(string frame)
         {
