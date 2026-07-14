@@ -729,7 +729,11 @@ namespace tlp
                             $"EDGE:{lane}:{++sequence}:{edgeTimestamp}");
                         HandleDemoLine(frame);
                         nextLaneEdge[lane] = edgeTimestamp +
-                            (uint)GetDemoLapIntervalMilliseconds(random, lane, _form.TrackLengthFeet);
+                            (uint)GetDemoLapIntervalMilliseconds(
+                                random,
+                                lane,
+                                _form.TrackLengthFeet,
+                                _form.MinLapMilliseconds);
                     }
 
                     if (demoTimestamp >= nextHeartbeat)
@@ -752,10 +756,16 @@ namespace tlp
             }
         }
 
-        private static int GetDemoLapIntervalMilliseconds(Random random, int lane, double trackLengthFeet)
+        private static int GetDemoLapIntervalMilliseconds(
+            Random random,
+            int lane,
+            double trackLengthFeet,
+            int configuredMinimumLapMilliseconds)
         {
             double trackScale = Math.Clamp(trackLengthFeet, 1.0, 10000.0) / DemoReferenceTrackLengthFeet;
-            int minimumLap = ScaleDemoMilliseconds(DemoReferenceMinimumLapMilliseconds, trackScale);
+            int minimumLap = Math.Max(
+                Math.Max(0, configuredMinimumLapMilliseconds),
+                ScaleDemoMilliseconds(DemoReferenceMinimumLapMilliseconds, trackScale));
             int maximumLap = ScaleDemoMilliseconds(DemoReferenceMaximumLapMilliseconds, trackScale);
             int baseLap = ScaleDemoMilliseconds(
                 DemoReferenceLanePaceMilliseconds[lane % DemoReferenceLanePaceMilliseconds.Length],
@@ -772,7 +782,7 @@ namespace tlp
                 interval += ScaleDemoMilliseconds(random.Next(250, 651), trackScale);
             }
 
-            return Math.Clamp(interval, minimumLap, maximumLap);
+            return Math.Clamp(interval, minimumLap, Math.Max(minimumLap, maximumLap));
         }
 
         private static int ScaleDemoMilliseconds(int referenceMilliseconds, double trackScale) =>
