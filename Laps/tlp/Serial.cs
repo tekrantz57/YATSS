@@ -708,7 +708,13 @@ namespace tlp
 
                 for (int lane = 0; lane < nextLaneEdge.Length; lane++)
                 {
-                    nextLaneEdge[lane] = demoTimestamp + (uint)random.Next(0, 2601);
+                    nextLaneEdge[lane] = demoTimestamp +
+                        (uint)random.Next(0, 201) +
+                        (uint)GetDemoLapIntervalMilliseconds(
+                            random,
+                            demoLanePaceMilliseconds[lane],
+                            _form.TrackLengthFeet,
+                            _form.MinLapMilliseconds);
                 }
 
                 HandleDemoLine(LapProtocolParser.EncodeFrame("HELLO:DEMO_LAP_STREAM"));
