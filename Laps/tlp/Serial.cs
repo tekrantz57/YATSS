@@ -699,15 +699,16 @@ namespace tlp
             try
             {
                 const int demoClockStepMilliseconds = 50;
-                Random random = new(20260622);
+                Random random = new(Random.Shared.Next());
                 uint sequence = 0;
                 uint demoTimestamp = _hasControllerTimestamp ? _latestControllerTimestamp + 1000 : 1000;
                 uint nextHeartbeat = demoTimestamp + 3000;
+                int[] demoLanePaceMilliseconds = CreateDemoLanePaces(random);
                 uint[] nextLaneEdge = new uint[LapProtocolParser.LaneCount];
 
                 for (int lane = 0; lane < nextLaneEdge.Length; lane++)
                 {
-                    nextLaneEdge[lane] = demoTimestamp + (uint)(lane * 325);
+                    nextLaneEdge[lane] = demoTimestamp + (uint)random.Next(0, 2601);
                 }
 
                 HandleDemoLine(LapProtocolParser.EncodeFrame("HELLO:DEMO_LAP_STREAM"));
@@ -731,7 +732,7 @@ namespace tlp
                         nextLaneEdge[lane] = edgeTimestamp +
                             (uint)GetDemoLapIntervalMilliseconds(
                                 random,
-                                lane,
+                                demoLanePaceMilliseconds[lane],
                                 _form.TrackLengthFeet,
                                 _form.MinLapMilliseconds);
                     }
@@ -758,7 +759,7 @@ namespace tlp
 
         private static int GetDemoLapIntervalMilliseconds(
             Random random,
-            int lane,
+            int referenceBaseLapMilliseconds,
             double trackLengthFeet,
             int configuredMinimumLapMilliseconds)
         {
@@ -767,9 +768,7 @@ namespace tlp
                 Math.Max(0, configuredMinimumLapMilliseconds),
                 ScaleDemoMilliseconds(DemoReferenceMinimumLapMilliseconds, trackScale));
             int maximumLap = ScaleDemoMilliseconds(DemoReferenceMaximumLapMilliseconds, trackScale);
-            int baseLap = ScaleDemoMilliseconds(
-                DemoReferenceLanePaceMilliseconds[lane % DemoReferenceLanePaceMilliseconds.Length],
-                trackScale);
+            int baseLap = ScaleDemoMilliseconds(referenceBaseLapMilliseconds, trackScale);
             int interval = baseLap + ScaleDemoMilliseconds(random.Next(-280, 341), trackScale);
 
             if (random.NextDouble() < 0.14)
@@ -783,6 +782,23 @@ namespace tlp
             }
 
             return Math.Clamp(interval, minimumLap, Math.Max(minimumLap, maximumLap));
+        }
+
+        private static int[] CreateDemoLanePaces(Random random)
+        {
+            int[] paces = new int[LapProtocolParser.LaneCount];
+            for (int lane = 0; lane < paces.Length; lane++)
+            {
+                paces[lane] = DemoReferenceLanePaceMilliseconds[lane % DemoReferenceLanePaceMilliseconds.Length];
+            }
+
+            for (int i = paces.Length - 1; i > 0; i--)
+            {
+                int j = random.Next(i + 1);
+                (paces[i], paces[j]) = (paces[j], paces[i]);
+            }
+
+            return paces;
         }
 
         private static int ScaleDemoMilliseconds(int referenceMilliseconds, double trackScale) =>
