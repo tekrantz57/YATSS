@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.IO.Ports;
 using System.Media;
@@ -229,6 +230,7 @@ namespace tlp
 
                 _demoStop?.Dispose();
                 _demoStop = new CancellationTokenSource();
+                InitializeDemoControllerClock();
                 _demoTask = Task.Run(() => RunDemoLapStreamAsync(_demoStop.Token));
                 _form.SetStatusMessage("Demo lap stream started");
                 _log.Info("DEMO: lap stream started");
@@ -247,6 +249,7 @@ namespace tlp
 
                 _demoStop?.Dispose();
                 _demoStop = new CancellationTokenSource();
+                InitializeDemoControllerClock();
                 _demoTask = Task.Run(() => RunDemoLapStreamAsync(_demoStop.Token));
                 _form.SetStatusMessage("Demo lap stream started");
                 _form.SetDemoLapStreamChecked(true);
@@ -720,15 +723,16 @@ namespace tlp
         {
             try
             {
-                const int demoClockStepMilliseconds = 50;
                 Random random = new(Random.Shared.Next());
                 uint sequence = 0;
-                uint demoTimestamp = _hasControllerTimestamp ? _latestControllerTimestamp + 1000 : 1000;
+                uint demoStartTimestamp = GetControllerTimestamp();
+                uint demoTimestamp = demoStartTimestamp;
                 uint nextHeartbeat = demoTimestamp + 3000;
                 int[] demoLanePaceMilliseconds = CreateDemoLanePaces(random);
                 uint[] nextLaneEdge = new uint[LapProtocolParser.LaneCount];
                 string[] laneRacerAtNextEdge = new string[LapProtocolParser.LaneCount];
                 HeatRaceState previousDemoHeatState = _heatRace.State;
+                Stopwatch demoClock = Stopwatch.StartNew();
 
                 for (int lane = 0; lane < nextLaneEdge.Length; lane++)
                 {
@@ -742,12 +746,15 @@ namespace tlp
                             _form.MinLapMilliseconds);
                 }
 
+                HandleDemoLine(LapProtocolParser.EncodeFrame($"HEARTBEAT:{demoTimestamp}"));
                 HandleDemoLine(LapProtocolParser.EncodeFrame("HELLO:DEMO_LAP_STREAM"));
 
                 while (!token.IsCancellationRequested)
                 {
                     int activeLaneCount = Math.Clamp(_form.ActiveLaneCount, 2, LapProtocolParser.LaneCount);
-                    demoTimestamp += demoClockStepMilliseconds;
+                    demoTimestamp = unchecked(demoStartTimestamp + (uint)Math.Min(
+                        demoClock.ElapsedMilliseconds,
+                        uint.MaxValue));
                     HeatRaceState demoHeatState = _heatRace.State;
 
                     if (demoHeatState != previousDemoHeatState)
@@ -822,7 +829,7 @@ namespace tlp
                         nextHeartbeat = demoTimestamp + 3000;
                     }
 
-                    await Task.Delay(100, token);
+                    await Task.Delay(50, token);
                 }
             }
             catch (OperationCanceledException)
@@ -834,6 +841,15 @@ namespace tlp
                 _form.SetStatusMessage("Demo lap stream stopped");
                 _form.SetDemoLapStreamChecked(false);
             }
+        }
+
+        private void InitializeDemoControllerClock()
+        {
+            uint nextTimestamp = _hasControllerTimestamp
+                ? _latestControllerTimestamp + 1000
+                : 1000;
+            _latestControllerTimestamp = nextTimestamp;
+            _hasControllerTimestamp = true;
         }
 
         private void ConfigureDemoRacerPaces(IReadOnlyList<string> racers)
