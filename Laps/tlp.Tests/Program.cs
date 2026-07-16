@@ -169,6 +169,12 @@ Assert(secondHeatFirstEdge.CountFirstEdgeAsLap, "first lane edge after heat 1 sh
 Assert(!secondHeatFirstEdge.FastestLapEligible, "first lane edge after heat 1 should not be fastest eligible");
 Assert(secondHeatFirstEdge.FirstLapMilliseconds == 1000, "successive heat first lap should use active time since heat start");
 
+HeatRaceController staleTimestampHeat = new();
+staleTimestampHeat.Configure(1, 0, new[] { "A", "B" });
+Assert(staleTimestampHeat.Start(10000), "stale timestamp heat should start");
+Assert(!staleTimestampHeat.IsExpired(9000), "older timestamp should not expire a running heat");
+Assert(staleTimestampHeat.GetRemaining(9000) == TimeSpan.FromMinutes(1), "older timestamp should not consume heat time");
+
 HeatRaceController fourLaneHeat = new();
 fourLaneHeat.Configure(1, 0, new[] { "A", "B", "C", "D", "E" }, activeLaneCount: 4);
 Assert(fourLaneHeat.TotalHeats == 5, "four-lane race with five racers should run five heats");
@@ -187,9 +193,50 @@ Assert(fourLaneSecondHeat.LaneRacers[1] == "D", "orange racer should rotate to w
 Assert(fourLaneSecondHeat.OnDeckRacer == "B", "white racer should rotate out");
 
 HeatRaceController largeFieldHeat = new();
-largeFieldHeat.Configure(1, 0, Enumerable.Range(1, 10).Select(index => $"R{index}").ToArray(), activeLaneCount: 8);
+string[] largeFieldRacers = Enumerable.Range(1, 10).Select(index => $"R{index}").ToArray();
+largeFieldHeat.Configure(1, 0, largeFieldRacers, activeLaneCount: 8);
 Assert(largeFieldHeat.TotalHeats == 10, "ten-racer race should run ten heats");
 Assert(largeFieldHeat.CreateReport().LaneNames.Count == 8, "report should keep lane metadata to physical lanes");
+Dictionary<string, int> expectedLargeFieldTotals = new(StringComparer.OrdinalIgnoreCase);
+foreach (string racer in largeFieldRacers)
+{
+    expectedLargeFieldTotals[racer] = 0;
+}
+
+for (int heatNumber = 1; heatNumber <= largeFieldHeat.TotalHeats; heatNumber++)
+{
+    uint heatTimestamp = (uint)(heatNumber * 100000);
+    Assert(largeFieldHeat.Start(heatTimestamp), $"large field heat {heatNumber} should start");
+    HeatRaceSnapshot snapshot = largeFieldHeat.GetSnapshot(heatTimestamp);
+    int[] laneLapCounts = snapshot.LaneLapCounts.ToArray();
+    for (int lane = 0; lane < snapshot.LaneRacers.Count; lane++)
+    {
+        string racer = snapshot.LaneRacers[lane];
+        if (string.IsNullOrWhiteSpace(racer))
+        {
+            continue;
+        }
+
+        Assert(laneLapCounts[lane] == expectedLargeFieldTotals[racer], $"{racer} lap total should appear when rotating into lane {lane + 1}");
+        int heatLaps = heatNumber + lane + 1;
+        laneLapCounts[lane] += heatLaps;
+        expectedLargeFieldTotals[racer] += heatLaps;
+    }
+
+    largeFieldHeat.RecordHeatResults(laneLapCounts, new int?[LapProtocolParser.LaneCount]);
+    if (heatNumber < largeFieldHeat.TotalHeats)
+    {
+        Assert(largeFieldHeat.Complete(), $"large field heat {heatNumber} should complete");
+        Assert(largeFieldHeat.PrepareNextHeat(laneLapCounts), $"large field heat {heatNumber + 1} should prepare");
+    }
+}
+
+HeatRaceReport largeFieldReport = largeFieldHeat.CreateReport();
+foreach (string racer in largeFieldRacers)
+{
+    HeatRaceRacerReport racerReport = largeFieldReport.Racers.Single(result => result.RacerName == racer);
+    Assert(racerReport.TotalLaps == expectedLargeFieldTotals[racer], $"{racer} total laps should follow rotations");
+}
 
 LaneConfiguration[] customLanes = LaneConfiguration.CreateDefaults().ToArray();
 customLanes[0] = new LaneConfiguration("Aqua", System.Drawing.Color.Aqua.ToArgb());

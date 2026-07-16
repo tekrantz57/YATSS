@@ -29,6 +29,7 @@ namespace tlp
         private System.Threading.Timer? _betweenHeatsTimer;
         private DateTime? _nextHeatStartUtc;
         private DateTime? _lastControllerResponseUtc;
+        private DateTime? _latestControllerTimestampUtc;
         private uint _latestControllerTimestamp;
         private bool _hasControllerTimestamp;
         private bool _trackPowerEnabled = true;
@@ -106,6 +107,31 @@ namespace tlp
             }
 
             _form.SetStatusMessage($"Minimum lap time {_form.MinLapMilliseconds} ms");
+        }
+
+        public void RefreshActiveStatus()
+        {
+            uint controllerTimestamp = GetCurrentControllerTimestamp();
+            if (CheckQualifyingExpired(controllerTimestamp))
+            {
+                return;
+            }
+
+            if (_qualifying.State != QualifyingState.Inactive)
+            {
+                PublishQualifyingStatus(GetQualifyingStateDisplayName());
+                return;
+            }
+
+            if (_heatRace.State == HeatRaceState.Practice)
+            {
+                return;
+            }
+
+            if (!CheckHeatExpired(controllerTimestamp))
+            {
+                PublishHeatRaceStatus(GetCurrentHeatStatusName());
+            }
         }
 
         public void SetPort(string portName)
@@ -201,6 +227,8 @@ namespace tlp
                 raceName,
                 trackLengthFeet,
                 _qualifyingResults);
+            HeatRaceSnapshot snapshot = _heatRace.GetSnapshot(GetCurrentControllerTimestamp());
+            _form.ResetHeatTimingDisplay(snapshot.LaneLapCounts);
             PublishHeatRaceStatus("Ready");
             SetTrackPowerEnabled(false, null, $"Heat 1 ready: {heatLengthMinutes} minute heat. Press Space to start.");
             _log.Info($"heat race configured for {heatLengthMinutes} minute(s), {betweenHeatsSeconds} second(s) between heats");
@@ -370,7 +398,7 @@ namespace tlp
             Lane lane = _race.GetLane(laneIndex);
             string bestSeconds = lane.best_time == int.MaxValue ? string.Empty : FormatSeconds(lane.best_time);
             string medianSeconds = FormatOptionalSeconds(lane.getMedian());
-            _form.UpdateLaneDisplay(laneIndex, count, string.Empty, bestSeconds, medianSeconds, string.Empty);
+            _form.UpdateLaneDisplay(laneIndex, count, string.Empty, bestSeconds, medianSeconds);
             RecordCurrentHeatResults();
 
             string direction = delta > 0 ? "added to" : "subtracted from";
@@ -1105,7 +1133,7 @@ namespace tlp
             Lane lane = _race.GetLane(laneIndex);
             if (!update.LapMilliseconds.HasValue)
             {
-                _form.UpdateLaneDisplay(laneIndex, lane.getCount(), string.Empty, string.Empty, string.Empty, string.Empty);
+                _form.UpdateLaneDisplay(laneIndex, lane.getCount(), string.Empty, string.Empty, string.Empty);
                 _log.Info($"lane {laneIndex}: count {lane.getCount()}, {update.Detail}");
                 _form.SetStatusMessage($"Lane {laneIndex + 1}: lap counted");
                 return;
@@ -1115,16 +1143,33 @@ namespace tlp
             string lapSeconds = FormatSeconds(lapMilliseconds);
             string bestSeconds = lane.best_time == int.MaxValue ? string.Empty : FormatSeconds(lane.best_time);
             string medianSeconds = FormatOptionalSeconds(lane.getMedian());
-            string mph = _race.CalculateMilesPerHour(lapMilliseconds).ToString("F3", CultureInfo.InvariantCulture);
-
-            _form.UpdateLaneDisplay(laneIndex, lane.getCount(), lapSeconds, bestSeconds, medianSeconds, mph);
+            _form.UpdateLaneDisplay(laneIndex, lane.getCount(), lapSeconds, bestSeconds, medianSeconds);
 
             _log.Info($"lane {laneIndex}: lap {lapSeconds}s, count {lane.getCount()}, {update.Detail}");
             _form.SetStatusMessage($"Lane {laneIndex + 1}: lap {lapSeconds}s");
         }
 
-        private uint GetControllerTimestamp() =>
-            _hasControllerTimestamp ? _latestControllerTimestamp : 0;
+        private uint GetControllerTimestamp()
+        {
+            if (!_hasControllerTimestamp)
+            {
+                return 0;
+            }
+
+            if (!_latestControllerTimestampUtc.HasValue)
+            {
+                return _latestControllerTimestamp;
+            }
+
+            double elapsedMilliseconds = (DateTime.UtcNow - _latestControllerTimestampUtc.Value).TotalMilliseconds;
+            if (elapsedMilliseconds <= 0)
+            {
+                return _latestControllerTimestamp;
+            }
+
+            uint elapsed = (uint)Math.Min(elapsedMilliseconds, uint.MaxValue);
+            return unchecked(_latestControllerTimestamp + elapsed);
+        }
 
         private void UpdateLatestControllerTimestamp(uint timestamp)
         {
@@ -1138,6 +1183,7 @@ namespace tlp
             }
 
             _latestControllerTimestamp = timestamp;
+            _latestControllerTimestampUtc = DateTime.UtcNow;
             _hasControllerTimestamp = true;
         }
 

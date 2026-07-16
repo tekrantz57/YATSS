@@ -465,7 +465,9 @@ namespace tlp
                 return _activeMillisecondsBeforeRun;
             }
 
-            uint runElapsed = unchecked(controllerTimestamp - _runStartedAt);
+            uint runElapsed = controllerTimestamp >= _runStartedAt
+                ? controllerTimestamp - _runStartedAt
+                : 0;
             return _activeMillisecondsBeforeRun + runElapsed;
         }
 

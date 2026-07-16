@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 
 namespace tlp
 {
@@ -9,13 +10,17 @@ namespace tlp
         private Label[] _boardHeaderLabels = Array.Empty<Label>();
         private Label[] _nameLabels = Array.Empty<Label>();
         private Label[] _lapLabels = Array.Empty<Label>();
+        private Label[] _totalLapLabels = Array.Empty<Label>();
         private Label[] _lastLapLabels = Array.Empty<Label>();
         private Label[] _bestLapLabels = Array.Empty<Label>();
         private Label[] _medianLapLabels = Array.Empty<Label>();
-        private Label[] _mphLabels = Array.Empty<Label>();
+        private int[] _heatStartingLapCounts = new int[LapProtocolParser.LaneCount];
+        private bool _showHeatLapCounts;
         private Label _heatStatusLabel = null!;
         private Label _heatTimerLabel = null!;
         private Label _onDeckLabel = null!;
+        private readonly System.Windows.Forms.Timer _practiceClockTimer = new();
+        private bool _practiceClockEnabled = true;
         private const string EmptyRacerName = "          ";
         private const string DefaultWindowTitle = "MKTS";
         public string port = "";
@@ -64,8 +69,14 @@ namespace tlp
             SpeechAnnouncer.WarmUpAsync(SpeechVoiceName);
 
             s = new Serial(this);
+            ConfigurePracticeClock();
             WireBestLapResetClicks();
-            FormClosed += (_, _) => s.Dispose();
+            FormClosed += (_, _) =>
+            {
+                _practiceClockTimer.Stop();
+                _practiceClockTimer.Dispose();
+                s.Dispose();
+            };
         }
 
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
@@ -308,6 +319,7 @@ namespace tlp
         {
             RunOnUiThread(() =>
             {
+                SetPracticeClockEnabled(false);
                 _heatStatusLabel.Text = $"Qualifying {qualifierNumber}/{qualifierCount} {state}";
                 _heatTimerLabel.Text = $"Timer {FormatClock(remaining)}";
                 _onDeckLabel.Text = $"Qualifier: {racerName}";
@@ -354,23 +366,24 @@ namespace tlp
         private void ConfigureBoardLayout()
         {
             ConfigureHeatStatusLayout();
-            _boardHeaderLabels = new[] { racerHeaderLabel, lapsHeaderLabel, lastLapHeaderLabel, bestLapHeaderLabel, medianHeaderLabel, mphHeaderLabel };
             _nameLabels = new[] { name0, name1, name2, name3, name4, name5, name6, name7 };
             _lapLabels = new[] { laps0, laps1, laps2, laps3, laps4, laps5, laps6, laps7 };
+            _totalLapLabels = new[] { mph0, mph1, mph2, mph3, mph4, mph5, mph6, mph7 };
             _lastLapLabels = new[] { ll0, ll1, ll2, ll3, ll4, ll5, ll6, ll7 };
             _bestLapLabels = new[] { bl0, bl1, bl2, bl3, bl4, bl5, bl6, bl7 };
             _medianLapLabels = new[] { ml0, ml1, ml2, ml3, ml4, ml5, ml6, ml7 };
-            _mphLabels = new[] { mph0, mph1, mph2, mph3, mph4, mph5, mph6, mph7 };
+            ConfigureBoardColumns();
+            _boardHeaderLabels = new[] { racerHeaderLabel, mphHeaderLabel, lapsHeaderLabel, bestLapHeaderLabel, medianHeaderLabel, lastLapHeaderLabel };
             _boardValueLabels = new[]
             {
-                name0, laps0, ll0, bl0, ml0, mph0,
-                name1, laps1, ll1, bl1, ml1, mph1,
-                name2, laps2, ll2, bl2, ml2, mph2,
-                name3, laps3, ll3, bl3, ml3, mph3,
-                name4, laps4, ll4, bl4, ml4, mph4,
-                name5, laps5, ll5, bl5, ml5, mph5,
-                name6, laps6, ll6, bl6, ml6, mph6,
-                name7, laps7, ll7, bl7, ml7, mph7
+                name0, mph0, laps0, bl0, ml0, ll0,
+                name1, mph1, laps1, bl1, ml1, ll1,
+                name2, mph2, laps2, bl2, ml2, ll2,
+                name3, mph3, laps3, bl3, ml3, ll3,
+                name4, mph4, laps4, bl4, ml4, ll4,
+                name5, mph5, laps5, bl5, ml5, ll5,
+                name6, mph6, laps6, bl6, ml6, ll6,
+                name7, mph7, laps7, bl7, ml7, ll7
             };
 
             foreach (Label label in _boardHeaderLabels.Concat(_boardValueLabels))
@@ -384,6 +397,36 @@ namespace tlp
             titleLabel.AutoSize = false;
             titleLabel.TextAlign = ContentAlignment.MiddleCenter;
             ApplyBoardFonts();
+        }
+
+        private void ConfigureBoardColumns()
+        {
+            mphHeaderLabel.Text = "Total Laps";
+            lapsHeaderLabel.Text = "Laps";
+            lastLapHeaderLabel.Text = "Last Lap";
+
+            timingBoardLayout.SetColumn(mphHeaderLabel, 1);
+            timingBoardLayout.SetColumn(lapsHeaderLabel, 2);
+            timingBoardLayout.SetColumn(bestLapHeaderLabel, 3);
+            timingBoardLayout.SetColumn(medianHeaderLabel, 4);
+            timingBoardLayout.SetColumn(lastLapHeaderLabel, 5);
+
+            MoveColumnCells(_totalLapLabels, 1);
+            MoveColumnCells(_lapLabels, 2);
+            MoveColumnCells(_bestLapLabels, 3);
+            MoveColumnCells(_medianLapLabels, 4);
+            MoveColumnCells(_lastLapLabels, 5);
+        }
+
+        private void MoveColumnCells(IEnumerable<Label> labels, int column)
+        {
+            foreach (Label label in labels)
+            {
+                if (label.Parent != null)
+                {
+                    timingBoardLayout.SetColumn(label.Parent, column);
+                }
+            }
         }
 
         private void MKTS_Load(object sender, EventArgs e)
@@ -407,11 +450,11 @@ namespace tlp
         {
             Label[][] valueLabels =
             {
+                _totalLapLabels,
                 _lapLabels,
-                _lastLapLabels,
                 _bestLapLabels,
                 _medianLapLabels,
-                _mphLabels
+                _lastLapLabels
             };
 
             for (int lane = 0; lane < LapProtocolParser.LaneCount; lane++)
@@ -504,6 +547,44 @@ namespace tlp
             mainLayoutPanel.ResumeLayout();
         }
 
+        private void ConfigurePracticeClock()
+        {
+            _practiceClockTimer.Interval = 1000;
+            _practiceClockTimer.Tick += (_, _) => UpdateStatusTimer();
+            _practiceClockTimer.Start();
+            UpdateStatusTimer();
+        }
+
+        private void SetPracticeClockEnabled(bool enabled)
+        {
+            _practiceClockEnabled = enabled;
+            if (enabled)
+            {
+                UpdatePracticeClock();
+            }
+        }
+
+        private void UpdatePracticeClock()
+        {
+            if (!_practiceClockEnabled || _heatTimerLabel == null || IsDisposed)
+            {
+                return;
+            }
+
+            _heatTimerLabel.Text = DateTime.Now.ToString("h:mm:ss tt", CultureInfo.CurrentCulture);
+        }
+
+        private void UpdateStatusTimer()
+        {
+            if (_practiceClockEnabled)
+            {
+                UpdatePracticeClock();
+                return;
+            }
+
+            s.RefreshActiveStatus();
+        }
+
         private static Label CreateHeatStatusLabel(string text) =>
             new()
             {
@@ -519,6 +600,8 @@ namespace tlp
         {
             RunOnUiThread(() =>
             {
+                _showHeatLapCounts = false;
+                Array.Clear(_heatStartingLapCounts);
                 for (int i = 0; i < LapProtocolParser.LaneCount; i++)
                 {
                     ResetLaneDisplayCore(i, clearRacers);
@@ -555,14 +638,17 @@ namespace tlp
         {
             RunOnUiThread(() =>
             {
+                _showHeatLapCounts = true;
                 for (int i = 0; i < LapProtocolParser.LaneCount; i++)
                 {
                     int lapCount = i < lapCounts.Count ? Math.Max(0, lapCounts[i]) : 0;
-                    _lapLabels[i].Text = FormatLapCount(lapCount);
+                    _heatStartingLapCounts[i] = lapCount;
+                    _totalLapLabels[i].Text = FormatLapCount(lapCount);
+                    _lapLabels[i].Text = string.Empty;
                     _lastLapLabels[i].Text = string.Empty;
                     _bestLapLabels[i].Text = string.Empty;
                     _medianLapLabels[i].Text = string.Empty;
-                    _mphLabels[i].Text = string.Empty;
+                    ApplyBoardValueFont(_totalLapLabels[i]);
                     ApplyBoardValueFont(_lapLabels[i]);
                 }
             });
@@ -577,8 +663,17 @@ namespace tlp
         {
             RunOnUiThread(() =>
             {
-                _heatStatusLabel.Text = heatNumber > 0 ? $"Heat {heatNumber}/{totalHeats} {state}" : state;
-                _heatTimerLabel.Text = $"Timer {FormatClock(remaining)}";
+                SetPracticeClockEnabled(false);
+                string trimmedState = state.Trim();
+                _heatStatusLabel.Text = heatNumber > 0 && totalHeats > 0
+                    ? string.IsNullOrWhiteSpace(trimmedState)
+                        ? $"Heat {heatNumber}/{totalHeats}"
+                        : $"Heat {heatNumber}/{totalHeats} {trimmedState}"
+                    : trimmedState;
+                string timerPrefix = string.Equals(trimmedState, "Intermission", StringComparison.OrdinalIgnoreCase)
+                    ? "Next"
+                    : "Timer";
+                _heatTimerLabel.Text = $"{timerPrefix} {FormatClock(remaining)}";
                 _onDeckLabel.Text = string.IsNullOrWhiteSpace(onDeckRacer) ? "On deck: " : $"On deck: {onDeckRacer}";
             });
         }
@@ -588,7 +683,7 @@ namespace tlp
             RunOnUiThread(() =>
             {
                 _heatStatusLabel.Text = "Practice";
-                _heatTimerLabel.Text = "Timer --:--";
+                SetPracticeClockEnabled(true);
                 _onDeckLabel.Text = "On deck: ";
             });
         }
@@ -598,8 +693,7 @@ namespace tlp
             int lapCount,
             string lastLap,
             string bestLap,
-            string medianLap,
-            string milesPerHour)
+            string medianLap)
         {
             if (laneIndex < 0 || laneIndex >= LapProtocolParser.LaneCount)
             {
@@ -608,16 +702,18 @@ namespace tlp
 
             RunOnUiThread(() =>
             {
-                _lapLabels[laneIndex].Text = FormatLapCount(lapCount);
+                _totalLapLabels[laneIndex].Text = FormatLapCount(lapCount);
+                _lapLabels[laneIndex].Text = _showHeatLapCounts
+                    ? FormatLapCount(Math.Max(0, lapCount - _heatStartingLapCounts[laneIndex]))
+                    : string.Empty;
                 _lastLapLabels[laneIndex].Text = lastLap;
                 _bestLapLabels[laneIndex].Text = bestLap;
                 _medianLapLabels[laneIndex].Text = medianLap;
-                _mphLabels[laneIndex].Text = milesPerHour;
+                ApplyBoardValueFont(_totalLapLabels[laneIndex]);
                 ApplyBoardValueFont(_lapLabels[laneIndex]);
                 ApplyBoardValueFont(_lastLapLabels[laneIndex]);
                 ApplyBoardValueFont(_bestLapLabels[laneIndex]);
                 ApplyBoardValueFont(_medianLapLabels[laneIndex]);
-                ApplyBoardValueFont(_mphLabels[laneIndex]);
             });
         }
 
@@ -630,12 +726,12 @@ namespace tlp
 
             RunOnUiThread(() =>
             {
-                _lapLabels[laneIndex].Text = "0";
+                _totalLapLabels[laneIndex].Text = "0";
+                _lapLabels[laneIndex].Text = string.Empty;
                 _lastLapLabels[laneIndex].Text = string.Empty;
                 _bestLapLabels[laneIndex].Text = string.Empty;
                 _medianLapLabels[laneIndex].Text = string.Empty;
-                _mphLabels[laneIndex].Text = string.Empty;
-                ApplyBoardValueFont(_lapLabels[laneIndex]);
+                ApplyBoardValueFont(_totalLapLabels[laneIndex]);
             });
         }
 
@@ -651,11 +747,11 @@ namespace tlp
                 _nameLabels[laneIndex].Text = EmptyRacerName;
             }
 
+            _totalLapLabels[laneIndex].Text = string.Empty;
             _lapLabels[laneIndex].Text = string.Empty;
             _lastLapLabels[laneIndex].Text = string.Empty;
             _bestLapLabels[laneIndex].Text = string.Empty;
             _medianLapLabels[laneIndex].Text = string.Empty;
-            _mphLabels[laneIndex].Text = string.Empty;
         }
 
         private void RunOnUiThread(Action action)
@@ -755,6 +851,11 @@ namespace tlp
 
         private void nameLabel_Click(object sender, EventArgs e)
         {
+            if (Control.MouseButtons != MouseButtons.Left)
+            {
+                return;
+            }
+
             if (sender is Label nameLabel)
             {
                 ShowRacerMenu(nameLabel);
