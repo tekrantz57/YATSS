@@ -342,7 +342,7 @@ namespace tlp
                 _configuredRaceName,
                 _configuredTrackLengthFeet,
                 _qualifyingResults);
-            HeatRaceSnapshot snapshot = _heatRace.GetSnapshot(GetControllerTimestamp());
+            HeatRaceSnapshot snapshot = _heatRace.GetSnapshot(GetCurrentControllerTimestamp());
             _form.ResetBoardDisplay(clearRacers: false);
             _form.SetLaneRacerNames(snapshot.LaneRacers);
             _form.ResetHeatTimingDisplay(snapshot.LaneLapCounts);
@@ -604,7 +604,7 @@ namespace tlp
                         lastLineReceived = DateTime.UtcNow;
                         _lastControllerResponseUtc = lastLineReceived;
                         waitingForPingReply = false;
-                        HandleLine(line);
+                        HandleLine(line, isDemoLine: false);
                     }
                 }
                 catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is InvalidOperationException || ex is NullReferenceException)
@@ -657,16 +657,21 @@ namespace tlp
             return false;
         }
 
-        private void HandleLine(string line)
+        private void HandleLine(string line, bool isDemoLine)
         {
             string trimmed = line.Trim();
             _log.Raw(trimmed);
 
+            if (!isDemoLine && DemoLapStreamActive)
+            {
+                _log.Info($"DEMO: ignored real serial line while demo stream is active: {trimmed}");
+                return;
+            }
+
             LapProtocolMessage message = LapProtocolParser.Parse(trimmed);
             if (message.ControllerTimestampMillis.HasValue)
             {
-                _latestControllerTimestamp = message.ControllerTimestampMillis.Value;
-                _hasControllerTimestamp = true;
+                UpdateLatestControllerTimestamp(message.ControllerTimestampMillis.Value);
             }
 
             switch (message.Kind)
@@ -761,6 +766,8 @@ namespace tlp
                         previousDemoHeatState = demoHeatState;
                         if (demoHeatState == HeatRaceState.Running)
                         {
+                            demoTimestamp = GetDemoControllerTimestamp();
+                            _log.Info($"DEMO: heat {_heatRace.HeatNumber} running at {demoTimestamp} ms");
                             for (int lane = 0; lane < activeLaneCount; lane++)
                             {
                                 string currentRacer = GetDemoLaneRacerName(lane);
@@ -886,7 +893,7 @@ namespace tlp
                 return string.Empty;
             }
 
-            HeatRaceSnapshot snapshot = _heatRace.GetSnapshot(GetControllerTimestamp());
+            HeatRaceSnapshot snapshot = _heatRace.GetSnapshot(GetCurrentControllerTimestamp());
             return lane >= 0 && lane < snapshot.LaneRacers.Count
                 ? snapshot.LaneRacers[lane].Trim()
                 : string.Empty;
@@ -977,7 +984,7 @@ namespace tlp
         private void HandleDemoLine(string frame)
         {
             _log.Info($"DEMO: RX {frame}");
-            HandleLine(frame);
+            HandleLine(frame, isDemoLine: true);
         }
 
         private string GetTrackPowerCommand()
@@ -1119,6 +1126,21 @@ namespace tlp
         private uint GetControllerTimestamp() =>
             _hasControllerTimestamp ? _latestControllerTimestamp : 0;
 
+        private void UpdateLatestControllerTimestamp(uint timestamp)
+        {
+            if (_hasControllerTimestamp)
+            {
+                uint delta = unchecked(timestamp - _latestControllerTimestamp);
+                if (delta > int.MaxValue)
+                {
+                    return;
+                }
+            }
+
+            _latestControllerTimestamp = timestamp;
+            _hasControllerTimestamp = true;
+        }
+
         private uint GetCurrentControllerTimestamp() =>
             DemoLapStreamActive ? GetDemoControllerTimestamp() : GetControllerTimestamp();
 
@@ -1134,8 +1156,7 @@ namespace tlp
                 uint timestamp = unchecked(_demoStartTimestamp + (uint)Math.Min(
                     _demoClock.ElapsedMilliseconds,
                     uint.MaxValue));
-                _latestControllerTimestamp = timestamp;
-                _hasControllerTimestamp = true;
+                UpdateLatestControllerTimestamp(timestamp);
                 return timestamp;
             }
         }
@@ -1293,7 +1314,7 @@ namespace tlp
             }
 
             PublishHeatRaceStatus("Ready");
-            HeatRaceSnapshot snapshot = _heatRace.GetSnapshot(GetControllerTimestamp());
+            HeatRaceSnapshot snapshot = _heatRace.GetSnapshot(GetCurrentControllerTimestamp());
             _race.ResetTimingForHeat(snapshot.LaneLapCounts);
             _form.SetLaneRacerNames(snapshot.LaneRacers);
             _form.ResetHeatTimingDisplay(snapshot.LaneLapCounts);
@@ -1309,7 +1330,7 @@ namespace tlp
 
         private void PublishHeatRaceStatus(string state)
         {
-            uint controllerTimestamp = GetControllerTimestamp();
+            uint controllerTimestamp = GetCurrentControllerTimestamp();
             HeatRaceSnapshot snapshot = _heatRace.GetSnapshot(controllerTimestamp);
             TimeSpan remaining = state == "Intermission" && _nextHeatStartUtc.HasValue
                 ? _nextHeatStartUtc.Value - DateTime.UtcNow
@@ -1328,7 +1349,7 @@ namespace tlp
                 _qualifying.CurrentNumber,
                 _qualifying.RacerCount,
                 state,
-                _qualifying.GetRemaining(GetControllerTimestamp()),
+                _qualifying.GetRemaining(GetCurrentControllerTimestamp()),
                 _qualifying.CurrentRacer);
         }
 

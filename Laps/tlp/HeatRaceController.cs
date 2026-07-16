@@ -130,9 +130,11 @@ namespace tlp
         {
             lock (_gate)
             {
-                TotalHeats = Math.Clamp(activeLaneCount, 2, LapProtocolParser.LaneCount);
-                _initialLaneIndexes = GetInitialLaneIndexes(TotalHeats).ToArray();
-                _rotationLaneIndexes = GetRotationLaneIndexes(TotalHeats).ToArray();
+                int laneCount = Math.Clamp(activeLaneCount, 2, LapProtocolParser.LaneCount);
+                int racerCount = racers.Count(racer => !string.IsNullOrWhiteSpace(racer));
+                TotalHeats = Math.Max(laneCount, racerCount);
+                _initialLaneIndexes = GetInitialLaneIndexes(laneCount).ToArray();
+                _rotationLaneIndexes = GetRotationLaneIndexes(laneCount).ToArray();
                 _laneNames = Enumerable.Range(0, LapProtocolParser.LaneCount)
                     .Select(lane =>
                         laneConfigurations != null &&
@@ -441,8 +443,8 @@ namespace tlp
                     BetweenHeatsSeconds,
                     _trackLengthFeet,
                     TotalHeats,
-                    _laneNames.Take(TotalHeats).ToArray(),
-                    _laneColorArgb.Take(TotalHeats).ToArray(),
+                    _laneNames.Take(_initialLaneIndexes.Length).ToArray(),
+                    _laneColorArgb.Take(_initialLaneIndexes.Length).ToArray(),
                     _qualifyingResults,
                     racers
                         .OrderByDescending(racer => racer.TotalLaps)

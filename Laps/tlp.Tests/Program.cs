@@ -171,7 +171,7 @@ Assert(secondHeatFirstEdge.FirstLapMilliseconds == 1000, "successive heat first 
 
 HeatRaceController fourLaneHeat = new();
 fourLaneHeat.Configure(1, 0, new[] { "A", "B", "C", "D", "E" }, activeLaneCount: 4);
-Assert(fourLaneHeat.TotalHeats == 4, "four-lane race should run four heats");
+Assert(fourLaneHeat.TotalHeats == 5, "four-lane race with five racers should run five heats");
 HeatRaceSnapshot fourLaneFirstHeat = fourLaneHeat.GetSnapshot(0);
 Assert(fourLaneFirstHeat.LaneRacers.Take(4).SequenceEqual(new[] { "A", "B", "C", "D" }), "four-lane first heat should fill its four physical lanes");
 Assert(fourLaneHeat.GetOccupiedLaneMask() == 0x0F, "four-lane heat should power only its four physical lanes");
@@ -185,6 +185,11 @@ Assert(fourLaneSecondHeat.LaneRacers[2] == "A", "red racer should rotate to gree
 Assert(fourLaneSecondHeat.LaneRacers[3] == "C", "green racer should rotate to orange");
 Assert(fourLaneSecondHeat.LaneRacers[1] == "D", "orange racer should rotate to white");
 Assert(fourLaneSecondHeat.OnDeckRacer == "B", "white racer should rotate out");
+
+HeatRaceController largeFieldHeat = new();
+largeFieldHeat.Configure(1, 0, Enumerable.Range(1, 10).Select(index => $"R{index}").ToArray(), activeLaneCount: 8);
+Assert(largeFieldHeat.TotalHeats == 10, "ten-racer race should run ten heats");
+Assert(largeFieldHeat.CreateReport().LaneNames.Count == 8, "report should keep lane metadata to physical lanes");
 
 LaneConfiguration[] customLanes = LaneConfiguration.CreateDefaults().ToArray();
 customLanes[0] = new LaneConfiguration("Aqua", System.Drawing.Color.Aqua.ToArgb());
