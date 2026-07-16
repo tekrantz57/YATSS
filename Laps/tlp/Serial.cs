@@ -23,6 +23,9 @@ namespace tlp
         private Task? _demoTask;
         private SerialPort? _port;
         private CancellationTokenSource? _demoStop;
+        private Stopwatch? _demoClock;
+        private uint _demoStartTimestamp;
+        private bool _demoClockActive;
         private System.Threading.Timer? _betweenHeatsTimer;
         private DateTime? _nextHeatStartUtc;
         private DateTime? _lastControllerResponseUtc;
@@ -230,7 +233,7 @@ namespace tlp
 
                 _demoStop?.Dispose();
                 _demoStop = new CancellationTokenSource();
-                InitializeDemoControllerClock();
+                InitializeDemoControllerClockCore();
                 _demoTask = Task.Run(() => RunDemoLapStreamAsync(_demoStop.Token));
                 _form.SetStatusMessage("Demo lap stream started");
                 _log.Info("DEMO: lap stream started");
@@ -249,7 +252,7 @@ namespace tlp
 
                 _demoStop?.Dispose();
                 _demoStop = new CancellationTokenSource();
-                InitializeDemoControllerClock();
+                InitializeDemoControllerClockCore();
                 _demoTask = Task.Run(() => RunDemoLapStreamAsync(_demoStop.Token));
                 _form.SetStatusMessage("Demo lap stream started");
                 _form.SetDemoLapStreamChecked(true);
@@ -259,7 +262,7 @@ namespace tlp
 
         public void HandleSpaceBar()
         {
-            uint controllerTimestamp = GetControllerTimestamp();
+            uint controllerTimestamp = GetCurrentControllerTimestamp();
             switch (_qualifying.State)
             {
                 case QualifyingState.Ready:
@@ -474,7 +477,7 @@ namespace tlp
                 }
 
                 WriteLine(GetTrackPowerCommand());
-                uint controllerTimestamp = GetControllerTimestamp();
+                uint controllerTimestamp = GetCurrentControllerTimestamp();
                 bool started = resumePausedHeat
                     ? _heatRace.Resume(controllerTimestamp)
                     : _heatRace.Start(controllerTimestamp);
@@ -725,14 +728,12 @@ namespace tlp
             {
                 Random random = new(Random.Shared.Next());
                 uint sequence = 0;
-                uint demoStartTimestamp = GetControllerTimestamp();
-                uint demoTimestamp = demoStartTimestamp;
+                uint demoTimestamp = GetDemoControllerTimestamp();
                 uint nextHeartbeat = demoTimestamp + 3000;
                 int[] demoLanePaceMilliseconds = CreateDemoLanePaces(random);
                 uint[] nextLaneEdge = new uint[LapProtocolParser.LaneCount];
                 string[] laneRacerAtNextEdge = new string[LapProtocolParser.LaneCount];
                 HeatRaceState previousDemoHeatState = _heatRace.State;
-                Stopwatch demoClock = Stopwatch.StartNew();
 
                 for (int lane = 0; lane < nextLaneEdge.Length; lane++)
                 {
@@ -752,9 +753,7 @@ namespace tlp
                 while (!token.IsCancellationRequested)
                 {
                     int activeLaneCount = Math.Clamp(_form.ActiveLaneCount, 2, LapProtocolParser.LaneCount);
-                    demoTimestamp = unchecked(demoStartTimestamp + (uint)Math.Min(
-                        demoClock.ElapsedMilliseconds,
-                        uint.MaxValue));
+                    demoTimestamp = GetDemoControllerTimestamp();
                     HeatRaceState demoHeatState = _heatRace.State;
 
                     if (demoHeatState != previousDemoHeatState)
@@ -837,18 +836,26 @@ namespace tlp
             }
             finally
             {
+                lock (_demoGate)
+                {
+                    _demoClockActive = false;
+                    _demoClock = null;
+                }
+
                 _log.Info("DEMO: lap stream stopped");
                 _form.SetStatusMessage("Demo lap stream stopped");
                 _form.SetDemoLapStreamChecked(false);
             }
         }
 
-        private void InitializeDemoControllerClock()
+        private void InitializeDemoControllerClockCore()
         {
-            uint nextTimestamp = _hasControllerTimestamp
+            _demoStartTimestamp = _hasControllerTimestamp
                 ? _latestControllerTimestamp + 1000
                 : 1000;
-            _latestControllerTimestamp = nextTimestamp;
+            _demoClock = Stopwatch.StartNew();
+            _demoClockActive = true;
+            _latestControllerTimestamp = _demoStartTimestamp;
             _hasControllerTimestamp = true;
         }
 
@@ -1111,6 +1118,27 @@ namespace tlp
 
         private uint GetControllerTimestamp() =>
             _hasControllerTimestamp ? _latestControllerTimestamp : 0;
+
+        private uint GetCurrentControllerTimestamp() =>
+            DemoLapStreamActive ? GetDemoControllerTimestamp() : GetControllerTimestamp();
+
+        private uint GetDemoControllerTimestamp()
+        {
+            lock (_demoGate)
+            {
+                if (!_demoClockActive || _demoClock == null)
+                {
+                    return GetControllerTimestamp();
+                }
+
+                uint timestamp = unchecked(_demoStartTimestamp + (uint)Math.Min(
+                    _demoClock.ElapsedMilliseconds,
+                    uint.MaxValue));
+                _latestControllerTimestamp = timestamp;
+                _hasControllerTimestamp = true;
+                return timestamp;
+            }
+        }
 
         private bool CheckQualifyingExpired(uint? controllerTimestamp)
         {
