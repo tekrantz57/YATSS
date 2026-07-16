@@ -145,6 +145,7 @@ namespace tlp
             practiceToolStripMenuItem = new ToolStripMenuItem();
             heatRaceToolStripMenuItem = new ToolStripMenuItem();
             qualifyingToolStripMenuItem = new ToolStripMenuItem();
+            demoRaceToolStripMenuItem = new ToolStripMenuItem();
             demoLapStreamToolStripMenuItem = new ToolStripMenuItem();
             menuStrip1 = new MenuStrip();
             appStatusStrip = new StatusStrip();
@@ -1414,7 +1415,7 @@ namespace tlp
             //
             // modeToolStripMenuItem
             //
-            modeToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { practiceToolStripMenuItem, heatRaceToolStripMenuItem, qualifyingToolStripMenuItem, demoLapStreamToolStripMenuItem });
+            modeToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { practiceToolStripMenuItem, heatRaceToolStripMenuItem, qualifyingToolStripMenuItem, demoRaceToolStripMenuItem, demoLapStreamToolStripMenuItem });
             modeToolStripMenuItem.Name = "modeToolStripMenuItem";
             modeToolStripMenuItem.Size = new Size(50, 20);
             modeToolStripMenuItem.Text = "Mode";
@@ -1442,6 +1443,13 @@ namespace tlp
             qualifyingToolStripMenuItem.Size = new Size(180, 22);
             qualifyingToolStripMenuItem.Text = "Qualifying";
             qualifyingToolStripMenuItem.Click += qualifyingToolStripMenuItem_Click;
+            //
+            // demoRaceToolStripMenuItem
+            //
+            demoRaceToolStripMenuItem.Name = "demoRaceToolStripMenuItem";
+            demoRaceToolStripMenuItem.Size = new Size(180, 22);
+            demoRaceToolStripMenuItem.Text = "Demo Race";
+            demoRaceToolStripMenuItem.Click += demoRaceToolStripMenuItem_Click;
             //
             // demoLapStreamToolStripMenuItem
             //
@@ -1720,6 +1728,7 @@ namespace tlp
         private ToolStripMenuItem practiceToolStripMenuItem;
         private ToolStripMenuItem heatRaceToolStripMenuItem;
         private ToolStripMenuItem qualifyingToolStripMenuItem;
+        private ToolStripMenuItem demoRaceToolStripMenuItem;
         private ToolStripMenuItem demoLapStreamToolStripMenuItem;
         private StatusStrip appStatusStrip;
         private ToolStripStatusLabel statusLabel;

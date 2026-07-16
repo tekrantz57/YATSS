@@ -182,6 +182,35 @@ namespace tlp
             }
         }
 
+        private void demoRaceToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (!ConfirmAbandonQualifying())
+            {
+                return;
+            }
+
+            const string demoRaceName = "Demo Race";
+            const int demoHeatLengthMinutes = 1;
+            const int demoBetweenHeatsSeconds = 5;
+            string[] demoRacers = CreateDemoRacerNames();
+
+            s.CancelQualifying();
+            SetHeatRaceMode();
+            s.ConfigureHeatRace(
+                demoRaceName,
+                demoHeatLengthMinutes,
+                demoBetweenHeatsSeconds,
+                demoRacers,
+                ActiveLaneCount,
+                LaneConfigurations,
+                TrackLengthFeet);
+            SetRaceTitle(demoRaceName);
+            SetLaneRacerNames(GetFirstHeatLaneRacers(demoRacers));
+            SetQualifyingAvailable(false);
+            s.StartDemoLapStream();
+            SetStatusMessage("Demo race ready. Press Space to start.");
+        }
+
         private void demoLapStreamToolStripMenuItem_Click(object sender, EventArgs e)
         {
             demoLapStreamToolStripMenuItem.Enabled = false;
@@ -208,6 +237,26 @@ namespace tlp
         public void SetDemoLapStreamChecked(bool checkedState)
         {
             RunOnUiThread(() => demoLapStreamToolStripMenuItem.Checked = checkedState);
+        }
+
+        private string[] CreateDemoRacerNames()
+        {
+            int racerCount = Math.Clamp(ActiveLaneCount + 2, 2, 12);
+            return Enumerable.Range(1, racerCount)
+                .Select(index => $"Demo Racer {index}")
+                .ToArray();
+        }
+
+        private string[] GetFirstHeatLaneRacers(IReadOnlyList<string> racers)
+        {
+            string[] laneRacers = new string[LapProtocolParser.LaneCount];
+            IReadOnlyList<int> firstHeatLaneIndexes = HeatRaceController.GetInitialLaneIndexes(ActiveLaneCount);
+            for (int i = 0; i < racers.Count && i < firstHeatLaneIndexes.Count; i++)
+            {
+                laneRacers[firstHeatLaneIndexes[i]] = racers[i];
+            }
+
+            return laneRacers;
         }
 
         private bool ConfirmAbandonQualifying()

@@ -15,6 +15,8 @@ namespace tlp
         private readonly object _portGate = new();
         private readonly object _reconnectGate = new();
         private readonly object _demoGate = new();
+        private readonly Dictionary<string, int> _demoRacerPaceMilliseconds =
+            new(StringComparer.OrdinalIgnoreCase);
         private TaskCompletionSource _reconnectNow = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private Task? _readerTask;
         private Task? _demoTask;
@@ -185,6 +187,7 @@ namespace tlp
             _configuredLaneConfigurations = laneConfigurations.ToArray();
             _configuredTrackLengthFeet = trackLengthFeet;
             _qualifyingResults = Array.Empty<QualifyingResult>();
+            ConfigureDemoRacerPaces(_configuredRacers);
             _heatRace.Configure(
                 heatLengthMinutes,
                 betweenHeatsSeconds,
@@ -230,6 +233,24 @@ namespace tlp
                 _form.SetStatusMessage("Demo lap stream started");
                 _log.Info("DEMO: lap stream started");
                 return true;
+            }
+        }
+
+        public void StartDemoLapStream()
+        {
+            lock (_demoGate)
+            {
+                if (_demoTask is { IsCompleted: false })
+                {
+                    return;
+                }
+
+                _demoStop?.Dispose();
+                _demoStop = new CancellationTokenSource();
+                _demoTask = Task.Run(() => RunDemoLapStreamAsync(_demoStop.Token));
+                _form.SetStatusMessage("Demo lap stream started");
+                _form.SetDemoLapStreamChecked(true);
+                _log.Info("DEMO: lap stream started");
             }
         }
 
@@ -706,14 +727,17 @@ namespace tlp
                 uint nextHeartbeat = demoTimestamp + 3000;
                 int[] demoLanePaceMilliseconds = CreateDemoLanePaces(random);
                 uint[] nextLaneEdge = new uint[LapProtocolParser.LaneCount];
+                string[] laneRacerAtNextEdge = new string[LapProtocolParser.LaneCount];
+                HeatRaceState previousDemoHeatState = _heatRace.State;
 
                 for (int lane = 0; lane < nextLaneEdge.Length; lane++)
                 {
+                    laneRacerAtNextEdge[lane] = GetDemoLaneRacerName(lane);
                     nextLaneEdge[lane] = demoTimestamp +
                         (uint)random.Next(0, 201) +
                         (uint)GetDemoFirstBaselineMilliseconds(
                             random,
-                            demoLanePaceMilliseconds[lane],
+                            GetDemoReferencePaceMilliseconds(lane, demoLanePaceMilliseconds, laneRacerAtNextEdge[lane]),
                             _form.TrackLengthFeet,
                             _form.MinLapMilliseconds);
                 }
@@ -724,9 +748,57 @@ namespace tlp
                 {
                     int activeLaneCount = Math.Clamp(_form.ActiveLaneCount, 2, LapProtocolParser.LaneCount);
                     demoTimestamp += demoClockStepMilliseconds;
+                    HeatRaceState demoHeatState = _heatRace.State;
+
+                    if (demoHeatState != previousDemoHeatState)
+                    {
+                        previousDemoHeatState = demoHeatState;
+                        if (demoHeatState == HeatRaceState.Running)
+                        {
+                            for (int lane = 0; lane < activeLaneCount; lane++)
+                            {
+                                string currentRacer = GetDemoLaneRacerName(lane);
+                                laneRacerAtNextEdge[lane] = currentRacer;
+                                nextLaneEdge[lane] = demoTimestamp +
+                                    (uint)random.Next(0, 201) +
+                                    (uint)GetDemoFirstBaselineMilliseconds(
+                                        random,
+                                        GetDemoReferencePaceMilliseconds(lane, demoLanePaceMilliseconds, currentRacer),
+                                        _form.TrackLengthFeet,
+                                        _form.MinLapMilliseconds);
+                            }
+                        }
+                    }
 
                     for (int lane = 0; lane < activeLaneCount; lane++)
                     {
+                        string currentRacer = GetDemoLaneRacerName(lane);
+                        if (demoHeatState != HeatRaceState.Practice &&
+                            demoHeatState != HeatRaceState.Running)
+                        {
+                            continue;
+                        }
+
+                        if (demoHeatState != HeatRaceState.Practice &&
+                            string.IsNullOrWhiteSpace(currentRacer))
+                        {
+                            laneRacerAtNextEdge[lane] = string.Empty;
+                            nextLaneEdge[lane] = demoTimestamp + 1000;
+                            continue;
+                        }
+
+                        if (!string.Equals(laneRacerAtNextEdge[lane], currentRacer, StringComparison.OrdinalIgnoreCase))
+                        {
+                            laneRacerAtNextEdge[lane] = currentRacer;
+                            nextLaneEdge[lane] = demoTimestamp +
+                                (uint)random.Next(0, 201) +
+                                (uint)GetDemoFirstBaselineMilliseconds(
+                                    random,
+                                    GetDemoReferencePaceMilliseconds(lane, demoLanePaceMilliseconds, currentRacer),
+                                    _form.TrackLengthFeet,
+                                    _form.MinLapMilliseconds);
+                        }
+
                         if (demoTimestamp < nextLaneEdge[lane])
                         {
                             continue;
@@ -739,7 +811,7 @@ namespace tlp
                         nextLaneEdge[lane] = edgeTimestamp +
                             (uint)GetDemoLapIntervalMilliseconds(
                                 random,
-                                demoLanePaceMilliseconds[lane],
+                                GetDemoReferencePaceMilliseconds(lane, demoLanePaceMilliseconds, currentRacer),
                                 _form.TrackLengthFeet,
                                 _form.MinLapMilliseconds);
                     }
@@ -762,6 +834,60 @@ namespace tlp
                 _form.SetStatusMessage("Demo lap stream stopped");
                 _form.SetDemoLapStreamChecked(false);
             }
+        }
+
+        private void ConfigureDemoRacerPaces(IReadOnlyList<string> racers)
+        {
+            Random random = new(Random.Shared.Next());
+            int[] shuffledPaces = CreateDemoLanePaces(random);
+            lock (_demoGate)
+            {
+                _demoRacerPaceMilliseconds.Clear();
+                for (int i = 0; i < racers.Count; i++)
+                {
+                    string racer = racers[i].Trim();
+                    if (racer.Length == 0)
+                    {
+                        continue;
+                    }
+
+                    _demoRacerPaceMilliseconds[racer] = shuffledPaces[i % shuffledPaces.Length];
+                }
+            }
+        }
+
+        private string GetDemoLaneRacerName(int lane)
+        {
+            if (_heatRace.State == HeatRaceState.Practice)
+            {
+                return string.Empty;
+            }
+
+            HeatRaceSnapshot snapshot = _heatRace.GetSnapshot(GetControllerTimestamp());
+            return lane >= 0 && lane < snapshot.LaneRacers.Count
+                ? snapshot.LaneRacers[lane].Trim()
+                : string.Empty;
+        }
+
+        private int GetDemoReferencePaceMilliseconds(
+            int lane,
+            IReadOnlyList<int> lanePaceMilliseconds,
+            string racerName)
+        {
+            if (!string.IsNullOrWhiteSpace(racerName))
+            {
+                lock (_demoGate)
+                {
+                    if (_demoRacerPaceMilliseconds.TryGetValue(racerName, out int racerPace))
+                    {
+                        return racerPace;
+                    }
+                }
+            }
+
+            return lane >= 0 && lane < lanePaceMilliseconds.Count
+                ? lanePaceMilliseconds[lane]
+                : DemoReferenceLanePaceMilliseconds[0];
         }
 
         private static int GetDemoFirstBaselineMilliseconds(
