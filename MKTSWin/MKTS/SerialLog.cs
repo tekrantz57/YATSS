@@ -13,7 +13,7 @@ namespace tlp
             {
                 string logDirectory = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "tlp",
+                    "MKTS",
                     "logs");
                 return Path.Combine(logDirectory, $"serial-{DateTime.Now:yyyyMMdd}.log");
             }

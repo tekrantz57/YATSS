@@ -1,4 +1,4 @@
-# Laps Redux Controller Sketch
+# MKTS Microcontroller Sketch
 
 This Arduino Nano ESP32 sketch is the microcontroller side of the lap timer. It
 does not count laps. It timestamps debounced sensor edges and sends them to the
@@ -9,8 +9,12 @@ Windows app over serial.
 The sketch is currently intended for the Arduino Nano ESP32:
 
 ```powershell
-arduino-cli compile --fqbn arduino:esp32:nano_nora Laps_redux
+arduino-cli compile --fqbn arduino:esp32:nano_nora MKTSMC
 ```
+
+To upload from Arduino IDE, select the Arduino Nano ESP32 board and upload the
+`MKTSMC` sketch folder. If `dfu-util` fails after a successful compile, see
+`..\docs\TROUBLESHOOTING.md`.
 
 ## Sensor Inputs
 
@@ -129,4 +133,4 @@ output is normally pulled high to 3.3V; when a car bridges the dead strip and
 the optocoupler trips, the output pulls the ESP32 sensor pin low. The sketch is
 therefore configured for `INPUT_PULLUP` and `FALLING` interrupts.
 
-See `..\PROTOCOL.md` for frame formats and commands.
+See `..\docs\SERIAL_PROTOCOL.md` for frame formats and commands.

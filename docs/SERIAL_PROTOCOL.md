@@ -1,4 +1,4 @@
-# Lap Timer Serial Protocol
+# MKTS Serial Protocol
 
 The microcontroller and Windows app communicate over a 115200 baud serial port
 using printable ASCII lines. Each line is a protocol body followed by an
@@ -20,6 +20,8 @@ HELLO:LAPS_REDUX:2:<lane-count>*XX
 
 Sent when the sketch starts or when Windows sends `PING`. Version `2` means the
 controller sends timestamped sensor edges only; Windows owns lap counting.
+`LAPS_REDUX` is retained as the protocol identity for compatibility with
+existing controllers and tests.
 
 ```text
 HEARTBEAT:<millis>*XX

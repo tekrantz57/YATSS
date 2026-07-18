@@ -1,4 +1,4 @@
-# Laps Windows App
+# MKTS Windows App
 
 This is the Windows WinForms side of the slot-car lap timer. The app owns race
 state, lap counting, filtering, logging, heat-race flow, qualifying, reports,
@@ -7,9 +7,18 @@ edges.
 
 ## Build And Test
 
+From the `MKTSWin` directory:
+
 ```powershell
-dotnet build Laps.sln -c Release
-dotnet run --project tlp.Tests\tlp.Tests.csproj -c Release
+dotnet build MKTS.sln -c Release
+dotnet run --project MKTS.Tests\MKTS.Tests.csproj -c Release
+```
+
+From the repository root:
+
+```powershell
+dotnet build MKTSWin\MKTS.sln -c Release
+dotnet run --project MKTSWin\MKTS.Tests\MKTS.Tests.csproj -c Release
 ```
 
 The app targets `.NET 9` for Windows Forms.
@@ -20,7 +29,7 @@ Configure the COM port from the app's Configure dialog. The selected port is
 persisted locally. Serial traffic is logged under:
 
 ```text
-%LOCALAPPDATA%\tlp\logs\serial-YYYYMMDD.log
+%LOCALAPPDATA%\MKTS\logs\serial-YYYYMMDD.log
 ```
 
 The `File > Serial Log` window tails the current log. It follows the end of the
@@ -70,7 +79,7 @@ Current persisted settings include:
 
 - Serial port
 - Minimum lap time
-- Track length in feet, used for MPH
+- Track length in feet
 - Active lane count
 - Lane names and colors
 - SAPI speech voice
@@ -87,4 +96,5 @@ The app sends track-power commands over serial. In practice mode it enables the
 configured active lanes. In heat-race mode it enables only occupied lanes and
 cuts power during intermissions and track calls.
 
-See `..\PROTOCOL.md` for the serial protocol.
+See `..\docs\SERIAL_PROTOCOL.md` for the serial protocol and
+`..\docs\TROUBLESHOOTING.md` for Visual Studio and upload recovery notes.

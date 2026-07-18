@@ -522,11 +522,13 @@ namespace tlp
                 ColumnCount = 3,
                 Dock = DockStyle.Fill,
                 Margin = Padding.Empty,
-                Padding = new Padding(8, 2, 8, 2)
+                Padding = new Padding(8, 0, 8, 0),
+                RowCount = 1
             };
             heatStatusPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 28F));
             heatStatusPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 28F));
             heatStatusPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 44F));
+            heatStatusPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
             _heatStatusLabel = CreateHeatStatusLabel("Practice");
             _heatTimerLabel = CreateHeatStatusLabel("Timer --:--");
@@ -592,6 +594,8 @@ namespace tlp
                 Dock = DockStyle.Fill,
                 ForeColor = Color.White,
                 Font = new Font("Segoe UI", 14F, FontStyle.Bold, GraphicsUnit.Point),
+                Margin = Padding.Empty,
+                Padding = Padding.Empty,
                 Text = text,
                 TextAlign = ContentAlignment.MiddleLeft
             };

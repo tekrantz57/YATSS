@@ -1,4 +1,9 @@
-Laps/.vs/
-Laps/**/bin/
-Laps/**/obj/
+MKTSWin/.vs/
+MKTSWin/**/bin/
+MKTSWin/**/obj/
 *.csproj.user
+*.pubxml.user
+*.user
+*.suo
+.codex/
+.agents/
