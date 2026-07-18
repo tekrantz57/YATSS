@@ -75,6 +75,9 @@ EDGE:<zero-based-lane>:<per-lane-sequence>:<millis>*XX
 
 The queue is protected with ESP32 critical-section APIs.
 
+Serial command reads use a 10 ms timeout so an incomplete command cannot block
+edge publishing or heartbeats for the Arduino default timeout.
+
 ## Dead Strip Circuit Notes
 
 The working test circuit used:

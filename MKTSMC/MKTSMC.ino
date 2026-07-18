@@ -86,6 +86,7 @@ void (*isrHandlers[LaneCount])() = {
 
 void setup() {
   Serial.begin(SerialBaud);
+  Serial.setTimeout(10);
   delay(1000);
 
   for (byte lane = 0; lane < LaneCount; lane++) {
