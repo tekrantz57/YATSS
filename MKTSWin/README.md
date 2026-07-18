@@ -73,6 +73,20 @@ The app writes heat-race reports as HTML files under:
 %USERPROFILE%\Documents\Laps Race Reports
 ```
 
+## Demo Mode
+
+The Mode menu includes demo options for exercising the app without relying on
+live sensor hardware.
+
+`Demo Race` seeds a heat race with sample racers so the heat-race workflow can
+be tested quickly.
+
+`Demo Lap Stream` generates simulated controller heartbeats and lane edges. It
+uses the same lap-processing path as real serial input, but ignores real serial
+lines while the demo stream is active. This is useful for testing timing board
+updates, heat transitions, qualifying and race setup behavior, and report
+output.
+
 ## Configure Dialog
 
 Current persisted settings include:
