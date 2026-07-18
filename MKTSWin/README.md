@@ -32,6 +32,12 @@ persisted locally. Serial traffic is logged under:
 %LOCALAPPDATA%\MKTS\logs\serial-YYYYMMDD.log
 ```
 
+App settings, lane configuration, and racer names are stored in:
+
+```text
+%LOCALAPPDATA%\MKTS\laps.db
+```
+
 The `File > Serial Log` window tails the current log. It follows the end of the
 file while scrolled to the bottom, pauses when you scroll up to inspect older
 lines, and resumes following when you scroll back to the bottom.

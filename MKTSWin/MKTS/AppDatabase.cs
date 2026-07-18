@@ -15,10 +15,17 @@ namespace tlp
 
     internal static class AppDatabase
     {
-        private const string ConnectionString = @"Data Source=c:\sqlite\data\laps.db";
         public const int DefaultSensorDebounceMilliseconds = 1800;
         public const int DefaultRawSensorLockoutMilliseconds = 0;
         private static readonly object SyncRoot = new();
+        private static readonly string DatabasePath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "MKTS",
+            "laps.db");
+        private static readonly string ConnectionString = new SqliteConnectionStringBuilder
+        {
+            DataSource = DatabasePath
+        }.ToString();
 
         public static SqliteConnection Connection { get; } = new(ConnectionString);
 
