@@ -21,11 +21,14 @@
 
 const byte LaneCount = 8;
 const byte QueueSize = 32;
+const byte QueueMask = QueueSize - 1;
 const unsigned long SerialBaud = 115200;
 const unsigned long HeartbeatIntervalMillis = 1000;
 #define DEFAULT_EDGE_DEBOUNCE_MILLIS 1800UL
 #define MAX_EDGE_DEBOUNCE_MILLIS 10000UL
 #define TRACK_POWER_CUT_ACTIVE_LEVEL HIGH
+
+static_assert((QueueSize & QueueMask) == 0, "QueueSize must be a power of two");
 
 const byte sensorPins[LaneCount] = { D2, A4, D4, D5, D6, D7, D8, D9 };
 const byte trackPowerCutPins[LaneCount] = { D10, D11, D12, D13, A0, A1, A2, A3 };
@@ -55,7 +58,7 @@ void IRAM_ATTR enqueueEdge(byte lane) {
     return;
   }
 
-  byte nextHead = (byte)((queueHead + 1) % QueueSize);
+  byte nextHead = (byte)((queueHead + 1) & QueueMask);
   if (nextHead == queueTail) {
     droppedEvents++;
     portEXIT_CRITICAL_ISR(&queueMux);
@@ -122,7 +125,7 @@ void publishQueuedEdges() {
     event.lane = queue[queueTail].lane;
     event.sequence = queue[queueTail].sequence;
     event.timestampMillis = queue[queueTail].timestampMillis;
-    queueTail = (byte)((queueTail + 1) % QueueSize);
+    queueTail = (byte)((queueTail + 1) & QueueMask);
     portEXIT_CRITICAL(&queueMux);
 
     sendFrame(String(F("EDGE:")) + event.lane + F(":") + event.sequence + F(":") + event.timestampMillis);
