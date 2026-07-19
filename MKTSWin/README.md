@@ -42,6 +42,10 @@ The `File > Serial Log` window tails the current log. It follows the end of the
 file while scrolled to the bottom, pauses when you scroll up to inspect older
 lines, and resumes following when you scroll back to the bottom.
 
+While MKTS is running, the app asks Windows to keep the system and display
+awake so the race board does not sleep or blank during timing. Normal power
+management resumes when the app exits.
+
 ## Practice Mode
 
 Practice is the default mode. Edges from active lanes establish a baseline on

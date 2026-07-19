@@ -1,10 +1,14 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Runtime.InteropServices;
 
 namespace tlp
 {
     public partial class MKTS : Form
     {
+        private const uint EsContinuous = 0x80000000;
+        private const uint EsSystemRequired = 0x00000001;
+        private const uint EsDisplayRequired = 0x00000002;
         static Serial s = null!;
         private Label[] _boardValueLabels = Array.Empty<Label>();
         private Label[] _boardHeaderLabels = Array.Empty<Label>();
@@ -68,6 +72,7 @@ namespace tlp
             ApplyActiveLaneLayout();
             SpeechAnnouncer.WarmUpAsync(SpeechVoiceName);
 
+            KeepSystemAwake();
             s = new Serial(this);
             ConfigurePracticeClock();
             WireBestLapResetClicks();
@@ -76,7 +81,21 @@ namespace tlp
                 _practiceClockTimer.Stop();
                 _practiceClockTimer.Dispose();
                 s.Dispose();
+                AllowSystemSleep();
             };
+        }
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern uint SetThreadExecutionState(uint esFlags);
+
+        private static void KeepSystemAwake()
+        {
+            SetThreadExecutionState(EsContinuous | EsSystemRequired | EsDisplayRequired);
+        }
+
+        private static void AllowSystemSleep()
+        {
+            SetThreadExecutionState(EsContinuous);
         }
 
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
