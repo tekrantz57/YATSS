@@ -1,6 +1,6 @@
-MKTSWin/.vs/
-MKTSWin/**/bin/
-MKTSWin/**/obj/
+YATSSWin/.vs/
+YATSSWin/**/bin/
+YATSSWin/**/obj/
 *.csproj.user
 *.pubxml.user
 *.user

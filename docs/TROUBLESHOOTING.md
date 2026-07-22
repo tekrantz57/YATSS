@@ -6,12 +6,12 @@ After renaming project folders, Visual Studio may try to reopen a project from
 its old path and show an error like:
 
 ```text
-An error occurred in 'Miscellaneous Files' while attempting to open 'MKTS.csproj'
+An error occurred in 'Miscellaneous Files' while attempting to open 'YATSS.csproj'
 The document cannot be opened. It has been renamed, deleted, or moved.
 ```
 
-Close Visual Studio and delete the ignored `MKTSWin\.vs` folder. Visual Studio
-will recreate it from `MKTSWin\MKTS.sln` the next time the solution opens.
+Close Visual Studio and delete the ignored `YATSSWin\.vs` folder. Visual Studio
+will recreate it from `YATSSWin\YATSS.sln` the next time the solution opens.
 
 ## Nano ESP32 Upload Fails With dfu-util Exit Status 74
 
@@ -27,7 +27,7 @@ Nano ESP32 bootloader.
 
 Try this sequence:
 
-1. Close the MKTS Windows app if it is connected to the board.
+1. Close the YATSS Windows app if it is connected to the board.
 2. Close Arduino Serial Monitor, Serial Plotter, Arduino Cloud, and other tools
    using the board or COM port.
 3. Unplug and reconnect the Nano ESP32 using a direct USB data cable.

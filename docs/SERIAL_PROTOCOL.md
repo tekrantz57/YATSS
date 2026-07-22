@@ -1,4 +1,4 @@
-# MKTS Serial Protocol
+# YATSS Serial Protocol
 
 The microcontroller and Windows app communicate over a 115200 baud serial port
 using printable ASCII lines. Each line is a protocol body followed by an
