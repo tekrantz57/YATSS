@@ -56,6 +56,29 @@ Current logical lane to track-power output map:
 `TRACK_POWER_CUT_ACTIVE_LEVEL` is currently `HIGH`. That means the sketch writes
 the active level to cut power and the opposite level to restore power.
 
+### Relay Driver Notes
+
+The bench-tested relay driver cell used:
+
+- ESP32 GPIO into an IRLZ44N MOSFET gate
+- Shared ground between the ESP32/control circuit and relay supply
+- MOSFET low-side switching for the 12V relay coil
+- Flyback diode across the relay coil
+
+In this arrangement the ESP32 pin only drives the MOSFET gate. The MOSFET sinks
+the relay-coil current, so the GPIO does not carry the coil load.
+
+For track-power cutoff, wire the lane supply through the relay contacts before
+the driver station / lane feed. Use the relay contact side for the actual track
+power path, and use the MOSFET driver side for the relay coil.
+
+Prefer a separate 12V accessory/control supply for relay coils, or a shared 12V
+control supply tapped before any lane-specific driver wiring. This keeps relay
+coil current out of the racer lane supplies and avoids lane-to-lane voltage or
+fairness questions. If each relay coil is powered from its own lane supply, it
+will probably work with a strong regulated supply, but measure voltage with the
+relay off, relay on, and car running at both the driver station and the track.
+
 ## Edge Handling
 
 Each lane has a per-lane debounce interval. The default is:
