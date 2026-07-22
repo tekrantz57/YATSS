@@ -68,6 +68,39 @@ The bench-tested relay driver cell used:
 In this arrangement the ESP32 pin only drives the MOSFET gate. The MOSFET sinks
 the relay-coil current, so the GPIO does not carry the coil load.
 
+One lane of the relay driver and track-power cutoff wiring:
+
+```text
+Control / relay-coil side
+
+ESP32 track-power GPIO  -------------------- IRLZ44N gate
+
+12V relay/control +  ----+------------------ relay coil +
+                         |
+                         +----|<|----+
+                              diode  |
+                                     |
+IRLZ44N drain      ------------------+------ relay coil -
+IRLZ44N source     ------------------------- control GND
+ESP32 GND          ------------------------- control GND
+12V relay/control - ------------------------- control GND
+
+Diode cathode/banded end goes to relay/control +.
+Diode anode goes to the MOSFET drain / relay coil - side.
+
+
+Track-power contact side, one lane
+
+lane power supply +  ----------------------- relay COM
+relay NC          -------------------------- driver station / lane feed +
+lane power supply -  ----------------------- driver station / lane feed -
+relay NO          -------------------------- unused with current active-high cut
+```
+
+With `TRACK_POWER_CUT_ACTIVE_LEVEL` set to `HIGH`, the relay energizes when
+YATSS cuts track power. Using `COM` and `NC` means the lane feed is connected
+when the relay is relaxed, and opened when the relay clicks.
+
 For track-power cutoff, wire the lane supply through the relay contacts before
 the driver station / lane feed. Use the relay contact side for the actual track
 power path, and use the MOSFET driver side for the relay coil.
