@@ -134,6 +134,23 @@ The queue is protected with ESP32 critical-section APIs.
 Serial command reads use a 10 ms timeout so an incomplete command cannot block
 edge publishing or heartbeats for the Arduino default timeout.
 
+## Controller Diagnostics
+
+The Windows app can start a diagnostic session from
+`File > Controller Diagnostics` while in Practice mode. During the session,
+sensor interrupts are
+temporarily changed from `FALLING` to `CHANGE`, normal `EDGE` frames are
+suppressed, and raw sensor state changes are reported with per-lane transition
+and debounced accepted-edge counts. Closing diagnostics restores the normal
+falling-edge interrupt mode and clears the debounce baselines.
+
+Relay tests are cut-only pulses with a maximum duration of two seconds. Pulse
+timing and restoration are owned by the controller, so the previous power mask
+is restored even if Windows stops responding during a pulse. A later explicit
+track-power command cancels the pending restoration. Diagnostic sessions time
+out after five seconds without a diagnostic command; the Windows window sends a
+status request once per second while open.
+
 ## Dead Strip Circuit Notes
 
 The working test circuit used:

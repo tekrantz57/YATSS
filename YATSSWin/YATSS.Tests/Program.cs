@@ -16,23 +16,78 @@ Assert(edge.Edge is { LaneIndex: 3, Sequence: 42, TimestampMillis: 12345 }, "EDG
 LapProtocolMessage corrupt = LapProtocolParser.Parse("EDGE:3:42:12345*00");
 Assert(corrupt.Kind == LapProtocolMessageKind.Invalid, "bad checksum should be rejected");
 
-LapProtocolMessage boot = LapProtocolParser.Parse(LapProtocolParser.EncodeFrame("HELLO:LAPS_REDUX:2:8"));
+LapProtocolMessage boot = LapProtocolParser.Parse(LapProtocolParser.EncodeFrame("HELLO:YATSSMC:2:8"));
 Assert(boot.Kind == LapProtocolMessageKind.Hello, "HELLO should parse");
 
 LapProtocolMessage heartbeat = LapProtocolParser.Parse(LapProtocolParser.EncodeFrame("HEARTBEAT:12345"));
 Assert(heartbeat.Kind == LapProtocolMessageKind.Heartbeat, "HEARTBEAT should parse");
 Assert(heartbeat.ControllerTimestampMillis == 12345, "HEARTBEAT timestamp should parse");
 
+LapProtocolMessage diagnosticStatus = LapProtocolParser.Parse(
+    LapProtocolParser.EncodeFrame("DIAG:STATUS:05:A3:1800:2:12345"));
+Assert(diagnosticStatus.Kind == LapProtocolMessageKind.Diagnostic, "diagnostic status should parse");
+Assert(
+    diagnosticStatus.Diagnostic is ControllerDiagnosticStatus
+    {
+        SensorActiveMask: 0x05,
+        TrackPowerEnabledMask: 0xA3,
+        DebounceMilliseconds: 1800,
+        DroppedEvents: 2,
+        TimestampMillis: 12345
+    },
+    "diagnostic status fields should parse");
+
+LapProtocolMessage diagnosticSensor = LapProtocolParser.Parse(
+    LapProtocolParser.EncodeFrame("DIAG:SENSOR:3:ACTIVE:7:2:12500"));
+Assert(
+    diagnosticSensor.Diagnostic is ControllerDiagnosticSensor
+    {
+        LaneIndex: 3,
+        Active: true,
+        TransitionCount: 7,
+        AcceptedEdgeCount: 2,
+        TimestampMillis: 12500
+    },
+    "diagnostic sensor fields should parse");
+
+LapProtocolMessage diagnosticRelay = LapProtocolParser.Parse(
+    LapProtocolParser.EncodeFrame("DIAG:RELAY:2:PULSING:FB:13000"));
+Assert(
+    diagnosticRelay.Diagnostic is ControllerDiagnosticRelay
+    {
+        LaneIndex: 2,
+        State: "PULSING",
+        TrackPowerEnabledMask: 0xFB,
+        TimestampMillis: 13000
+    },
+    "diagnostic relay fields should parse");
+
+LapProtocolMessage diagnosticSession = LapProtocolParser.Parse(
+    LapProtocolParser.EncodeFrame("DIAG:SESSION:STOPPED:TIMEOUT:14000"));
+Assert(
+    diagnosticSession.Diagnostic is ControllerDiagnosticSession
+    {
+        State: "STOPPED",
+        Reason: "TIMEOUT",
+        TimestampMillis: 14000
+    },
+    "diagnostic session fields should parse");
+
+LapProtocolMessage badDiagnosticMask = LapProtocolParser.Parse(
+    LapProtocolParser.EncodeFrame("DIAG:STATUS:5:A3:1800:2:12345"));
+Assert(badDiagnosticMask.Kind == LapProtocolMessageKind.Invalid, "diagnostic masks require two hex digits");
+
 LapProtocolMessage badLane = LapProtocolParser.Parse(LapProtocolParser.EncodeFrame("EDGE:8:1:100"));
 Assert(badLane.Kind == LapProtocolMessageKind.Invalid, "Lane 8 should be rejected");
 
-LapProtocolMessage legacy = LapProtocolParser.Parse("02:0000010000");
-Assert(legacy.Kind == LapProtocolMessageKind.Edge, "legacy two-part edge should parse");
-Assert(legacy.Edge is { LaneIndex: 2, TimestampMillis: 10000 }, "legacy fields should parse");
+LapProtocolMessage missingChecksum = LapProtocolParser.Parse("EDGE:2:1:10000");
+Assert(missingChecksum.Kind == LapProtocolMessageKind.Invalid, "checksum-free frames should be rejected");
 
-LapProtocolMessage oldOneBased = LapProtocolParser.Parse("1:7:0000012500");
-Assert(oldOneBased.Kind == LapProtocolMessageKind.Edge, "old three-part edge should parse");
-Assert(oldOneBased.Edge is { LaneIndex: 0, TimestampMillis: 12500 }, "old three-part lane should be one-based");
+LapProtocolMessage obsoleteTwoPart = LapProtocolParser.Parse(LapProtocolParser.EncodeFrame("2:10000"));
+Assert(obsoleteTwoPart.Kind == LapProtocolMessageKind.Invalid, "two-part edge frames should be rejected");
+
+LapProtocolMessage obsoleteThreePart = LapProtocolParser.Parse(LapProtocolParser.EncodeFrame("1:7:12500"));
+Assert(obsoleteThreePart.Kind == LapProtocolMessageKind.Invalid, "three-part edge frames should be rejected");
 
 LapRace race = new(new LapRaceOptions(1000, 600000, 155.0));
 LapUpdate started = race.Process(new LapEdge(0, 1, 1000));

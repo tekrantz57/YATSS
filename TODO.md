@@ -1,12 +1,5 @@
 # TODO
 
-## Hardware diagnostics
-
-- Add a controller diagnostic mode that reports the current state of every
-  sensor input.
-- Add a deliberate, one-at-a-time relay test so lane assignments and relay
-  driver wiring can be verified safely.
-
 ## Track-power fail-safe behavior
 
 - Define the intended track-power state during controller boot, reset, Windows

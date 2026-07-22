@@ -46,6 +46,19 @@ While YATSS is running, the app asks Windows to keep the system and display
 awake so the race board does not sleep or blank during timing. Normal power
 management resumes when the app exits.
 
+## Controller Diagnostics
+
+`File > Controller Diagnostics` opens a live eight-lane wiring view when the
+controller is connected and YATSS is idle in Practice mode. It displays each
+raw sensor state, transition count, debounced accepted-edge count, track-power
+state, controller uptime, debounce setting, and cumulative queue-overflow count.
+
+Each lane has a controller-timed `Pulse Cut` relay test. Pulses only remove
+power and automatically restore the previous mask. The window can also clear
+transition counts, refresh controller status, or cut all track power. Diagnostic
+sensor activity is logged but never enters the lap-counting path. Starting
+another race mode closes diagnostics first.
+
 ## Practice Mode
 
 Practice is the default mode. Edges from active lanes establish a baseline on

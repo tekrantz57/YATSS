@@ -25,6 +25,7 @@ namespace YATSS
         private Label _onDeckLabel = null!;
         private readonly System.Windows.Forms.Timer _practiceClockTimer = new();
         private bool _practiceClockEnabled = true;
+        private ControllerDiagnosticsForm? _controllerDiagnosticsForm;
         private const string EmptyRacerName = "          ";
         private const string DefaultWindowTitle = "YATSS";
         public string port = "";
@@ -152,6 +153,7 @@ namespace YATSS
 
         private void resetToolStripMenuItem_Click(object sender, EventArgs e)
         {
+            CloseControllerDiagnostics();
             Trace.WriteLine("practice reset");
             SetRaceTitle(null);
             SetQualifyingAvailable(false);
@@ -164,6 +166,60 @@ namespace YATSS
             logTail.Show(this);
         }
 
+        private void controllerDiagnosticsToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (_controllerDiagnosticsForm is { IsDisposed: false })
+            {
+                _controllerDiagnosticsForm.Activate();
+                return;
+            }
+
+            if (!s.CanStartControllerDiagnostics(out string reason))
+            {
+                SetStatusMessage(reason);
+                MessageBox.Show(this, reason, "Controller Diagnostics", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            ControllerDiagnosticsForm diagnostics = new(
+                port,
+                LaneConfigurations,
+                s.RequestDiagnosticStatus,
+                s.ClearDiagnosticCounts,
+                lane => s.PulseDiagnosticRelay(lane),
+                s.CutAllPowerDuringDiagnostics);
+            _controllerDiagnosticsForm = diagnostics;
+            s.DiagnosticReceived += diagnostics.ApplyDiagnostic;
+            diagnostics.FormClosed += (_, _) =>
+            {
+                s.DiagnosticReceived -= diagnostics.ApplyDiagnostic;
+                s.StopControllerDiagnostics();
+                if (ReferenceEquals(_controllerDiagnosticsForm, diagnostics))
+                {
+                    _controllerDiagnosticsForm = null;
+                }
+            };
+            diagnostics.Show(this);
+
+            if (!s.StartControllerDiagnostics(out reason))
+            {
+                diagnostics.Close();
+                SetStatusMessage(reason);
+            }
+        }
+
+        private void CloseControllerDiagnostics()
+        {
+            if (_controllerDiagnosticsForm is { IsDisposed: false } diagnostics)
+            {
+                diagnostics.Close();
+            }
+            else
+            {
+                s.StopControllerDiagnostics();
+            }
+        }
+
         private void practiceToolStripMenuItem_Click(object sender, EventArgs e)
         {
             if (!ConfirmAbandonQualifying())
@@ -171,6 +227,7 @@ namespace YATSS
                 return;
             }
 
+            CloseControllerDiagnostics();
             SetPracticeMode();
             s.SetPracticeMode();
         }
@@ -182,6 +239,7 @@ namespace YATSS
                 return;
             }
 
+            CloseControllerDiagnostics();
             s.CancelQualifying();
             using HeatRaceSetup heatRaceSetup = new(ActiveLaneCount, LaneConfigurations);
             if (heatRaceSetup.ShowDialog(this) == DialogResult.OK)
@@ -203,6 +261,7 @@ namespace YATSS
 
         private void qualifyingToolStripMenuItem_Click(object sender, EventArgs e)
         {
+            CloseControllerDiagnostics();
             using QualifyingSetup qualifyingSetup = new(ActiveLaneCount, LaneConfigurations);
             if (qualifyingSetup.ShowDialog(this) == DialogResult.OK)
             {
@@ -219,6 +278,7 @@ namespace YATSS
                 return;
             }
 
+            CloseControllerDiagnostics();
             const string demoRaceName = "Demo Race";
             const int demoHeatLengthMinutes = 1;
             const int demoBetweenHeatsSeconds = 5;
@@ -243,6 +303,7 @@ namespace YATSS
 
         private void demoLapStreamToolStripMenuItem_Click(object sender, EventArgs e)
         {
+            CloseControllerDiagnostics();
             demoLapStreamToolStripMenuItem.Enabled = false;
             try
             {

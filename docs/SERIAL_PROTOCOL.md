@@ -1,27 +1,26 @@
 # YATSS Serial Protocol
 
 The microcontroller and Windows app communicate over a 115200 baud serial port
-using printable ASCII lines. Each line is a protocol body followed by an
-optional XOR checksum:
+using printable ASCII lines. Every line is a protocol body followed by a
+required XOR checksum:
 
 ```text
 BODY*XX
 ```
 
-`XX` is the two-digit uppercase hexadecimal XOR of every byte in `BODY`. The
-Windows app validates checksums when present. The sketch accepts commands with
-or without checksums, but the Windows app sends checksummed commands.
+`XX` is the two-digit uppercase hexadecimal XOR of every byte in `BODY`.
+Windows and the controller reject lines with a missing, malformed, or incorrect
+checksum.
 
 ## Controller To Windows
 
 ```text
-HELLO:LAPS_REDUX:2:<lane-count>*XX
+HELLO:YATSSMC:2:<lane-count>*XX
 ```
 
 Sent when the sketch starts or when Windows sends `PING`. Version `2` means the
 controller sends timestamped sensor edges only; Windows owns lap counting.
-`LAPS_REDUX` is retained as the protocol identity for compatibility with
-existing controllers and tests.
+`YATSSMC` identifies the YATSS microcontroller firmware.
 
 ```text
 HEARTBEAT:<millis>*XX
@@ -45,10 +44,32 @@ ERR:QUEUE_FULL:<dropped-count>*XX
 ERR:BAD_CHECKSUM*XX
 ERR:BAD_POWER_MASK*XX
 ERR:BAD_DEBOUNCE*XX
+ERR:DIAG_NOT_ACTIVE*XX
+ERR:DIAG_RELAY_BUSY*XX
+ERR:BAD_DIAG_RELAY*XX
 ERR:UNKNOWN_COMMAND:<command>*XX
 ```
 
 Error frames are logged by Windows.
+
+### Diagnostic Frames
+
+Diagnostic messages are emitted only while a diagnostic session is active:
+
+```text
+DIAG:SESSION:STARTED:<millis>*XX
+DIAG:SESSION:STOPPED:<reason>:<millis>*XX
+DIAG:STATUS:<sensor-mask>:<power-mask>:<debounce>:<dropped>:<millis>*XX
+DIAG:SENSOR:<lane>:<ACTIVE|CLEAR>:<transition-count>:<accepted-edge-count>:<millis>*XX
+DIAG:RELAY:<lane>:<PULSING|RESTORED>:<power-mask>:<millis>*XX
+```
+
+The two masks are two-digit hexadecimal values. A set sensor bit means the
+active-low input is currently low. A set power bit means track power is enabled
+for that lane. Sensor transition counts include both active and clear changes;
+accepted-edge counts include active transitions that pass the configured
+controller debounce. `dropped` is the cumulative controller edge-queue
+overflow count since boot.
 
 ## Windows To Controller
 
@@ -63,7 +84,7 @@ serial output, waits briefly, then restarts.
 PING*XX
 ```
 
-Requests a `HELLO:LAPS_REDUX:2:<lane-count>*XX` response.
+Requests a `HELLO:YATSSMC:2:<lane-count>*XX` response.
 
 ```text
 TRACK_POWER:OFF*XX
@@ -93,3 +114,25 @@ HELLO:CONFIG:DEBOUNCE:<milliseconds>*XX
 Windows also has its own minimum lap time and raw edge lockout. The controller
 debounce reduces serial traffic; Windows remains the authority for lap
 validation and counting.
+
+### Diagnostic Commands
+
+```text
+DIAG:START*XX
+DIAG:STOP*XX
+DIAG:STATUS*XX
+DIAG:CLEAR*XX
+DIAG:RELAY:PULSE:<zero-based-lane>:<milliseconds>*XX
+```
+
+`DIAG:START` suppresses normal `EDGE` frames and changes the sensor interrupts
+to report both signal transitions. `DIAG:CLEAR` resets the per-lane transition
+counts. Relay pulses must be from 1 through 2000 milliseconds and can only cut
+power; the controller restores the previous power mask when the pulse expires.
+Only one relay pulse can run at a time. Any explicit track-power command cancels
+an active pulse and becomes authoritative, preventing a delayed restoration.
+
+Windows sends `DIAG:STATUS` once per second as the session keepalive. The
+controller stops diagnostics after five seconds without a diagnostic command,
+restores any active relay pulse, and returns sensor interrupts to normal lap
+timing mode.

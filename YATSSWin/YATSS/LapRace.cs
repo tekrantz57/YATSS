@@ -134,9 +134,9 @@ namespace YATSS
                 LaneRuntime lane = _lanes[edge.LaneIndex];
                 int missedFrames = 0;
 
-                if (edge.Sequence.HasValue && lane.LastSequence.HasValue)
+                if (lane.LastSequence.HasValue)
                 {
-                    uint sequenceDelta = unchecked(edge.Sequence.Value - lane.LastSequence.Value);
+                    uint sequenceDelta = unchecked(edge.Sequence - lane.LastSequence.Value);
                     if (sequenceDelta == 0)
                     {
                         return new LapUpdate(LapUpdateKind.Duplicate, edge.LaneIndex, null, lane.MissedFrames, "duplicate serial frame");
@@ -154,7 +154,7 @@ namespace YATSS
                     }
                 }
 
-                lane.LastSequence = edge.Sequence ?? lane.LastSequence;
+                lane.LastSequence = edge.Sequence;
 
                 int rawSensorLockout = Math.Max(0, _options.RawSensorLockoutMilliseconds);
                 if (rawSensorLockout > 0 && lane.LastRawTimestamp.HasValue)

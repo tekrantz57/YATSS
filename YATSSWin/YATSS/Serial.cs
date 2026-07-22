@@ -33,6 +33,7 @@ namespace YATSS
         private uint _latestControllerTimestamp;
         private bool _hasControllerTimestamp;
         private bool _trackPowerEnabled = true;
+        private bool _diagnosticsActive;
         private bool _startCountdownInProgress;
         private int _startCountdownVersion;
         private bool _qualifyingLaneSelectionPending;
@@ -73,6 +74,10 @@ namespace YATSS
         }
 
         public bool QualifyingActive => _qualifying.State != QualifyingState.Inactive;
+
+        public event Action<ControllerDiagnostic>? DiagnosticReceived;
+
+        public bool DiagnosticsActive => _diagnosticsActive;
 
         public bool DemoLapStreamActive
         {
@@ -151,6 +156,7 @@ namespace YATSS
 
         public void Init()
         {
+            StopControllerDiagnostics();
             StopDemoLapStream();
             CancelStartCountdown();
             CancelBetweenHeatsTimer();
@@ -203,6 +209,7 @@ namespace YATSS
             IReadOnlyList<LaneConfiguration> laneConfigurations,
             double trackLengthFeet)
         {
+            StopControllerDiagnostics();
             CancelStartCountdown();
             CancelBetweenHeatsTimer();
             _qualifying.Reset();
@@ -236,6 +243,7 @@ namespace YATSS
 
         public void SetPracticeMode()
         {
+            StopControllerDiagnostics();
             CancelStartCountdown();
             CancelBetweenHeatsTimer();
             _qualifying.Reset();
@@ -250,6 +258,7 @@ namespace YATSS
 
         public bool ToggleDemoLapStream()
         {
+            StopControllerDiagnostics();
             lock (_demoGate)
             {
                 if (_demoTask is { IsCompleted: false })
@@ -271,6 +280,7 @@ namespace YATSS
 
         public void StartDemoLapStream()
         {
+            StopControllerDiagnostics();
             lock (_demoGate)
             {
                 if (_demoTask is { IsCompleted: false })
@@ -290,6 +300,12 @@ namespace YATSS
 
         public void HandleSpaceBar()
         {
+            if (_diagnosticsActive)
+            {
+                _form.SetStatusMessage("Close Controller Diagnostics before using race controls");
+                return;
+            }
+
             uint controllerTimestamp = GetCurrentControllerTimestamp();
             switch (_qualifying.State)
             {
@@ -331,6 +347,7 @@ namespace YATSS
 
         public void ConfigureQualifying(int laneIndex, int durationSeconds)
         {
+            StopControllerDiagnostics();
             if (_heatRace.State != HeatRaceState.Ready || _configuredRacers.Count == 0)
             {
                 _form.SetStatusMessage("Configure a heat race before qualifying");
@@ -429,6 +446,106 @@ namespace YATSS
 
             _log.Info(enabled ? "track power restore requested" : "track power cut requested");
             _form.SetStatusMessage(statusMessage);
+        }
+
+        public bool CanStartControllerDiagnostics(out string reason)
+        {
+            if (_heatRace.State != HeatRaceState.Practice || _qualifying.State != QualifyingState.Inactive)
+            {
+                reason = "Controller diagnostics are available only in Practice mode";
+                return false;
+            }
+
+            if (_startCountdownInProgress)
+            {
+                reason = "Wait for the active countdown to finish";
+                return false;
+            }
+
+            if (DemoLapStreamActive)
+            {
+                reason = "Stop the demo lap stream before opening controller diagnostics";
+                return false;
+            }
+
+            if (!IsPortOpen())
+            {
+                reason = "Connect the controller before opening diagnostics";
+                return false;
+            }
+
+            reason = string.Empty;
+            return true;
+        }
+
+        public bool StartControllerDiagnostics(out string reason)
+        {
+            if (_diagnosticsActive)
+            {
+                reason = string.Empty;
+                return true;
+            }
+
+            if (!CanStartControllerDiagnostics(out reason))
+            {
+                return false;
+            }
+
+            _diagnosticsActive = true;
+            WriteLine("DIAG:START");
+            _log.Info("controller diagnostics started");
+            _form.SetStatusMessage("Controller diagnostics active");
+            return true;
+        }
+
+        public void StopControllerDiagnostics()
+        {
+            if (!_diagnosticsActive)
+            {
+                return;
+            }
+
+            _diagnosticsActive = false;
+            if (IsPortOpen())
+            {
+                WriteLine("DIAG:STOP");
+            }
+            _log.Info("controller diagnostics stopped");
+        }
+
+        public void RequestDiagnosticStatus()
+        {
+            if (_diagnosticsActive)
+            {
+                WriteLine("DIAG:STATUS");
+            }
+        }
+
+        public void ClearDiagnosticCounts()
+        {
+            if (_diagnosticsActive)
+            {
+                WriteLine("DIAG:CLEAR");
+            }
+        }
+
+        public void PulseDiagnosticRelay(int laneIndex, int durationMilliseconds = 1000)
+        {
+            if (!_diagnosticsActive || laneIndex < 0 || laneIndex >= LapProtocolParser.LaneCount)
+            {
+                return;
+            }
+
+            int duration = Math.Clamp(durationMilliseconds, 1, 2000);
+            WriteLine($"DIAG:RELAY:PULSE:{laneIndex}:{duration}");
+        }
+
+        public void CutAllPowerDuringDiagnostics()
+        {
+            if (_diagnosticsActive)
+            {
+                SetTrackPowerEnabled(false, null, "Track power cut from Controller Diagnostics");
+            }
         }
 
         private void QueueStartCountdown(bool resumePausedHeat, bool manualStart)
@@ -602,6 +719,10 @@ namespace YATSS
                     _form.SetStatusMessage($"Serial open on {portName}; waiting for controller");
                     WriteLine(GetSensorDebounceCommand());
                     WriteLine(GetTrackPowerCommand());
+                    if (_diagnosticsActive)
+                    {
+                        WriteLine("DIAG:START");
+                    }
                     DateTime lastLineReceived = DateTime.UtcNow;
                     DateTime lastPingSent = DateTime.MinValue;
                     bool waitingForPingReply = false;
@@ -705,16 +826,24 @@ namespace YATSS
             switch (message.Kind)
             {
                 case LapProtocolMessageKind.Edge:
-                    if (message.Edge != null)
+                    if (_diagnosticsActive)
+                    {
+                        _log.Info("ignored EDGE while controller diagnostics are active");
+                    }
+                    else if (message.Edge != null)
                     {
                         HandleEdge(message.Edge);
                     }
                     break;
                 case LapProtocolMessageKind.Hello:
-                    if (message.Detail.StartsWith("HELLO:LAPS_REDUX:", StringComparison.OrdinalIgnoreCase))
+                    if (message.Detail.StartsWith("HELLO:YATSSMC:", StringComparison.OrdinalIgnoreCase))
                     {
                         WriteLine(GetSensorDebounceCommand());
                         WriteLine(GetTrackPowerCommand());
+                        if (_diagnosticsActive)
+                        {
+                            WriteLine("DIAG:START");
+                        }
                     }
 
                     _form.SetStatusMessage(
@@ -722,6 +851,21 @@ namespace YATSS
                             ? message.Detail
                             : FormatControllerRespondingStatus());
                     _log.Info(message.Detail);
+                    break;
+                case LapProtocolMessageKind.Diagnostic:
+                    if (message.Diagnostic != null)
+                    {
+                        DiagnosticReceived?.Invoke(message.Diagnostic);
+                        if (_diagnosticsActive &&
+                            message.Diagnostic is ControllerDiagnosticSession
+                            {
+                                State: "STOPPED",
+                                Reason: "TIMEOUT"
+                            })
+                        {
+                            WriteLine("DIAG:START");
+                        }
+                    }
                     break;
                 case LapProtocolMessageKind.Heartbeat:
                     if (CheckQualifyingExpired(message.ControllerTimestampMillis))
@@ -1556,6 +1700,7 @@ namespace YATSS
 
         public void Dispose()
         {
+            StopControllerDiagnostics();
             StopDemoLapStream();
             _stop.Cancel();
             CancelBetweenHeatsTimer();

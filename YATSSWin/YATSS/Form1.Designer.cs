@@ -138,6 +138,7 @@ namespace YATSS
             fileToolStripMenuItem = new ToolStripMenuItem();
             configureToolStripMenuItem = new ToolStripMenuItem();
             serialLogToolStripMenuItem = new ToolStripMenuItem();
+            controllerDiagnosticsToolStripMenuItem = new ToolStripMenuItem();
             resetToolStripMenuItem = new ToolStripMenuItem();
             editUsersToolStripMenuItem = new ToolStripMenuItem();
             exitToolStripMenuItem = new ToolStripMenuItem();
@@ -1373,7 +1374,7 @@ namespace YATSS
             //
             // fileToolStripMenuItem
             //
-            fileToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { configureToolStripMenuItem, serialLogToolStripMenuItem, resetToolStripMenuItem, editUsersToolStripMenuItem, exitToolStripMenuItem });
+            fileToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { configureToolStripMenuItem, serialLogToolStripMenuItem, controllerDiagnosticsToolStripMenuItem, resetToolStripMenuItem, editUsersToolStripMenuItem, exitToolStripMenuItem });
             fileToolStripMenuItem.Name = "fileToolStripMenuItem";
             fileToolStripMenuItem.Size = new Size(37, 20);
             fileToolStripMenuItem.Text = "File";
@@ -1391,6 +1392,13 @@ namespace YATSS
             serialLogToolStripMenuItem.Size = new Size(180, 22);
             serialLogToolStripMenuItem.Text = "Serial Log";
             serialLogToolStripMenuItem.Click += serialLogToolStripMenuItem_Click;
+            //
+            // controllerDiagnosticsToolStripMenuItem
+            //
+            controllerDiagnosticsToolStripMenuItem.Name = "controllerDiagnosticsToolStripMenuItem";
+            controllerDiagnosticsToolStripMenuItem.Size = new Size(180, 22);
+            controllerDiagnosticsToolStripMenuItem.Text = "Controller Diagnostics";
+            controllerDiagnosticsToolStripMenuItem.Click += controllerDiagnosticsToolStripMenuItem_Click;
             //
             // resetToolStripMenuItem
             //
@@ -1724,6 +1732,7 @@ namespace YATSS
         private ContextMenuStrip racerContextMenu;
         private ToolStripMenuItem configureToolStripMenuItem;
         private ToolStripMenuItem serialLogToolStripMenuItem;
+        private ToolStripMenuItem controllerDiagnosticsToolStripMenuItem;
         private ToolStripMenuItem modeToolStripMenuItem;
         private ToolStripMenuItem practiceToolStripMenuItem;
         private ToolStripMenuItem heatRaceToolStripMenuItem;
