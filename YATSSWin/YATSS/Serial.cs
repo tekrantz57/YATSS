@@ -1567,7 +1567,7 @@ namespace YATSS
             try
             {
                 string path = HeatRaceReportWriter.Write(report ?? _heatRace.CreateReport());
-                HeatRaceReportWriter.Open(path);
+                _form.ShowHeatRaceReport(path);
                 _log.Info($"heat race report written to {path}");
                 _form.SetStatusMessage($"Heat race report written: {path}");
             }

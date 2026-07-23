@@ -19,6 +19,13 @@
 - Compile `YATSSMC` for `arduino:esp32:nano_nora` in CI so firmware regressions
   are caught on each push.
 
+## Optional VS Code support
+
+- Add checked-in `.vscode` recommendations and tasks for building, testing, and
+  running the Windows app, plus compiling the controller firmware.
+- Document VS Code with C# Dev Kit as a lightweight development option while
+  retaining full Visual Studio for WinForms visual-designer work.
+
 ## Possible ESP32-C6 support
 
 - If ESP32-C6 support is adopted, separate the controller pin assignments into

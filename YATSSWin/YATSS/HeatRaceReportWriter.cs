@@ -7,11 +7,13 @@ namespace YATSS
 {
     internal static class HeatRaceReportWriter
     {
+        private const string ReportDirectoryName = "YATSS Race Reports";
+
         public static string Write(HeatRaceReport report)
         {
             string reportDirectory = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-                "Laps Race Reports");
+                ReportDirectoryName);
             Directory.CreateDirectory(reportDirectory);
 
             string fileName = $"HeatRace_{report.CreatedLocal:yyyyMMdd_HHmmss}.html";

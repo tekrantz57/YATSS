@@ -824,6 +824,15 @@ namespace YATSS
             RunOnUiThread(() => statusLabel.Text = message);
         }
 
+        public void ShowHeatRaceReport(string path)
+        {
+            RunOnUiThread(() =>
+            {
+                HeatRaceReportForm reportForm = new(path);
+                reportForm.Show(this);
+            });
+        }
+
         private void ResetLaneDisplayCore(int laneIndex, bool clearRacer)
         {
             if (clearRacer)

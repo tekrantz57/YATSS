@@ -93,7 +93,7 @@ the spoken countdown. During stoppage time, lap counts can be adjusted by lane.
 The app writes heat-race reports as HTML files under:
 
 ```text
-%USERPROFILE%\Documents\Laps Race Reports
+%USERPROFILE%\Documents\YATSS Race Reports
 ```
 
 ## Demo Mode
