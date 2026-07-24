@@ -12,6 +12,8 @@ namespace YATSS
         public double TrackLengthFeet { get; private set; }
         public int SensorDebounceMilliseconds { get; private set; }
         public int RawSensorLockoutMilliseconds { get; private set; }
+        public bool ExportRaceJson { get; private set; }
+        public bool ExportRaceCsv { get; private set; }
         public IReadOnlyList<LaneConfiguration> LaneConfigurations { get; private set; }
         private readonly TextBox[] _laneNameTextBoxes = new TextBox[LapProtocolParser.LaneCount];
         private readonly Button[] _laneColorButtons = new Button[LapProtocolParser.LaneCount];
@@ -28,6 +30,8 @@ namespace YATSS
             double trackLengthFeet,
             int sensorDebounceMilliseconds,
             int rawSensorLockoutMilliseconds,
+            bool exportRaceJson,
+            bool exportRaceCsv,
             IReadOnlyList<LaneConfiguration> laneConfigurations)
         {
             InitializeComponent();
@@ -39,11 +43,15 @@ namespace YATSS
             TrackLengthFeet = trackLengthFeet;
             SensorDebounceMilliseconds = sensorDebounceMilliseconds;
             RawSensorLockoutMilliseconds = rawSensorLockoutMilliseconds;
+            ExportRaceJson = exportRaceJson;
+            ExportRaceCsv = exportRaceCsv;
             LaneConfigurations = NormalizeLaneConfigurations(laneConfigurations);
             nudMinLapMilliseconds.Value = Math.Clamp(minLapMilliseconds, (int)nudMinLapMilliseconds.Minimum, (int)nudMinLapMilliseconds.Maximum);
             nudSensorDebounceMilliseconds.Value = Math.Clamp(sensorDebounceMilliseconds, (int)nudSensorDebounceMilliseconds.Minimum, (int)nudSensorDebounceMilliseconds.Maximum);
             nudRawSensorLockoutMilliseconds.Value = Math.Clamp(rawSensorLockoutMilliseconds, (int)nudRawSensorLockoutMilliseconds.Minimum, (int)nudRawSensorLockoutMilliseconds.Maximum);
             cbSoundOnTooFastLap.Checked = soundOnTooFastLap;
+            cbExportRaceJson.Checked = exportRaceJson;
+            cbExportRaceCsv.Checked = exportRaceCsv;
             nudActiveLaneCount.Value = Math.Clamp(activeLaneCount, (int)nudActiveLaneCount.Minimum, (int)nudActiveLaneCount.Maximum);
             nudTrackLengthFeet.Value = Math.Clamp(
                 (decimal)trackLengthFeet,
@@ -93,6 +101,8 @@ namespace YATSS
             TrackLengthFeet = (double)nudTrackLengthFeet.Value;
             SensorDebounceMilliseconds = (int)nudSensorDebounceMilliseconds.Value;
             RawSensorLockoutMilliseconds = (int)nudRawSensorLockoutMilliseconds.Value;
+            ExportRaceJson = cbExportRaceJson.Checked;
+            ExportRaceCsv = cbExportRaceCsv.Checked;
             LaneConfigurations = Enumerable.Range(0, LapProtocolParser.LaneCount)
                 .Select(lane => new LaneConfiguration(
                     GetLaneName(lane),

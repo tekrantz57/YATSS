@@ -411,7 +411,9 @@ namespace YATSS
                 return false;
             }
 
+            int previousCount = _race.GetLane(laneIndex).getCount();
             int count = _race.AdjustLapCount(laneIndex, delta);
+            _heatRace.RecordManualLapAdjustment(laneIndex, count - previousCount, count);
             Lane lane = _race.GetLane(laneIndex);
             string bestSeconds = lane.best_time == int.MaxValue ? string.Empty : FormatSeconds(lane.best_time);
             string medianSeconds = FormatOptionalSeconds(lane.getMedian());
@@ -633,9 +635,10 @@ namespace YATSS
                 }
 
                 PublishHeatRaceStatus("Running");
+                string remaining = YATSS.FormatClock(_heatRace.GetRemaining(controllerTimestamp));
                 _form.SetStatusMessage(resumePausedHeat
-                    ? $"Heat resumed. Time remaining {_heatRace.GetRemaining(controllerTimestamp):m\\:ss}"
-                    : $"Heat {_heatRace.HeatNumber} started. Time remaining {_heatRace.GetRemaining(controllerTimestamp):m\\:ss}");
+                    ? $"Heat resumed. Time remaining {remaining}"
+                    : $"Heat {_heatRace.HeatNumber} started. Time remaining {remaining}");
                 _log.Info(resumePausedHeat
                     ? "heat resumed"
                     : manualStart ? $"heat {_heatRace.HeatNumber} started manually" : $"heat {_heatRace.HeatNumber} started automatically");
@@ -868,6 +871,11 @@ namespace YATSS
                     }
                     break;
                 case LapProtocolMessageKind.Heartbeat:
+                    if (!isDemoLine)
+                    {
+                        WriteLine("KEEPALIVE");
+                    }
+
                     if (CheckQualifyingExpired(message.ControllerTimestampMillis))
                     {
                         break;
@@ -887,8 +895,15 @@ namespace YATSS
                     }
                     break;
                 case LapProtocolMessageKind.Error:
-                    _form.SetStatusMessage(message.Detail);
-                    _log.Info(message.Detail);
+                    if (message.Detail.StartsWith("ERR:WINDOWS_WATCHDOG:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        HandleControllerWatchdogTrip(message.ControllerTimestampMillis);
+                    }
+                    else
+                    {
+                        _form.SetStatusMessage(message.Detail);
+                        _log.Info(message.Detail);
+                    }
                     break;
                 case LapProtocolMessageKind.Ignored:
                     break;
@@ -904,7 +919,7 @@ namespace YATSS
             try
             {
                 Random random = new(Random.Shared.Next());
-                uint sequence = 0;
+                uint[] laneSequences = new uint[LapProtocolParser.LaneCount];
                 uint demoTimestamp = GetDemoControllerTimestamp();
                 uint nextHeartbeat = demoTimestamp + 3000;
                 int[] demoLanePaceMilliseconds = CreateDemoLanePaces(random);
@@ -991,7 +1006,7 @@ namespace YATSS
 
                         uint edgeTimestamp = nextLaneEdge[lane];
                         string frame = LapProtocolParser.EncodeFrame(
-                            $"EDGE:{lane}:{++sequence}:{edgeTimestamp}");
+                            $"EDGE:{lane}:{++laneSequences[lane]}:{edgeTimestamp}");
                         HandleDemoLine(frame);
                         nextLaneEdge[lane] = edgeTimestamp +
                             (uint)GetDemoLapIntervalMilliseconds(
@@ -1024,7 +1039,38 @@ namespace YATSS
                 _log.Info("DEMO: lap stream stopped");
                 _form.SetStatusMessage("Demo lap stream stopped");
                 _form.SetDemoLapStreamChecked(false);
+                if (IsPortOpen())
+                {
+                    WriteLine(GetSensorDebounceCommand());
+                    WriteLine(GetTrackPowerCommand());
+                }
             }
+        }
+
+        private void HandleControllerWatchdogTrip(uint? controllerTimestamp)
+        {
+            CancelStartCountdown();
+            _trackPowerEnabled = false;
+            uint timestamp = controllerTimestamp ?? GetCurrentControllerTimestamp();
+            string statusMessage;
+
+            if (_heatRace.State == HeatRaceState.Running && _heatRace.Pause(timestamp))
+            {
+                PublishHeatRaceStatus("Paused");
+                statusMessage = "Controller watchdog cut track power and paused the heat. Press Space to restart.";
+            }
+            else if (_qualifying.InterruptCurrent())
+            {
+                PrepareCurrentQualifier();
+                statusMessage = $"Controller watchdog interrupted {_qualifying.CurrentRacer}. Press Space to restart qualifying.";
+            }
+            else
+            {
+                statusMessage = "Controller watchdog cut track power. Press Space to restore practice power.";
+            }
+
+            _log.Warn(statusMessage);
+            _form.SetStatusMessage(statusMessage);
         }
 
         private void InitializeDemoControllerClockCore()
@@ -1279,7 +1325,6 @@ namespace YATSS
             {
                 _form.UpdateLaneDisplay(laneIndex, lane.getCount(), string.Empty, string.Empty, string.Empty);
                 _log.Info($"lane {laneIndex}: count {lane.getCount()}, {update.Detail}");
-                _form.SetStatusMessage($"Lane {laneIndex + 1}: lap counted");
                 return;
             }
 
@@ -1290,7 +1335,10 @@ namespace YATSS
             _form.UpdateLaneDisplay(laneIndex, lane.getCount(), lapSeconds, bestSeconds, medianSeconds);
 
             _log.Info($"lane {laneIndex}: lap {lapSeconds}s, count {lane.getCount()}, {update.Detail}");
-            _form.SetStatusMessage($"Lane {laneIndex + 1}: lap {lapSeconds}s");
+            if (update.Kind == LapUpdateKind.MissedFrame)
+            {
+                _form.SetStatusMessage($"Lane {laneIndex + 1}: {update.Detail}");
+            }
         }
 
         private uint GetControllerTimestamp()
@@ -1362,7 +1410,8 @@ namespace YATSS
             Lane lane = _race.GetLane(_qualifying.LaneIndex);
             int? bestLap = lane.best_time == int.MaxValue ? null : lane.best_time;
             string completedRacer = _qualifying.CurrentRacer;
-            if (!_qualifying.CompleteCurrent(bestLap))
+            LapRaceLaneSnapshot qualifyingSnapshot = _race.GetLaneSnapshots()[_qualifying.LaneIndex];
+            if (!_qualifying.CompleteCurrent(qualifyingSnapshot.Laps, controllerTimestamp.Value))
             {
                 return false;
             }
@@ -1545,7 +1594,7 @@ namespace YATSS
 
         private void RecordCurrentHeatResults()
         {
-            _heatRace.RecordHeatResults(_race.GetLapCounts(), _race.GetBestLapMilliseconds());
+            _heatRace.RecordHeatResults(_race.GetLaneSnapshots());
         }
 
         private void AnnouncePodium(HeatRaceReport report)
@@ -1566,15 +1615,25 @@ namespace YATSS
         {
             try
             {
-                string path = HeatRaceReportWriter.Write(report ?? _heatRace.CreateReport());
-                _form.ShowHeatRaceReport(path);
-                _log.Info($"heat race report written to {path}");
-                _form.SetStatusMessage($"Heat race report written: {path}");
+                RaceExportPaths paths = RaceArchiveWriter.Write(
+                    report ?? _heatRace.CreateReport(),
+                    exportOptions: new RaceExportOptions(_form.ExportRaceJson, _form.ExportRaceCsv));
+                _form.ShowHeatRaceReport(paths.Html);
+                string artifactDescription = paths switch
+                {
+                    { Json: not null, ResultsCsv: not null } => "HTML report, JSON archive, and CSV files",
+                    { Json: not null } => "HTML report and JSON archive",
+                    { ResultsCsv: not null } => "HTML report and CSV files",
+                    _ => "HTML report"
+                };
+                string? reportDirectory = Path.GetDirectoryName(paths.Html);
+                _log.Info($"heat race {artifactDescription} written to {reportDirectory}");
+                _form.SetStatusMessage($"Race {artifactDescription} written: {reportDirectory}");
             }
             catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is InvalidOperationException)
             {
-                _log.Error(ex, "heat race report failed");
-                _form.SetStatusMessage("Heat race report could not be written");
+                _log.Error(ex, "heat race artifact export failed");
+                _form.SetStatusMessage("Race report and enabled data exports could not be written");
             }
         }
 

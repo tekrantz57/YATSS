@@ -11,15 +11,23 @@ namespace YATSS
 
         public static string Write(HeatRaceReport report)
         {
-            string reportDirectory = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-                ReportDirectoryName);
+            string reportDirectory = GetReportDirectory();
             Directory.CreateDirectory(reportDirectory);
 
             string fileName = $"HeatRace_{report.CreatedLocal:yyyyMMdd_HHmmss}.html";
             string path = Path.Combine(reportDirectory, fileName);
-            File.WriteAllText(path, BuildHtml(report), new UTF8Encoding(false));
+            Write(report, path);
             return path;
+        }
+
+        internal static string GetReportDirectory() =>
+            Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                ReportDirectoryName);
+
+        internal static void Write(HeatRaceReport report, string path)
+        {
+            File.WriteAllText(path, BuildHtml(report), new UTF8Encoding(false));
         }
 
         public static void Open(string path)
@@ -68,6 +76,7 @@ namespace YATSS
             AppendFinishOrder(html, report);
             AppendFastLaps(html, report, fastestByLane);
             AppendHeatDetails(html, report);
+            AppendManualAdjustments(html, report);
             html.AppendLine("</body></html>");
             return html.ToString();
         }
@@ -116,14 +125,53 @@ namespace YATSS
             }
 
             html.AppendLine("<h2>Qualifying</h2>");
-            html.AppendLine("<table><thead><tr><th>Position</th><th>Racer</th><th>Best Lap</th></tr></thead><tbody>");
+            html.AppendLine("<table><thead><tr><th>Position</th><th>Racer</th><th>Lane</th><th>Session</th><th>Laps</th><th>Best Lap</th><th>Lap History</th></tr></thead><tbody>");
             for (int i = 0; i < report.QualifyingResults.Count; i++)
             {
                 QualifyingResult result = report.QualifyingResults[i];
+                string laneName = result.LaneIndex >= 0 && result.LaneIndex < report.LaneNames.Count
+                    ? report.LaneNames[result.LaneIndex]
+                    : string.Empty;
+                string laneStyle = GetLaneCellStyle(report, result.LaneIndex);
+                string lapHistory = result.Laps.Count == 0
+                    ? "No valid laps"
+                    : string.Join(", ", result.Laps.Select(lap => FormatLap(lap.LapMilliseconds)));
+                string session = result.ConfiguredDurationSeconds > 0
+                    ? $"{result.ElapsedMilliseconds / 1000.0:0.0}s / {result.ConfiguredDurationSeconds}s"
+                    : string.Empty;
                 html.AppendLine("<tr>");
                 html.AppendLine($"<td>{i + 1}</td>");
                 html.AppendLine($"<td>{WebUtility.HtmlEncode(result.RacerName)}</td>");
+                html.AppendLine($"<td style=\"{laneStyle}\">{WebUtility.HtmlEncode(laneName)}</td>");
+                html.AppendLine($"<td>{WebUtility.HtmlEncode(session)}</td>");
+                html.AppendLine($"<td>{result.Laps.Count}</td>");
                 html.AppendLine($"<td>{(result.BestLapMilliseconds.HasValue ? FormatLap(result.BestLapMilliseconds) : "No valid lap")}</td>");
+                html.AppendLine($"<td>{WebUtility.HtmlEncode(lapHistory)}</td>");
+                html.AppendLine("</tr>");
+            }
+
+            html.AppendLine("</tbody></table>");
+        }
+
+        private static void AppendManualAdjustments(StringBuilder html, HeatRaceReport report)
+        {
+            if (report.ManualAdjustments.Count == 0)
+            {
+                return;
+            }
+
+            html.AppendLine("<h2>Manual Lap Adjustments</h2>");
+            html.AppendLine("<table><thead><tr><th>Heat</th><th>Lane</th><th>Racer</th><th>Change</th><th>Resulting Total</th><th>Recorded</th></tr></thead><tbody>");
+            foreach (HeatRaceManualAdjustment adjustment in report.ManualAdjustments)
+            {
+                string change = adjustment.Delta > 0 ? $"+{adjustment.Delta}" : adjustment.Delta.ToString(CultureInfo.InvariantCulture);
+                html.AppendLine("<tr>");
+                html.AppendLine($"<td>{adjustment.HeatNumber}</td>");
+                html.AppendLine($"<td style=\"{GetLaneCellStyle(report, adjustment.LaneIndex)}\">{WebUtility.HtmlEncode(adjustment.LaneName)}</td>");
+                html.AppendLine($"<td>{WebUtility.HtmlEncode(adjustment.RacerName)}</td>");
+                html.AppendLine($"<td>{change}</td>");
+                html.AppendLine($"<td>{adjustment.ResultingTotalLaps}</td>");
+                html.AppendLine($"<td>{WebUtility.HtmlEncode(adjustment.RecordedAt.ToLocalTime().ToString("g", CultureInfo.CurrentCulture))}</td>");
                 html.AppendLine("</tr>");
             }
 

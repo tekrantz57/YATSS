@@ -7,10 +7,15 @@ using System.Threading.Tasks;
 
 namespace YATSS
 {
+    public sealed record LaneLapRecord(
+        int? LapMilliseconds,
+        bool FastestLapEligible,
+        uint TimestampMilliseconds);
+
     public  class Lane
     {
         int lane;
-        List<int> times;
+        List<LaneLapRecord> times;
         int carriedLapCount;
         int manualLapAdjustment;
         public int best_time { get; set; }
@@ -19,19 +24,19 @@ namespace YATSS
         {
             lane = l;
             best_time = Int32.MaxValue;
-            times = new List<int>();
+            times = new List<LaneLapRecord>();
         }
 
-        public void AddLap(int millis, bool eligibleForBest = true)
+        public void AddLap(int millis, bool eligibleForBest = true, uint timestampMilliseconds = 0)
         {
-            times.Add(millis);
+            times.Add(new LaneLapRecord(millis, eligibleForBest, timestampMilliseconds));
             if (eligibleForBest && millis < best_time)
                 best_time = millis;
         }
 
-        public void AddLapCountOnly()
+        public void AddLapCountOnly(uint timestampMilliseconds = 0)
         {
-            carriedLapCount++;
+            times.Add(new LaneLapRecord(null, false, timestampMilliseconds));
         }
 
         public int AdjustLapCount(int delta)
@@ -56,7 +61,10 @@ namespace YATSS
 
         public int getMedian()
         {
-            int[] temp = times.ToArray();
+            int[] temp = times
+                .Where(lap => lap.LapMilliseconds.HasValue)
+                .Select(lap => lap.LapMilliseconds!.Value)
+                .ToArray();
             Array.Sort(temp);
 
             int count = temp.Length;
@@ -77,5 +85,9 @@ namespace YATSS
                 return temp[count / 2];
             }
         }
+
+        public IReadOnlyList<LaneLapRecord> GetLapRecords() => times.ToArray();
+
+        public int ManualLapAdjustment => manualLapAdjustment;
     }
 }

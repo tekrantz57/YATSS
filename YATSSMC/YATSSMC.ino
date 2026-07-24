@@ -26,6 +26,7 @@ const byte QueueSize = 32;
 const byte QueueMask = QueueSize - 1;
 const unsigned long SerialBaud = 115200;
 const unsigned long HeartbeatIntervalMillis = 1000;
+const unsigned long WindowsKeepaliveTimeoutMillis = 5000;
 const unsigned long DiagnosticSessionTimeoutMillis = 5000;
 const unsigned long MaxDiagnosticRelayPulseMillis = 2000;
 #define DEFAULT_EDGE_DEBOUNCE_MILLIS 1800UL
@@ -53,6 +54,8 @@ volatile unsigned long totalDroppedEvents = 0;
 portMUX_TYPE queueMux = portMUX_INITIALIZER_UNLOCKED;
 volatile unsigned long edgeDebounceMillis = DEFAULT_EDGE_DEBOUNCE_MILLIS;
 unsigned long lastHeartbeatMillis = 0;
+unsigned long lastWindowsCommandMillis = 0;
+bool windowsWatchdogArmed = false;
 volatile bool diagnosticMode = false;
 volatile unsigned long diagnosticTransitionCounts[LaneCount] = { 0, 0, 0, 0, 0, 0, 0, 0 };
 volatile unsigned long diagnosticAcceptedEdgeCounts[LaneCount] = { 0, 0, 0, 0, 0, 0, 0, 0 };
@@ -128,14 +131,14 @@ void (*isrHandlers[LaneCount])() = {
 };
 
 void setup() {
-  Serial.begin(SerialBaud);
-  Serial.setTimeout(10);
-  delay(1000);
-
   for (byte lane = 0; lane < LaneCount; lane++) {
     digitalWrite(trackPowerCutPins[lane], TRACK_POWER_CUT_ACTIVE_LEVEL);
     pinMode(trackPowerCutPins[lane], OUTPUT);
   }
+
+  Serial.begin(SerialBaud);
+  Serial.setTimeout(10);
+  delay(1000);
 
   for (byte lane = 0; lane < LaneCount; lane++) {
     pinMode(sensorPins[lane], INPUT_PULLUP);
@@ -153,6 +156,7 @@ void loop() {
   publishDiagnosticSensorChanges();
   serviceDiagnosticRelayPulse();
   serviceDiagnosticSessionTimeout();
+  serviceWindowsWatchdog();
 }
 
 void publishQueuedEdges() {
@@ -210,6 +214,9 @@ void handleCommands() {
     sendFrame(String(F("ERR:BAD_CHECKSUM")));
     return;
   }
+
+  lastWindowsCommandMillis = millis();
+  windowsWatchdogArmed = true;
 
   if (command == "RESET") {
     sendFrame(String(F("HELLO:RESETTING")));
@@ -277,6 +284,8 @@ void handleCommands() {
     handleDiagnosticRelayPulse(command.substring(17));
   } else if (command == "PING") {
     sendFrame(String(F("HELLO:YATSSMC:2:8")));
+  } else if (command == "KEEPALIVE") {
+    return;
   } else if (command.length() > 0) {
     sendFrame(String(F("ERR:UNKNOWN_COMMAND:")) + command);
   }
@@ -469,6 +478,25 @@ void serviceDiagnosticSessionTimeout() {
   unsigned long now = millis();
   if (now - lastDiagnosticCommandMillis >= DiagnosticSessionTimeoutMillis) {
     stopDiagnosticSession("TIMEOUT");
+  }
+}
+
+void serviceWindowsWatchdog() {
+  if (!windowsWatchdogArmed) {
+    return;
+  }
+
+  unsigned long now = millis();
+  if (now - lastWindowsCommandMillis < WindowsKeepaliveTimeoutMillis) {
+    return;
+  }
+
+  bool powerWasEnabled = trackPowerEnabledMask != 0;
+  diagnosticRelayPulseActive = false;
+  setTrackPowerMask(0);
+  windowsWatchdogArmed = false;
+  if (powerWasEnabled) {
+    sendFrame(String(F("ERR:WINDOWS_WATCHDOG:")) + now);
   }
 }
 

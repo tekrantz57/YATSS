@@ -7,6 +7,7 @@ namespace YATSS
         int BetweenHeatsSeconds,
         string RaceName);
     internal sealed record QualifyingSetupSettings(int LaneIndex, int DurationSeconds);
+    internal sealed record RaceReportSettings(bool ExportJson, bool ExportCsv);
     internal sealed record AppSettings(
         int MinLapMilliseconds,
         bool SoundOnTooFastLap,
@@ -112,6 +113,33 @@ namespace YATSS
             command.Parameters.AddWithValue("$soundOnTooFastLap", settings.SoundOnTooFastLap);
             command.Parameters.AddWithValue("$speechVoiceName", settings.SpeechVoiceName.Trim());
             command.Parameters.AddWithValue("$activeLaneCount", settings.ActiveLaneCount);
+            command.ExecuteNonQuery();
+        }
+
+        public static RaceReportSettings LoadRaceReportSettings(RaceReportSettings defaults)
+        {
+            using SqliteCommand command = Connection.CreateCommand();
+            command.CommandText = @"
+                SELECT export_json, export_csv
+                FROM race_report_settings
+                WHERE id = 1";
+            using SqliteDataReader reader = command.ExecuteReader();
+            return reader.Read()
+                ? new RaceReportSettings(reader.GetBoolean(0), reader.GetBoolean(1))
+                : defaults;
+        }
+
+        public static void SaveRaceReportSettings(RaceReportSettings settings)
+        {
+            using SqliteCommand command = Connection.CreateCommand();
+            command.CommandText = @"
+                INSERT INTO race_report_settings (id, export_json, export_csv)
+                VALUES (1, $exportJson, $exportCsv)
+                ON CONFLICT(id) DO UPDATE SET
+                    export_json = excluded.export_json,
+                    export_csv = excluded.export_csv";
+            command.Parameters.AddWithValue("$exportJson", settings.ExportJson);
+            command.Parameters.AddWithValue("$exportCsv", settings.ExportCsv);
             command.ExecuteNonQuery();
         }
 
@@ -407,6 +435,12 @@ namespace YATSS
                     lane_index INTEGER PRIMARY KEY CHECK (lane_index BETWEEN 0 AND 7),
                     display_name TEXT NOT NULL,
                     color_argb INTEGER NOT NULL
+                )");
+            ExecuteNonQuery(@"
+                CREATE TABLE IF NOT EXISTS race_report_settings (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    export_json INTEGER NOT NULL,
+                    export_csv INTEGER NOT NULL
                 )");
             ExecuteNonQuery(@"
                 CREATE TABLE IF NOT EXISTS heat_race_identity (

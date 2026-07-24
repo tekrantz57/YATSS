@@ -27,6 +27,13 @@ namespace YATSS
         int MissedFrames,
         string Detail);
 
+    public sealed record LapRaceLaneSnapshot(
+        int LaneIndex,
+        int TotalLapCount,
+        int ManualLapAdjustment,
+        int? BestLapMilliseconds,
+        IReadOnlyList<LaneLapRecord> Laps);
+
     public sealed class LapRace
     {
         private sealed class LaneRuntime
@@ -183,7 +190,10 @@ namespace YATSS
                     {
                         if (firstLapMilliseconds.HasValue)
                         {
-                            lane.Stats.AddLap(firstLapMilliseconds.Value, eligibleForBest: false);
+                            lane.Stats.AddLap(
+                                firstLapMilliseconds.Value,
+                                eligibleForBest: false,
+                                edge.TimestampMillis);
                             return new LapUpdate(
                                 LapUpdateKind.Counted,
                                 edge.LaneIndex,
@@ -192,7 +202,7 @@ namespace YATSS
                                 "first edge counted with heat-start timing; excluded from fastest lap");
                         }
 
-                        lane.Stats.AddLapCountOnly();
+                        lane.Stats.AddLapCountOnly(edge.TimestampMillis);
                         return new LapUpdate(LapUpdateKind.Counted, edge.LaneIndex, null, lane.MissedFrames, "first edge counted without lap timing");
                     }
 
@@ -213,7 +223,7 @@ namespace YATSS
 
                 int lapMilliseconds = (int)elapsed;
                 lane.LastAcceptedTimestamp = edge.TimestampMillis;
-                lane.Stats.AddLap(lapMilliseconds, fastestLapEligible);
+                lane.Stats.AddLap(lapMilliseconds, fastestLapEligible, edge.TimestampMillis);
 
                 return new LapUpdate(
                     missedFrames > 0 ? LapUpdateKind.MissedFrame : LapUpdateKind.Counted,
@@ -238,6 +248,21 @@ namespace YATSS
             {
                 return _lanes
                     .Select(lane => lane.Stats.best_time == int.MaxValue ? (int?)null : lane.Stats.best_time)
+                    .ToArray();
+            }
+        }
+
+        public IReadOnlyList<LapRaceLaneSnapshot> GetLaneSnapshots()
+        {
+            lock (_gate)
+            {
+                return _lanes
+                    .Select((lane, laneIndex) => new LapRaceLaneSnapshot(
+                        laneIndex,
+                        lane.Stats.getCount(),
+                        lane.Stats.ManualLapAdjustment,
+                        lane.Stats.best_time == int.MaxValue ? null : lane.Stats.best_time,
+                        lane.Stats.GetLapRecords()))
                     .ToArray();
             }
         }

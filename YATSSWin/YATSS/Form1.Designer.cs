@@ -1360,10 +1360,10 @@ namespace YATSS
             // titleLabel
             //
             titleLabel.AutoSize = true;
-            titleLabel.BackColor = Color.Blue;
+            titleLabel.BackColor = Color.FromArgb(123, 175, 212);
             titleLabel.Dock = DockStyle.Fill;
             titleLabel.Font = new Font("Segoe Script", 20F, FontStyle.Regular, GraphicsUnit.Point);
-            titleLabel.ForeColor = Color.White;
+            titleLabel.ForeColor = Color.FromArgb(19, 41, 75);
             titleLabel.Image = (Image)resources.GetObject("titleLabel.Image");
             titleLabel.Location = new Point(3, 411);
             titleLabel.Name = "titleLabel";

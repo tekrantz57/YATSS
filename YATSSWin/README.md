@@ -79,7 +79,7 @@ available.
 Heat race setup supports:
 
 - Race name
-- Heat length in minutes
+- Heat length from 1 minute through 24 hours
 - Time between heats
 - Active lane count from 2 through 8
 - More racers than lanes
@@ -90,11 +90,30 @@ Space starts a heat, pauses a running heat for a track call, and resumes a
 paused heat. Track power is cut immediately on track calls and restored after
 the spoken countdown. During stoppage time, lap counts can be adjusted by lane.
 
-The app writes heat-race reports as HTML files under:
+After a race, the app always writes a human-readable HTML report under:
 
 ```text
 %USERPROFILE%\Documents\YATSS Race Reports
 ```
+
+The `Race Reports` section in Configure independently enables a versioned JSON
+archive and normalized CSV exports. Both optional exports default to enabled.
+The JSON archive preserves race settings, lane metadata, qualifying sessions,
+accepted heat laps, results, standings, and manual lap adjustments. Numeric lap
+times remain in milliseconds so another program can format them without losing
+precision. CSV exports are written alongside each archive:
+
+- `_results.csv` contains one row per racer/lane/heat result.
+- `_laps.csv` contains one row per accepted heat lap.
+- `_qualifying.csv` contains every accepted qualifying lap and session details.
+- `_adjustments.csv` contains the manual lap-correction audit trail.
+
+All files for a race share the same timestamped `HeatRace_yyyyMMdd_HHmmss`
+basename. Raw and rejected controller traffic remains in the serial log rather
+than the race archive.
+
+See [Race reports and data exports](../docs/RACE_DATA_EXPORT.md) for the full
+schema, CSV column definitions, timing semantics, and schema lifecycle policy.
 
 ## Demo Mode
 
@@ -132,6 +151,12 @@ the controller when connected.
 The app sends track-power commands over serial. In practice mode it enables the
 configured active lanes. In heat-race mode it enables only occupied lanes and
 cuts power during intermissions and track calls.
+
+Windows acknowledges each controller heartbeat. If acknowledgements stop for
+five seconds while a lane is powered, the controller cuts every lane. A
+watchdog report pauses a running heat or returns the current qualifier to Ready
+for another attempt; routine communication resumption does not itself restore
+track power.
 
 See `..\docs\SERIAL_PROTOCOL.md` for the serial protocol and
 `..\docs\TROUBLESHOOTING.md` for Visual Studio and upload recovery notes.

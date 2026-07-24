@@ -47,6 +47,9 @@ namespace YATSS
             nudActiveLaneCount = new NumericUpDown();
             trackLengthLabel = new Label();
             nudTrackLengthFeet = new NumericUpDown();
+            groupBoxRaceReports = new GroupBox();
+            cbExportRaceJson = new CheckBox();
+            cbExportRaceCsv = new CheckBox();
             groupBoxLaneColors = new GroupBox();
             groupBox3.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)nudSensorDebounceMilliseconds).BeginInit();
@@ -57,6 +60,7 @@ namespace YATSS
             groupBoxTrack.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)nudActiveLaneCount).BeginInit();
             ((System.ComponentModel.ISupportInitialize)nudTrackLengthFeet).BeginInit();
+            groupBoxRaceReports.SuspendLayout();
             groupBoxLaneColors.SuspendLayout();
             SuspendLayout();
             //
@@ -233,31 +237,62 @@ namespace YATSS
             nudTrackLengthFeet.TabIndex = 3;
             nudTrackLengthFeet.Value = new decimal(new int[] { 155, 0, 0, 0 });
             //
+            // groupBoxRaceReports
+            //
+            groupBoxRaceReports.Controls.Add(cbExportRaceJson);
+            groupBoxRaceReports.Controls.Add(cbExportRaceCsv);
+            groupBoxRaceReports.Location = new Point(12, 362);
+            groupBoxRaceReports.Name = "groupBoxRaceReports";
+            groupBoxRaceReports.Size = new Size(399, 53);
+            groupBoxRaceReports.TabIndex = 4;
+            groupBoxRaceReports.TabStop = false;
+            groupBoxRaceReports.Text = "Race Reports";
+            //
+            // cbExportRaceJson
+            //
+            cbExportRaceJson.AutoSize = true;
+            cbExportRaceJson.Location = new Point(11, 23);
+            cbExportRaceJson.Name = "cbExportRaceJson";
+            cbExportRaceJson.Size = new Size(153, 19);
+            cbExportRaceJson.TabIndex = 0;
+            cbExportRaceJson.Text = "Write JSON race archive";
+            cbExportRaceJson.UseVisualStyleBackColor = true;
+            //
+            // cbExportRaceCsv
+            //
+            cbExportRaceCsv.AutoSize = true;
+            cbExportRaceCsv.Location = new Point(205, 23);
+            cbExportRaceCsv.Name = "cbExportRaceCsv";
+            cbExportRaceCsv.Size = new Size(137, 19);
+            cbExportRaceCsv.TabIndex = 1;
+            cbExportRaceCsv.Text = "Write CSV data files";
+            cbExportRaceCsv.UseVisualStyleBackColor = true;
+            //
             // groupBoxLaneColors
             //
-            groupBoxLaneColors.Location = new Point(12, 362);
+            groupBoxLaneColors.Location = new Point(12, 428);
             groupBoxLaneColors.Name = "groupBoxLaneColors";
             groupBoxLaneColors.Size = new Size(399, 174);
-            groupBoxLaneColors.TabIndex = 4;
+            groupBoxLaneColors.TabIndex = 5;
             groupBoxLaneColors.TabStop = false;
             groupBoxLaneColors.Text = "Lane Names and Colors";
             //
             // bOK
             //
-            bOK.Location = new Point(255, 554);
+            bOK.Location = new Point(255, 620);
             bOK.Name = "bOK";
             bOK.Size = new Size(75, 23);
-            bOK.TabIndex = 5;
+            bOK.TabIndex = 6;
             bOK.Text = "OK";
             bOK.UseVisualStyleBackColor = true;
             bOK.Click += bOK_Click;
             //
             // bCancel
             //
-            bCancel.Location = new Point(336, 554);
+            bCancel.Location = new Point(336, 620);
             bCancel.Name = "bCancel";
             bCancel.Size = new Size(75, 23);
-            bCancel.TabIndex = 6;
+            bCancel.TabIndex = 7;
             bCancel.Text = "Cancel";
             bCancel.UseVisualStyleBackColor = true;
             bCancel.Click += bCancel_Click;
@@ -268,13 +303,14 @@ namespace YATSS
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             CancelButton = bCancel;
-            ClientSize = new Size(428, 593);
+            ClientSize = new Size(428, 659);
             Controls.Add(bCancel);
             Controls.Add(bOK);
             Controls.Add(groupBox5);
             Controls.Add(groupBox4);
             Controls.Add(groupBox3);
             Controls.Add(groupBoxTrack);
+            Controls.Add(groupBoxRaceReports);
             Controls.Add(groupBoxLaneColors);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
@@ -293,6 +329,8 @@ namespace YATSS
             groupBoxTrack.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)nudActiveLaneCount).EndInit();
             ((System.ComponentModel.ISupportInitialize)nudTrackLengthFeet).EndInit();
+            groupBoxRaceReports.ResumeLayout(false);
+            groupBoxRaceReports.PerformLayout();
             groupBoxLaneColors.ResumeLayout(false);
             ResumeLayout(false);
         }
@@ -318,6 +356,9 @@ namespace YATSS
         private NumericUpDown nudActiveLaneCount;
         private Label trackLengthLabel;
         private NumericUpDown nudTrackLengthFeet;
+        private GroupBox groupBoxRaceReports;
+        private CheckBox cbExportRaceJson;
+        private CheckBox cbExportRaceCsv;
         private GroupBox groupBoxLaneColors;
     }
 }

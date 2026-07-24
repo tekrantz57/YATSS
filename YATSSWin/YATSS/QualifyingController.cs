@@ -8,10 +8,21 @@ namespace YATSS
         Complete
     }
 
+    public sealed record QualifyingLapRecord(
+        int LapNumber,
+        int LapMilliseconds,
+        int SessionElapsedMilliseconds);
+
     public sealed record QualifyingResult(
         string RacerName,
         int OriginalOrder,
-        int? BestLapMilliseconds);
+        int? BestLapMilliseconds)
+    {
+        public int LaneIndex { get; init; } = -1;
+        public int ConfiguredDurationSeconds { get; init; }
+        public int ElapsedMilliseconds { get; init; }
+        public IReadOnlyList<QualifyingLapRecord> Laps { get; init; } = Array.Empty<QualifyingLapRecord>();
+    }
 
     public sealed class QualifyingController
     {
@@ -83,6 +94,54 @@ namespace YATSS
 
         public bool CompleteCurrent(int? bestLapMilliseconds)
         {
+            return CompleteCurrentCore(
+                bestLapMilliseconds,
+                Array.Empty<QualifyingLapRecord>(),
+                _durationMilliseconds);
+        }
+
+        public bool InterruptCurrent()
+        {
+            lock (_gate)
+            {
+                if (State != QualifyingState.Running)
+                {
+                    return false;
+                }
+
+                State = QualifyingState.Ready;
+                return true;
+            }
+        }
+
+        public bool CompleteCurrent(IReadOnlyList<LaneLapRecord> laps, uint controllerTimestamp)
+        {
+            lock (_gate)
+            {
+                IReadOnlyList<QualifyingLapRecord> qualifyingLaps = laps
+                    .Where(lap => lap.LapMilliseconds.HasValue)
+                    .Select((lap, index) => new QualifyingLapRecord(
+                        index + 1,
+                        lap.LapMilliseconds!.Value,
+                        (int)Math.Min(
+                            unchecked(lap.TimestampMilliseconds - _startedAt),
+                            int.MaxValue)))
+                    .ToArray();
+                int? bestLap = qualifyingLaps.Count == 0
+                    ? null
+                    : qualifyingLaps.Min(lap => lap.LapMilliseconds);
+                int elapsedMilliseconds = (int)Math.Min(
+                    unchecked(controllerTimestamp - _startedAt),
+                    int.MaxValue);
+                return CompleteCurrentCore(bestLap, qualifyingLaps, elapsedMilliseconds);
+            }
+        }
+
+        private bool CompleteCurrentCore(
+            int? bestLapMilliseconds,
+            IReadOnlyList<QualifyingLapRecord> laps,
+            int elapsedMilliseconds)
+        {
             lock (_gate)
             {
                 if (State != QualifyingState.Running)
@@ -93,7 +152,13 @@ namespace YATSS
                 _results.Add(new QualifyingResult(
                     _racers[_currentIndex],
                     _currentIndex,
-                    bestLapMilliseconds));
+                    bestLapMilliseconds)
+                {
+                    LaneIndex = LaneIndex,
+                    ConfiguredDurationSeconds = DurationSeconds,
+                    ElapsedMilliseconds = Math.Max(0, elapsedMilliseconds),
+                    Laps = laps.ToArray()
+                });
                 _currentIndex++;
                 State = _currentIndex < _racers.Count
                     ? QualifyingState.Ready

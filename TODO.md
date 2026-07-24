@@ -2,15 +2,14 @@
 
 ## Track-power fail-safe behavior
 
-- Define the intended track-power state during controller boot, reset, Windows
-  application failure, and serial disconnection.
-- Configure the track-power GPIOs before serial initialization and other
-  startup delays if power must remain cut throughout boot. With the current
-  normally-closed relay wiring, track power may be present until the GPIOs are
-  configured.
-- Consider a controller watchdog that cuts track power when communication with
-  the Windows application is lost, if that matches the desired operating
-  policy.
+- Implemented policy: controller boot/reset and loss of Windows communication
+  cut every lane. Track-power GPIOs are configured before serial startup, and a
+  five-second command watchdog cuts power if Windows keepalives stop.
+- Bench-test watchdog trips, reconnects, controller resets, and relay polarity
+  with the production controller and relay hardware.
+- Decide whether a normally open safety contactor or independent hardwired
+  interlock is required. The current normally closed relay wiring cannot remain
+  power-off when the controller or relay-coil supply itself loses power.
 
 ## Continuous integration
 
@@ -21,6 +20,8 @@
 
 ## Optional VS Code support
 
+- Verified July 24, 2026: the Windows solution builds successfully in VS Code
+  with the C# Dev Kit extension on the new development computer.
 - Add checked-in `.vscode` recommendations and tasks for building, testing, and
   running the Windows app, plus compiling the controller firmware.
 - Document VS Code with C# Dev Kit as a lightweight development option while

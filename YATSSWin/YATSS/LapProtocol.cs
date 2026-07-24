@@ -98,7 +98,12 @@ namespace YATSS
 
             if (command == "ERR")
             {
-                return new LapProtocolMessage(LapProtocolMessageKind.Error, null, null, rawLine, body);
+                uint? timestamp = parts.Length == 3 &&
+                    string.Equals(parts[1], "WINDOWS_WATCHDOG", StringComparison.OrdinalIgnoreCase) &&
+                    uint.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out uint watchdogTimestamp)
+                        ? watchdogTimestamp
+                        : null;
+                return new LapProtocolMessage(LapProtocolMessageKind.Error, null, timestamp, rawLine, body);
             }
 
             if (command == "DIAG")

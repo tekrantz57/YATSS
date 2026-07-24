@@ -186,7 +186,7 @@ namespace YATSS
             heatSettings.Controls.Add(heatLengthLabel);
 
             _heatLengthMinutes.Minimum = 1;
-            _heatLengthMinutes.Maximum = 60;
+            _heatLengthMinutes.Maximum = HeatRaceController.MaximumHeatLengthMinutes;
             _heatLengthMinutes.Value = 3;
             _heatLengthMinutes.Width = 64;
             heatSettings.Controls.Add(_heatLengthMinutes);

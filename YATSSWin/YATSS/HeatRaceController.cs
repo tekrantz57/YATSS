@@ -40,6 +40,27 @@ namespace YATSS
         IReadOnlyList<int> HeatLaps,
         IReadOnlyList<int?> BestLapByLaneMilliseconds);
 
+    public sealed record HeatRaceLapRecord(
+        int HeatNumber,
+        int LaneIndex,
+        string LaneName,
+        string RacerName,
+        int LapNumberInHeat,
+        int RacerTotalLapNumber,
+        int? LapMilliseconds,
+        long RaceElapsedMilliseconds,
+        bool FastestLapEligible);
+
+    public sealed record HeatRaceManualAdjustment(
+        int HeatNumber,
+        int LaneIndex,
+        string LaneName,
+        string RacerName,
+        int Delta,
+        int ResultingTotalLaps,
+        long RaceElapsedMilliseconds,
+        DateTimeOffset RecordedAt);
+
     public sealed record HeatRaceReport(
         DateTime CreatedLocal,
         string RaceName,
@@ -52,10 +73,14 @@ namespace YATSS
         IReadOnlyList<QualifyingResult> QualifyingResults,
         IReadOnlyList<HeatRaceRacerReport> Racers,
         IReadOnlyList<HeatRaceLaneResult> LaneResults,
+        IReadOnlyList<HeatRaceLapRecord> Laps,
+        IReadOnlyList<HeatRaceManualAdjustment> ManualAdjustments,
         string Notes);
 
     public sealed class HeatRaceController
     {
+        public const int MaximumHeatLengthMinutes = 24 * 60;
+
         private static readonly LaneConfiguration[] DefaultLaneConfigurations =
             LaneConfiguration.CreateDefaults().ToArray();
         private static readonly string[] LaneNameValues =
@@ -74,6 +99,8 @@ namespace YATSS
             .ToArray();
         private readonly Queue<RacerEntry> _waitingRacers = new();
         private readonly List<HeatRaceLaneResult> _laneResults = new();
+        private readonly List<HeatRaceLapRecord> _laps = new();
+        private readonly List<HeatRaceManualAdjustment> _manualAdjustments = new();
         private readonly object _gate = new();
         private long _heatLengthMilliseconds;
         private int _betweenHeatsSeconds;
@@ -152,7 +179,10 @@ namespace YATSS
                 _raceName = raceName.Trim();
                 _trackLengthFeet = Math.Clamp(trackLengthFeet, 1.0, 10000.0);
                 _qualifyingResults = qualifyingResults?.ToArray() ?? Array.Empty<QualifyingResult>();
-                _heatLengthMilliseconds = Math.Max(1, heatLengthMinutes) * 60000L;
+                _heatLengthMilliseconds = Math.Clamp(
+                    heatLengthMinutes,
+                    1,
+                    MaximumHeatLengthMinutes) * 60000L;
                 _betweenHeatsSeconds = Math.Clamp(betweenHeatsSeconds, 0, 300);
                 _activeMillisecondsBeforeRun = 0;
                 _raceTimestampBase = 0;
@@ -160,6 +190,8 @@ namespace YATSS
                 HeatNumber = 1;
                 _isFirstHeat = true;
                 _laneResults.Clear();
+                _laps.Clear();
+                _manualAdjustments.Clear();
                 SetInitialRacers(racers);
                 Array.Fill(_laneSeenThisHeat, false);
                 State = HeatRaceState.Ready;
@@ -176,6 +208,8 @@ namespace YATSS
                 _hasRunStartedAt = false;
                 HeatNumber = 0;
                 _laneResults.Clear();
+                _laps.Clear();
+                _manualAdjustments.Clear();
                 ClearRacers();
                 _waitingRacers.Clear();
                 Array.Fill(_laneSeenThisHeat, false);
@@ -371,31 +405,101 @@ namespace YATSS
         {
             lock (_gate)
             {
-                if (HeatNumber <= 0)
+                RecordHeatResultsCore(laneLapCounts, laneBestLapMilliseconds, null);
+            }
+        }
+
+        public void RecordHeatResults(IReadOnlyList<LapRaceLaneSnapshot> laneSnapshots)
+        {
+            lock (_gate)
+            {
+                RecordHeatResultsCore(
+                    laneSnapshots.Select(snapshot => snapshot.TotalLapCount).ToArray(),
+                    laneSnapshots.Select(snapshot => snapshot.BestLapMilliseconds).ToArray(),
+                    laneSnapshots);
+            }
+        }
+
+        public void RecordManualLapAdjustment(int laneIndex, int delta, int resultingTotalLaps)
+        {
+            lock (_gate)
+            {
+                if (HeatNumber <= 0 || laneIndex < 0 || laneIndex >= _laneRacers.Length || delta == 0)
                 {
                     return;
                 }
 
-                _laneResults.RemoveAll(result => result.HeatNumber == HeatNumber);
-                for (int i = 0; i < _laneRacers.Length; i++)
+                string racerName = _laneRacers[laneIndex].Name;
+                if (string.IsNullOrWhiteSpace(racerName))
                 {
-                    string racerName = _laneRacers[i].Name;
-                    if (string.IsNullOrWhiteSpace(racerName))
-                    {
-                        continue;
-                    }
+                    return;
+                }
 
-                    int totalLaps = i < laneLapCounts.Count ? Math.Max(0, laneLapCounts[i]) : 0;
-                    int heatLaps = Math.Max(0, totalLaps - _laneRacers[i].LapCount);
-                    int? bestLap = i < laneBestLapMilliseconds.Count ? laneBestLapMilliseconds[i] : null;
-                    _laneResults.Add(new HeatRaceLaneResult(
+                _manualAdjustments.Add(new HeatRaceManualAdjustment(
+                    HeatNumber,
+                    laneIndex,
+                    _laneNames[laneIndex],
+                    racerName,
+                    delta,
+                    Math.Max(0, resultingTotalLaps),
+                    State == HeatRaceState.Complete
+                        ? _raceTimestampBase
+                        : _raceTimestampBase + _activeMillisecondsBeforeRun,
+                    DateTimeOffset.Now));
+            }
+        }
+
+        private void RecordHeatResultsCore(
+            IReadOnlyList<int> laneLapCounts,
+            IReadOnlyList<int?> laneBestLapMilliseconds,
+            IReadOnlyList<LapRaceLaneSnapshot>? laneSnapshots)
+        {
+            if (HeatNumber <= 0)
+            {
+                return;
+            }
+
+            _laneResults.RemoveAll(result => result.HeatNumber == HeatNumber);
+            _laps.RemoveAll(lap => lap.HeatNumber == HeatNumber);
+            for (int i = 0; i < _laneRacers.Length; i++)
+            {
+                string racerName = _laneRacers[i].Name;
+                if (string.IsNullOrWhiteSpace(racerName))
+                {
+                    continue;
+                }
+
+                int totalLaps = i < laneLapCounts.Count ? Math.Max(0, laneLapCounts[i]) : 0;
+                int heatLaps = Math.Max(0, totalLaps - _laneRacers[i].LapCount);
+                int? bestLap = i < laneBestLapMilliseconds.Count ? laneBestLapMilliseconds[i] : null;
+                _laneResults.Add(new HeatRaceLaneResult(
+                    HeatNumber,
+                    i,
+                    _laneNames[i],
+                    racerName,
+                    heatLaps,
+                    totalLaps,
+                    bestLap));
+
+                LapRaceLaneSnapshot? snapshot = laneSnapshots?.FirstOrDefault(item => item.LaneIndex == i);
+                if (snapshot == null)
+                {
+                    continue;
+                }
+
+                for (int lapIndex = 0; lapIndex < snapshot.Laps.Count; lapIndex++)
+                {
+                    LaneLapRecord lap = snapshot.Laps[lapIndex];
+                    _laps.Add(new HeatRaceLapRecord(
                         HeatNumber,
                         i,
                         _laneNames[i],
                         racerName,
-                        heatLaps,
-                        totalLaps,
-                        bestLap));
+                        lapIndex + 1,
+                        _laneRacers[i].LapCount + lapIndex + 1,
+                        lap.LapMilliseconds,
+                        lap.TimestampMilliseconds,
+                        lap.FastestLapEligible));
                 }
             }
         }
@@ -454,6 +558,12 @@ namespace YATSS
                         .OrderBy(result => result.HeatNumber)
                         .ThenBy(result => result.LaneIndex)
                         .ToArray(),
+                    _laps
+                        .OrderBy(lap => lap.HeatNumber)
+                        .ThenBy(lap => lap.LaneIndex)
+                        .ThenBy(lap => lap.LapNumberInHeat)
+                        .ToArray(),
+                    _manualAdjustments.ToArray(),
                     "Manual lap adjustments made during stopped time are reflected in totals.");
             }
         }
@@ -465,9 +575,12 @@ namespace YATSS
                 return _activeMillisecondsBeforeRun;
             }
 
-            uint runElapsed = controllerTimestamp >= _runStartedAt
-                ? controllerTimestamp - _runStartedAt
-                : 0;
+            uint runElapsed = unchecked(controllerTimestamp - _runStartedAt);
+            if (runElapsed > int.MaxValue)
+            {
+                runElapsed = 0;
+            }
+
             return _activeMillisecondsBeforeRun + runElapsed;
         }
 

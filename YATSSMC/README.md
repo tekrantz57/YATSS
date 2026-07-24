@@ -56,6 +56,19 @@ Current logical lane to track-power output map:
 `TRACK_POWER_CUT_ACTIVE_LEVEL` is currently `HIGH`. That means the sketch writes
 the active level to cut power and the opposite level to restore power.
 
+The sketch drives every track-power GPIO to the cut level before serial startup
+and its one-second boot delay. After Windows connects, valid commands arm a
+five-second watchdog. Windows acknowledges each controller heartbeat; if those
+acknowledgements stop while track power is enabled, the controller cuts all
+lanes and requires another explicit track-power command before power can be
+restored.
+
+This watchdog protects against loss of Windows communication while the
+controller remains powered. It cannot keep the track off if controller or
+relay-coil power is lost: the normally closed contacts documented below return
+to their unpowered state, which supplies track power. Use normally open safety
+contacts or an independent interlock where power loss must fail to off.
+
 ### Relay Driver Notes
 
 The bench-tested relay driver cell used:

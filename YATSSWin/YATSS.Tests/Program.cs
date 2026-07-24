@@ -1,4 +1,5 @@
 using YATSS;
+using System.Text.Json;
 
 static void Assert(bool condition, string message)
 {
@@ -22,6 +23,11 @@ Assert(boot.Kind == LapProtocolMessageKind.Hello, "HELLO should parse");
 LapProtocolMessage heartbeat = LapProtocolParser.Parse(LapProtocolParser.EncodeFrame("HEARTBEAT:12345"));
 Assert(heartbeat.Kind == LapProtocolMessageKind.Heartbeat, "HEARTBEAT should parse");
 Assert(heartbeat.ControllerTimestampMillis == 12345, "HEARTBEAT timestamp should parse");
+
+LapProtocolMessage watchdog = LapProtocolParser.Parse(
+    LapProtocolParser.EncodeFrame("ERR:WINDOWS_WATCHDOG:23456"));
+Assert(watchdog.Kind == LapProtocolMessageKind.Error, "watchdog trip should parse as a controller error");
+Assert(watchdog.ControllerTimestampMillis == 23456, "watchdog trip should retain its controller timestamp");
 
 LapProtocolMessage diagnosticStatus = LapProtocolParser.Parse(
     LapProtocolParser.EncodeFrame("DIAG:STATUS:05:A3:1800:2:12345"));
@@ -156,6 +162,11 @@ Assert(timedFirstLap.LapMilliseconds == 1000, "successive heat first lap should 
 Assert(timedFirstLapRace.GetLane(0).getCount() == 5, "timed first lap should increment carried count");
 Assert(timedFirstLapRace.GetLane(0).getMedian() == 1000, "timed first lap should contribute to median");
 Assert(timedFirstLapRace.GetLane(0).best_time == int.MaxValue, "timed first lap should be excluded from fastest lap");
+LapRaceLaneSnapshot timedFirstSnapshot = timedFirstLapRace.GetLaneSnapshots()[0];
+Assert(timedFirstSnapshot.Laps.Count == 1, "lane snapshots should retain each counted crossing");
+Assert(timedFirstSnapshot.Laps[0].LapMilliseconds == 1000, "lane snapshots should retain lap duration");
+Assert(!timedFirstSnapshot.Laps[0].FastestLapEligible, "lane snapshots should retain fastest-lap eligibility");
+Assert(timedFirstSnapshot.Laps[0].TimestampMilliseconds == 61000, "lane snapshots should retain crossing time");
 
 LapRace wrapRace = new(new LapRaceOptions(1000, 600000, 155.0));
 Assert(wrapRace.Process(new LapEdge(0, uint.MaxValue, uint.MaxValue - 500)).Kind == LapUpdateKind.Started, "wrap race should start");
@@ -229,6 +240,31 @@ staleTimestampHeat.Configure(1, 0, new[] { "A", "B" });
 Assert(staleTimestampHeat.Start(10000), "stale timestamp heat should start");
 Assert(!staleTimestampHeat.IsExpired(9000), "older timestamp should not expire a running heat");
 Assert(staleTimestampHeat.GetRemaining(9000) == TimeSpan.FromMinutes(1), "older timestamp should not consume heat time");
+
+HeatRaceController rolloverHeat = new();
+rolloverHeat.Configure(1, 0, new[] { "A", "B" });
+Assert(rolloverHeat.Start(uint.MaxValue - 499), "rollover heat should start near the controller timestamp boundary");
+Assert(
+    rolloverHeat.GetRemaining(500) == TimeSpan.FromMilliseconds(59000),
+    "heat timing should continue across controller timestamp rollover");
+
+HeatRaceController enduroHeat = new();
+enduroHeat.Configure(HeatRaceController.MaximumHeatLengthMinutes, 0, new[] { "A", "B" });
+Assert(enduroHeat.HeatLengthMinutes == 1440, "heat race should allow a 24-hour heat");
+Assert(enduroHeat.Start(1000), "24-hour heat should start");
+Assert(!enduroHeat.IsExpired(86400999), "24-hour heat should not expire one millisecond early");
+Assert(enduroHeat.IsExpired(86401000), "24-hour heat should expire at exactly 24 hours");
+
+HeatRaceController overlongHeat = new();
+overlongHeat.Configure(HeatRaceController.MaximumHeatLengthMinutes + 1, 0, new[] { "A", "B" });
+Assert(overlongHeat.HeatLengthMinutes == 1440, "heat length should clamp to the supported 24-hour maximum");
+
+System.Reflection.MethodInfo formatClock = typeof(HeatRaceController).Assembly
+    .GetType("YATSS.YATSS")!
+    .GetMethod("FormatClock", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+Assert(
+    (string)formatClock.Invoke(null, new object[] { TimeSpan.FromHours(24) })! == "24:00:00",
+    "24-hour heat should display 24:00:00 instead of wrapping to zero hours");
 
 HeatRaceController fourLaneHeat = new();
 fourLaneHeat.Configure(1, 0, new[] { "A", "B", "C", "D", "E" }, activeLaneCount: 4);
@@ -311,15 +347,33 @@ reportHeat.Configure(
     trackLengthFeet: 123.5,
     qualifyingResults: new[]
     {
-        new QualifyingResult("Ada", 0, 1900),
+        new QualifyingResult("Ada", 0, 1900)
+        {
+            LaneIndex = 2,
+            ConfiguredDurationSeconds = 30,
+            ElapsedMilliseconds = 30000,
+            Laps = new[]
+            {
+                new QualifyingLapRecord(1, 2100, 4500),
+                new QualifyingLapRecord(2, 1900, 6400)
+            }
+        },
         new QualifyingResult("Grace", 1, 2100)
     });
 Assert(reportHeat.Start(0), "report heat should start");
 Assert(reportHeat.Pause(1000), "paused heat should allow lap adjustment");
 Assert(reportHeat.CanAdjustLapCounts, "paused heat should allow manual lap adjustment");
-reportHeat.RecordHeatResults(
-    new[] { 5, 4, 0, 0, 0, 0, 0, 0 },
-    new int?[] { 2100, 2200, null, null, null, null, null, null });
+LapRace reportLapRace = new();
+Assert(reportLapRace.Process(new LapEdge(0, 1, 0)).Kind == LapUpdateKind.Started, "report lane 1 should establish baseline");
+Assert(reportLapRace.Process(new LapEdge(0, 2, 2100)).Kind == LapUpdateKind.Counted, "report lane 1 first lap should count");
+Assert(reportLapRace.Process(new LapEdge(0, 3, 4200)).Kind == LapUpdateKind.Counted, "report lane 1 second lap should count");
+Assert(reportLapRace.Process(new LapEdge(1, 1, 0)).Kind == LapUpdateKind.Started, "report lane 2 should establish baseline");
+Assert(reportLapRace.Process(new LapEdge(1, 2, 2200)).Kind == LapUpdateKind.Counted, "report lane 2 lap should count");
+Assert(reportLapRace.AdjustLapCount(0, 3) == 5, "report lane 1 manual laps should be applied");
+Assert(reportLapRace.AdjustLapCount(1, 3) == 4, "report lane 2 manual laps should be applied");
+reportHeat.RecordManualLapAdjustment(0, 3, 5);
+reportHeat.RecordManualLapAdjustment(1, 3, 4);
+reportHeat.RecordHeatResults(reportLapRace.GetLaneSnapshots());
 HeatRaceReport report = reportHeat.CreateReport();
 Assert(report.RaceName == "Thursday Night", "report should include race name");
 Assert(report.TrackLengthFeet == 123.5, "report should include configured track length");
@@ -331,6 +385,86 @@ Assert(report.Racers[0].RacerName == "Ada", "report should sort finish order by 
 Assert(report.Racers[0].TotalLaps == 5, "report should include total laps");
 Assert(report.Racers[0].HeatLaps[0] == 5, "report should include heat laps");
 Assert(report.Racers[0].BestLapByLaneMilliseconds[0] == 2100, "report should include fast lap by lane");
+Assert(report.Laps.Count == 3, "report should retain every accepted heat lap");
+Assert(report.Laps[0].RaceElapsedMilliseconds == 2100, "report lap should retain race elapsed time");
+Assert(report.ManualAdjustments.Count == 2, "report should retain each manual lap adjustment");
+Assert(report.QualifyingResults[0].Laps.Count == 2, "report should retain qualifying lap history");
+
+string exportDirectory = Path.Combine(Path.GetTempPath(), "YATSS.Tests", Guid.NewGuid().ToString("N"));
+try
+{
+    RaceExportPaths exports = RaceArchiveWriter.Write(report, exportDirectory);
+    Assert(File.Exists(exports.Html), "HTML race report should be exported");
+    Assert(File.Exists(exports.Json), "JSON race archive should be exported");
+    Assert(File.Exists(exports.ResultsCsv), "results CSV should be exported");
+    Assert(File.Exists(exports.LapsCsv), "laps CSV should be exported");
+    Assert(File.Exists(exports.QualifyingCsv), "qualifying CSV should be exported");
+    Assert(File.Exists(exports.AdjustmentsCsv), "adjustments CSV should be exported");
+
+    using JsonDocument archive = JsonDocument.Parse(File.ReadAllText(exports.Json!));
+    Assert(
+        archive.RootElement.GetProperty("schemaVersion").GetInt32() == RaceArchiveWriter.CurrentSchemaVersion,
+        "JSON archive should declare its schema version");
+    Assert(
+        archive.RootElement.GetProperty("race").GetProperty("laps").GetArrayLength() == 3,
+        "JSON archive should contain accepted heat laps");
+    Assert(
+        File.ReadAllText(exports.QualifyingCsv!).Contains("1900", StringComparison.Ordinal),
+        "qualifying CSV should contain individual qualifying laps");
+    Assert(
+        File.ReadAllText(exports.AdjustmentsCsv!).Contains(",3,5,", StringComparison.Ordinal),
+        "adjustments CSV should contain manual correction details");
+
+    string htmlOnlyDirectory = Path.Combine(exportDirectory, "html-only");
+    RaceExportPaths htmlOnly = RaceArchiveWriter.Write(
+        report,
+        htmlOnlyDirectory,
+        new RaceExportOptions(ExportJson: false, ExportCsv: false));
+    Assert(File.Exists(htmlOnly.Html), "HTML report should always be exported");
+    Assert(htmlOnly.Json == null, "disabled JSON export should not return a path");
+    Assert(htmlOnly.ResultsCsv == null && htmlOnly.LapsCsv == null &&
+        htmlOnly.QualifyingCsv == null && htmlOnly.AdjustmentsCsv == null,
+        "disabled CSV export should not return paths");
+    Assert(Directory.GetFiles(htmlOnlyDirectory).Length == 1, "HTML-only export should create only one file");
+
+    string jsonOnlyDirectory = Path.Combine(exportDirectory, "json-only");
+    RaceExportPaths jsonOnly = RaceArchiveWriter.Write(
+        report,
+        jsonOnlyDirectory,
+        new RaceExportOptions(ExportJson: true, ExportCsv: false));
+    Assert(File.Exists(jsonOnly.Html) && File.Exists(jsonOnly.Json), "JSON-only option should create HTML and JSON");
+    Assert(jsonOnly.ResultsCsv == null && Directory.GetFiles(jsonOnlyDirectory).Length == 2,
+        "JSON-only option should not create CSV files");
+
+    string csvOnlyDirectory = Path.Combine(exportDirectory, "csv-only");
+    RaceExportPaths csvOnly = RaceArchiveWriter.Write(
+        report,
+        csvOnlyDirectory,
+        new RaceExportOptions(ExportJson: false, ExportCsv: true));
+    Assert(csvOnly.Json == null, "CSV-only option should not create JSON");
+    Assert(File.Exists(csvOnly.Html) && File.Exists(csvOnly.ResultsCsv) &&
+        File.Exists(csvOnly.LapsCsv) && File.Exists(csvOnly.QualifyingCsv) &&
+        File.Exists(csvOnly.AdjustmentsCsv),
+        "CSV-only option should create HTML and all CSV tables");
+    Assert(Directory.GetFiles(csvOnlyDirectory).Length == 5, "CSV-only option should create five files");
+
+    Assert(
+        File.ReadAllText(exports.ResultsCsv!).Contains("Thursday Night", StringComparison.Ordinal),
+        "results CSV should include the race name");
+    Assert(
+        File.ReadAllText(exports.Html).Contains("Manual Lap Adjustments", StringComparison.Ordinal),
+        "HTML report should display the manual adjustment audit");
+    Assert(
+        File.ReadAllText(exports.Html).Contains("2.100, 1.900", StringComparison.Ordinal),
+        "HTML report should display complete qualifying lap history");
+}
+finally
+{
+    if (Directory.Exists(exportDirectory))
+    {
+        Directory.Delete(exportDirectory, recursive: true);
+    }
+}
 
 QualifyingController qualifying = new();
 qualifying.Configure(new[] { "Slow", "No Lap", "Fast" }, laneIndex: 2, durationSeconds: 30);
@@ -339,7 +473,17 @@ Assert(qualifying.CurrentRacer == "Slow", "qualifying should preserve initial ra
 Assert(qualifying.Start(1000), "first qualifier should start");
 Assert(!qualifying.IsExpired(30999), "qualifier should not expire early");
 Assert(qualifying.IsExpired(31000), "qualifier should expire at configured duration");
-Assert(qualifying.CompleteCurrent(2500), "first qualifier should complete");
+Assert(qualifying.InterruptCurrent(), "running qualifier should allow a watchdog interruption");
+Assert(qualifying.State == QualifyingState.Ready, "interrupted qualifier should be ready to rerun");
+Assert(qualifying.CurrentRacer == "Slow", "interrupted qualifier should not advance the racer");
+Assert(qualifying.Start(1000), "interrupted qualifier should restart");
+Assert(qualifying.CompleteCurrent(
+    new[]
+    {
+        new LaneLapRecord(2700, true, 5000),
+        new LaneLapRecord(2500, true, 7500)
+    },
+    31000), "first qualifier should complete with lap history");
 Assert(qualifying.CurrentRacer == "No Lap", "qualifying should advance to next racer");
 Assert(qualifying.Start(40000), "second qualifier should start");
 Assert(qualifying.CompleteCurrent(null), "no-lap qualifier should complete");
@@ -350,6 +494,13 @@ IReadOnlyList<QualifyingResult> rankedQualifiers = qualifying.GetRankedResults()
 Assert(rankedQualifiers[0].RacerName == "Fast", "fastest qualifier should rank first");
 Assert(rankedQualifiers[1].RacerName == "Slow", "slower valid qualifier should rank next");
 Assert(rankedQualifiers[2].RacerName == "No Lap", "qualifier without a lap should rank last");
+QualifyingResult slowQualifier = rankedQualifiers.Single(result => result.RacerName == "Slow");
+Assert(slowQualifier.LaneIndex == 2, "qualifying result should retain its lane");
+Assert(slowQualifier.ConfiguredDurationSeconds == 30, "qualifying result should retain configured duration");
+Assert(slowQualifier.ElapsedMilliseconds == 30000, "qualifying result should retain actual session duration");
+Assert(slowQualifier.Laps.Count == 2, "qualifying result should retain every accepted lap");
+Assert(slowQualifier.Laps[1].SessionElapsedMilliseconds == 6500, "qualifying lap should retain session elapsed time");
+Assert(slowQualifier.BestLapMilliseconds == 2500, "qualifying best lap should be derived from retained laps");
 IReadOnlyList<string> seededQualifiers = QualifyingController.BuildSeededRacers(
     new[]
     {

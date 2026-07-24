@@ -36,6 +36,8 @@ namespace YATSS
         public double TrackLengthFeet { get; private set; } = LapRaceOptions.Default.TrackLengthFeet;
         public int SensorDebounceMilliseconds { get; private set; } = AppDatabase.DefaultSensorDebounceMilliseconds;
         public int RawSensorLockoutMilliseconds { get; private set; } = AppDatabase.DefaultRawSensorLockoutMilliseconds;
+        public bool ExportRaceJson { get; private set; } = true;
+        public bool ExportRaceCsv { get; private set; } = true;
         public IReadOnlyList<LaneConfiguration> LaneConfigurations { get; private set; } =
             LaneConfiguration.CreateDefaults();
 
@@ -56,6 +58,10 @@ namespace YATSS
             SoundOnTooFastLap = settings.SoundOnTooFastLap;
             SpeechVoiceName = settings.SpeechVoiceName;
             ActiveLaneCount = Math.Clamp(settings.ActiveLaneCount, 2, LapProtocolParser.LaneCount);
+            RaceReportSettings reportSettings = AppDatabase.LoadRaceReportSettings(
+                new RaceReportSettings(ExportJson: true, ExportCsv: true));
+            ExportRaceJson = reportSettings.ExportJson;
+            ExportRaceCsv = reportSettings.ExportCsv;
             TrackLengthFeet = Math.Clamp(
                 AppDatabase.LoadTrackLengthFeet(TrackLengthFeet),
                 1.0,
@@ -601,7 +607,7 @@ namespace YATSS
                 BackColor = Color.FromArgb(32, 32, 32),
                 ColumnCount = 3,
                 Dock = DockStyle.Fill,
-                Margin = Padding.Empty,
+                Margin = new Padding(3),
                 Padding = new Padding(8, 0, 8, 0),
                 RowCount = 1
             };
@@ -919,16 +925,20 @@ namespace YATSS
             SetFontSizeToFit(label, Math.Min(label.Height * 0.42f, maximumBoardValueSize));
         }
 
-        private static string FormatClock(TimeSpan time)
+        internal static string FormatClock(TimeSpan time)
         {
             if (time < TimeSpan.Zero)
             {
                 time = TimeSpan.Zero;
             }
 
-            return time.TotalHours >= 1
-                ? time.ToString(@"h\:mm\:ss", System.Globalization.CultureInfo.InvariantCulture)
-                : time.ToString(@"m\:ss", System.Globalization.CultureInfo.InvariantCulture);
+            long totalSeconds = (long)time.TotalSeconds;
+            long hours = totalSeconds / 3600;
+            int minutes = (int)(totalSeconds % 3600) / 60;
+            int seconds = (int)(totalSeconds % 60);
+            return hours >= 1
+                ? FormattableString.Invariant($"{hours}:{minutes:00}:{seconds:00}")
+                : FormattableString.Invariant($"{minutes}:{seconds:00}");
         }
 
         private static string FormatLapCount(int lapCount) =>
@@ -994,6 +1004,8 @@ namespace YATSS
                 TrackLengthFeet,
                 SensorDebounceMilliseconds,
                 RawSensorLockoutMilliseconds,
+                ExportRaceJson,
+                ExportRaceCsv,
                 LaneConfigurations);
             if (config.ShowDialog(this) == DialogResult.OK)
             {
@@ -1004,6 +1016,8 @@ namespace YATSS
                 TrackLengthFeet = config.TrackLengthFeet;
                 SensorDebounceMilliseconds = config.SensorDebounceMilliseconds;
                 RawSensorLockoutMilliseconds = config.RawSensorLockoutMilliseconds;
+                ExportRaceJson = config.ExportRaceJson;
+                ExportRaceCsv = config.ExportRaceCsv;
                 LaneConfigurations = config.LaneConfigurations;
                 ApplyLaneColors();
                 ApplyActiveLaneLayout();
@@ -1012,6 +1026,9 @@ namespace YATSS
                     SoundOnTooFastLap,
                     SpeechVoiceName,
                     ActiveLaneCount));
+                AppDatabase.SaveRaceReportSettings(new RaceReportSettings(
+                    ExportRaceJson,
+                    ExportRaceCsv));
                 AppDatabase.SaveLaneConfigurations(LaneConfigurations);
                 AppDatabase.SaveTrackLengthFeet(TrackLengthFeet);
                 AppDatabase.SaveSensorDebounceMilliseconds(SensorDebounceMilliseconds);
