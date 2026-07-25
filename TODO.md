@@ -16,7 +16,8 @@
 - Add a GitHub Actions workflow that builds the Windows solution and runs the
   protocol and lap-race tests.
 - Compile `YATSSMC` for `arduino:esp32:nano_nora` in CI so firmware regressions
-  are caught on each push.
+  are caught on each push. Also compile the ESP32-C6 profile with
+  `esp32:esp32:esp32c6`.
 
 ## Optional VS Code support
 
@@ -27,8 +28,10 @@
 - Document VS Code with C# Dev Kit as a lightweight development option while
   retaining full Visual Studio for WinForms visual-designer work.
 
-## Possible ESP32-C6 support
+## ESP32-C6 controller validation
 
-- If ESP32-C6 support is adopted, separate the controller pin assignments into
-  board-specific configurations. The current Nano ESP32 sensor and track-power
-  pin arrays are already centralized and do not need restructuring beforehand.
+- Implemented compile-time pin profiles for ESP32-C6 and Arduino Nano ESP32.
+- Bench-test all eight sensor inputs and all eight track-power outputs on the
+  ESP32-C6-DevKitC-1 before committing to the production wiring harness.
+- Verify controller diagnostics, watchdog cuts, reset behavior, and sustained
+  serial traffic through the CP2102N `UART` connector.

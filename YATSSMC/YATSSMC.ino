@@ -35,8 +35,13 @@ const unsigned long MaxDiagnosticRelayPulseMillis = 2000;
 
 static_assert((QueueSize & QueueMask) == 0, "QueueSize must be a power of two");
 
+#if defined(CONFIG_IDF_TARGET_ESP32C6)
+const byte sensorPins[LaneCount] = { 0, 1, 2, 3, 6, 7, 10, 11 };
+const byte trackPowerCutPins[LaneCount] = { 23, 22, 21, 20, 19, 18, 13, 12 };
+#else
 const byte sensorPins[LaneCount] = { D2, A4, D4, D5, D6, D7, D8, D9 };
 const byte trackPowerCutPins[LaneCount] = { D10, D11, D12, D13, A0, A1, A2, A3 };
+#endif
 
 struct EdgeEvent {
   byte lane;

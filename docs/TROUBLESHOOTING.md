@@ -1,5 +1,22 @@
 # Troubleshooting
 
+## ESP32-C6 UART Port Does Not Appear
+
+The ESP32-C6-DevKitC-1 uses a Silicon Labs CP2102N bridge on the USB-C socket
+labeled `UART`. Install the Silicon Labs CP210x VCP driver, reconnect the board,
+and select the resulting `Silicon Labs CP210x USB to UART Bridge` port in
+Arduino IDE. It first appeared as `COM14` on the development computer, but
+Windows may assign a different number later or on another computer.
+
+Use `ESP32C6 Dev Module` as the Arduino IDE board. Do not use the board's socket
+labeled `USB` with the YATSS C6 pin profile because GPIO12 and GPIO13 are
+assigned to track-power outputs.
+
+If an upload invokes `dfu-util` and reports `No DFU capable USB device
+available`, Arduino IDE is still targeting `Arduino Nano ESP32`. Reselect
+`ESP32C6 Dev Module` and the CP210x COM port. The C6 UART upload uses Espressif's
+`esptool`, not `dfu-util`.
+
 ## Visual Studio Opens A Moved Project As Miscellaneous Files
 
 After renaming project folders, Visual Studio may try to reopen a project from

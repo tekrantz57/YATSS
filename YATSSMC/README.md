@@ -1,19 +1,50 @@
 # YATSS Microcontroller Sketch
 
-This Arduino Nano ESP32 sketch is the microcontroller side of the lap timer. It
-does not count laps. It timestamps debounced sensor edges and sends them to the
-Windows app over serial.
+This ESP32 sketch is the microcontroller side of the lap timer. It does not
+count laps. It timestamps debounced sensor edges and sends them to the Windows
+app over serial.
 
 ## Board
 
-The sketch is currently intended for the Arduino Nano ESP32:
+The sketch supports both controller boards without requiring source edits. The
+selected Arduino board determines the pin map at compile time.
+
+### ESP32-C6-DevKitC-1 V1.2
+
+The production candidate is an Espressif ESP32-C6-DevKitC-1 V1.2 with an
+ESP32-C6-WROOM-1-N8 module. In Arduino IDE:
+
+1. Install `esp32 by Espressif Systems` in Boards Manager.
+2. Select `ESP32C6 Dev Module` as the board.
+3. Select the Silicon Labs CP210x port. On the development computer it was
+   `COM14` when first installed.
+4. Connect and upload through the USB-C socket labeled `UART`.
+5. Set `Flash Size` to `8MB (64Mb)`.
+6. Set `Partition Scheme` to `8M with spiffs (3MB APP/1.5MB SPIFFS)`.
+7. Leave `USB CDC On Boot` disabled.
+
+The equivalent CLI build is:
+
+```powershell
+arduino-cli compile --fqbn esp32:esp32:esp32c6 YATSSMC
+```
+
+The C6 profile preserves GPIO16/GPIO17 for the CP2102N USB-to-UART bridge and
+avoids the board's boot-strapping pins and GPIO8 RGB LED. GPIO12 and GPIO13 are
+repurposed from native USB for lanes 8 and 7 track-power outputs. Do not connect
+the USB-C socket labeled `USB` while using this mapping; use only the socket
+labeled `UART`.
+
+### Arduino Nano ESP32
+
+The original Arduino Nano ESP32 profile remains supported:
 
 ```powershell
 arduino-cli compile --fqbn arduino:esp32:nano_nora YATSSMC
 ```
 
-To upload from Arduino IDE, select the Arduino Nano ESP32 board and upload the
-`YATSSMC` sketch folder. If `dfu-util` fails after a successful compile, see
+To upload from Arduino IDE, select `Arduino Nano ESP32` and upload the `YATSSMC`
+sketch folder. If `dfu-util` fails after a successful compile, see
 `..\docs\TROUBLESHOOTING.md`.
 
 ## Sensor Inputs
@@ -21,7 +52,20 @@ To upload from Arduino IDE, select the Arduino Nano ESP32 board and upload the
 Sensor inputs use `INPUT_PULLUP` and `FALLING` interrupts. The expected signal
 is normally high and pulled low when the dead-strip/opto circuit trips.
 
-Current logical lane to physical input map:
+ESP32-C6 logical lane to physical input map:
+
+| Windows lane | Protocol lane | ESP32-C6 GPIO |
+| --- | ---: | ---: |
+| 1 | 0 | 0 |
+| 2 | 1 | 1 |
+| 3 | 2 | 2 |
+| 4 | 3 | 3 |
+| 5 | 4 | 6 |
+| 6 | 5 | 7 |
+| 7 | 6 | 10 |
+| 8 | 7 | 11 |
+
+Arduino Nano ESP32 logical lane to physical input map:
 
 | Windows lane | Protocol lane | ESP32 pin |
 | --- | ---: | --- |
@@ -40,7 +84,20 @@ still sees it as protocol lane `1`.
 
 ## Track Power Outputs
 
-Current logical lane to track-power output map:
+ESP32-C6 logical lane to track-power output map:
+
+| Windows lane | ESP32-C6 GPIO |
+| --- | ---: |
+| 1 | 23 |
+| 2 | 22 |
+| 3 | 21 |
+| 4 | 20 |
+| 5 | 19 |
+| 6 | 18 |
+| 7 | 13 |
+| 8 | 12 |
+
+Arduino Nano ESP32 logical lane to track-power output map:
 
 | Windows lane | ESP32 pin |
 | --- | --- |

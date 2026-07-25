@@ -3,7 +3,8 @@
 YATSS is a slot-car lap timing and scoring system with two parts:
 
 - `YATSSWin` is the Windows WinForms race-control app.
-- `YATSSMC` is the Arduino Nano ESP32 sensor and track-power controller sketch.
+- `YATSSMC` is the ESP32-C6-DevKitC-1 and Arduino Nano ESP32 sensor and
+  track-power controller sketch.
 
 The microcontroller timestamps debounced sensor edges and reports them over
 serial. The Windows app owns lap counting, heat-race flow, qualifying, reports,
@@ -18,7 +19,7 @@ YATSSWin/
   YATSS.Tests/    lightweight test runner
 
 YATSSMC/
-  YATSSMC.ino     Arduino Nano ESP32 sketch
+  YATSSMC.ino     ESP32-C6 and Arduino Nano ESP32 sketch
 
 docs/
   SERIAL_PROTOCOL.md
