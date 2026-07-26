@@ -100,9 +100,11 @@ Heat race setup supports:
 
 Space starts a heat, pauses a running heat for a track call, and resumes a
 paused heat. Track power is cut immediately on track calls and restored after
-the spoken countdown. The main status band shows a gold Space-bar prompt before
-the first heat and while paused, then changes to a countdown state after Space
-is pressed. During stoppage time, lap counts can be adjusted by lane.
+the three-second countdown. Voice announcements are enabled by default and can
+be disabled in Configure; the same countdown runs silently when they are off.
+The main status band shows a gold Space-bar prompt before the first heat and
+while paused, then changes to a countdown state after Space is pressed. During
+stoppage time, lap counts can be adjusted by lane.
 
 After a race, the app always writes a human-readable HTML report under:
 
@@ -152,7 +154,8 @@ Current persisted settings include:
 - Track length in feet
 - Active lane count
 - Lane names and colors
-- SAPI speech voice
+- Optional SAPI voice announcements and selected voice; when announcements are
+  disabled, race starts retain a silent three-second countdown without loading SAPI
 - Sound on too-fast laps
 - Controller sensor debounce
 - Windows raw edge lockout

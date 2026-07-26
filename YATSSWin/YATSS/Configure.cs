@@ -6,6 +6,7 @@ namespace YATSS
     {
         public int MinLapMilliseconds { get; private set; }
         public bool SoundOnTooFastLap { get; private set; }
+        public bool VoiceAnnouncementsEnabled { get; private set; }
         public string SelectedPort { get; private set; } = "";
         public string SelectedSpeechVoice { get; private set; } = "";
         public int ActiveLaneCount { get; private set; }
@@ -25,6 +26,7 @@ namespace YATSS
             int minLapMilliseconds,
             bool soundOnTooFastLap,
             string selectedPort,
+            bool voiceAnnouncementsEnabled,
             string selectedSpeechVoice,
             int activeLaneCount,
             double trackLengthFeet,
@@ -37,6 +39,7 @@ namespace YATSS
             InitializeComponent();
             MinLapMilliseconds = minLapMilliseconds;
             SoundOnTooFastLap = soundOnTooFastLap;
+            VoiceAnnouncementsEnabled = voiceAnnouncementsEnabled;
             SelectedPort = selectedPort;
             SelectedSpeechVoice = selectedSpeechVoice;
             ActiveLaneCount = activeLaneCount;
@@ -50,6 +53,7 @@ namespace YATSS
             nudSensorDebounceMilliseconds.Value = Math.Clamp(sensorDebounceMilliseconds, (int)nudSensorDebounceMilliseconds.Minimum, (int)nudSensorDebounceMilliseconds.Maximum);
             nudRawSensorLockoutMilliseconds.Value = Math.Clamp(rawSensorLockoutMilliseconds, (int)nudRawSensorLockoutMilliseconds.Minimum, (int)nudRawSensorLockoutMilliseconds.Maximum);
             cbSoundOnTooFastLap.Checked = soundOnTooFastLap;
+            cbVoiceAnnouncements.Checked = voiceAnnouncementsEnabled;
             cbExportRaceJson.Checked = exportRaceJson;
             cbExportRaceCsv.Checked = exportRaceCsv;
             nudActiveLaneCount.Value = Math.Clamp(activeLaneCount, (int)nudActiveLaneCount.Minimum, (int)nudActiveLaneCount.Maximum);
@@ -60,7 +64,29 @@ namespace YATSS
             BuildLaneColorEditor();
             nudActiveLaneCount.ValueChanged += (_, _) => ApplyActiveLaneEditors();
             LoadSerialPorts(selectedPort);
-            LoadSpeechVoices(selectedSpeechVoice);
+            InitializeSpeechVoices(selectedSpeechVoice);
+            cbVoiceAnnouncements.CheckedChanged += (_, _) => ApplyVoiceAnnouncementState();
+        }
+
+        private void InitializeSpeechVoices(string selectedSpeechVoice)
+        {
+            cbSpeechVoice.Items.Clear();
+            if (!string.IsNullOrWhiteSpace(selectedSpeechVoice))
+            {
+                cbSpeechVoice.Items.Add(selectedSpeechVoice);
+            }
+
+            cbSpeechVoice.Text = selectedSpeechVoice;
+            ApplyVoiceAnnouncementState();
+        }
+
+        private void ApplyVoiceAnnouncementState()
+        {
+            cbSpeechVoice.Enabled = cbVoiceAnnouncements.Checked;
+            if (cbVoiceAnnouncements.Checked && cbSpeechVoice.Items.Count <= 1)
+            {
+                LoadSpeechVoices(cbSpeechVoice.Text);
+            }
         }
 
         private void LoadSerialPorts(string selectedPort)
@@ -95,6 +121,7 @@ namespace YATSS
         {
             MinLapMilliseconds = (int)nudMinLapMilliseconds.Value;
             SoundOnTooFastLap = cbSoundOnTooFastLap.Checked;
+            VoiceAnnouncementsEnabled = cbVoiceAnnouncements.Checked;
             SelectedPort = cbSerialPort.Text.Trim();
             SelectedSpeechVoice = cbSpeechVoice.Text.Trim();
             ActiveLaneCount = (int)nudActiveLaneCount.Value;

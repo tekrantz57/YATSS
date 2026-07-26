@@ -11,12 +11,13 @@ namespace YATSS
     internal sealed record AppSettings(
         int MinLapMilliseconds,
         bool SoundOnTooFastLap,
+        bool VoiceAnnouncementsEnabled,
         string SpeechVoiceName,
         int ActiveLaneCount);
 
     internal static class AppDatabase
     {
-        private const int CurrentSchemaVersion = 1;
+        private const int CurrentSchemaVersion = 2;
         public const int DefaultSensorDebounceMilliseconds = 1800;
         public const int DefaultRawSensorLockoutMilliseconds = 0;
         private static readonly object SyncRoot = new();
@@ -133,7 +134,8 @@ namespace YATSS
         {
             using SqliteCommand command = Connection.CreateCommand();
             command.CommandText = @"
-                SELECT min_lap_milliseconds, sound_on_too_fast_lap, speech_voice_name, active_lane_count
+                SELECT min_lap_milliseconds, sound_on_too_fast_lap,
+                       voice_announcements_enabled, speech_voice_name, active_lane_count
                 FROM app_settings
                 WHERE id = 1";
 
@@ -146,8 +148,9 @@ namespace YATSS
             return new AppSettings(
                 reader.IsDBNull(0) ? defaults.MinLapMilliseconds : reader.GetInt32(0),
                 reader.IsDBNull(1) ? defaults.SoundOnTooFastLap : reader.GetBoolean(1),
-                reader.IsDBNull(2) ? defaults.SpeechVoiceName : reader.GetString(2),
-                reader.IsDBNull(3) ? defaults.ActiveLaneCount : reader.GetInt32(3));
+                reader.IsDBNull(2) ? defaults.VoiceAnnouncementsEnabled : reader.GetBoolean(2),
+                reader.IsDBNull(3) ? defaults.SpeechVoiceName : reader.GetString(3),
+                reader.IsDBNull(4) ? defaults.ActiveLaneCount : reader.GetInt32(4));
         }
 
         public static void SaveAppSettings(AppSettings settings)
@@ -155,15 +158,19 @@ namespace YATSS
             using SqliteCommand command = Connection.CreateCommand();
             command.CommandText = @"
                 INSERT INTO app_settings (
-                    id, min_lap_milliseconds, sound_on_too_fast_lap, speech_voice_name, active_lane_count)
-                VALUES (1, $minLapMilliseconds, $soundOnTooFastLap, $speechVoiceName, $activeLaneCount)
+                    id, min_lap_milliseconds, sound_on_too_fast_lap,
+                    voice_announcements_enabled, speech_voice_name, active_lane_count)
+                VALUES (1, $minLapMilliseconds, $soundOnTooFastLap,
+                    $voiceAnnouncementsEnabled, $speechVoiceName, $activeLaneCount)
                 ON CONFLICT(id) DO UPDATE SET
                     min_lap_milliseconds = excluded.min_lap_milliseconds,
                     sound_on_too_fast_lap = excluded.sound_on_too_fast_lap,
+                    voice_announcements_enabled = excluded.voice_announcements_enabled,
                     speech_voice_name = excluded.speech_voice_name,
                     active_lane_count = excluded.active_lane_count";
             command.Parameters.AddWithValue("$minLapMilliseconds", settings.MinLapMilliseconds);
             command.Parameters.AddWithValue("$soundOnTooFastLap", settings.SoundOnTooFastLap);
+            command.Parameters.AddWithValue("$voiceAnnouncementsEnabled", settings.VoiceAnnouncementsEnabled);
             command.Parameters.AddWithValue("$speechVoiceName", settings.SpeechVoiceName.Trim());
             command.Parameters.AddWithValue("$activeLaneCount", settings.ActiveLaneCount);
             command.ExecuteNonQuery();
@@ -480,6 +487,7 @@ namespace YATSS
                     id INTEGER PRIMARY KEY CHECK (id = 1),
                     min_lap_milliseconds INTEGER NOT NULL,
                     sound_on_too_fast_lap INTEGER NOT NULL,
+                    voice_announcements_enabled INTEGER NOT NULL DEFAULT 1,
                     speech_voice_name TEXT NOT NULL,
                     active_lane_count INTEGER NOT NULL
                 )");
@@ -516,21 +524,40 @@ namespace YATSS
                     id INTEGER PRIMARY KEY CHECK (id = 1),
                     debounce_milliseconds INTEGER NOT NULL
                 )");
+            EnsureAppVoiceAnnouncementsColumn();
             EnsureControllerRawSensorLockoutColumn();
             ExecuteNonQuery($"PRAGMA user_version = {CurrentSchemaVersion}");
         }
 
+        private static void EnsureAppVoiceAnnouncementsColumn()
+        {
+            EnsureColumn(
+                "app_settings",
+                "voice_announcements_enabled",
+                "ALTER TABLE app_settings " +
+                "ADD COLUMN voice_announcements_enabled INTEGER NOT NULL DEFAULT 1");
+        }
+
         private static void EnsureControllerRawSensorLockoutColumn()
+        {
+            EnsureColumn(
+                "controller_settings",
+                "raw_sensor_lockout_milliseconds",
+                "ALTER TABLE controller_settings " +
+                "ADD COLUMN raw_sensor_lockout_milliseconds INTEGER");
+        }
+
+        private static void EnsureColumn(string tableName, string columnName, string alterCommand)
         {
             using (SqliteCommand checkCommand = Connection.CreateCommand())
             {
-                checkCommand.CommandText = "PRAGMA table_info(controller_settings);";
+                checkCommand.CommandText = $"PRAGMA table_info({tableName});";
                 using SqliteDataReader reader = checkCommand.ExecuteReader();
                 while (reader.Read())
                 {
                     if (string.Equals(
                         reader.GetString(1),
-                        "raw_sensor_lockout_milliseconds",
+                        columnName,
                         StringComparison.OrdinalIgnoreCase))
                     {
                         return;
@@ -538,9 +565,7 @@ namespace YATSS
                 }
             }
 
-            ExecuteNonQuery(
-                "ALTER TABLE controller_settings " +
-                "ADD COLUMN raw_sensor_lockout_milliseconds INTEGER");
+            ExecuteNonQuery(alterCommand);
         }
 
         private static void ExecuteNonQuery(string commandText)

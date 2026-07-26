@@ -35,6 +35,7 @@ namespace YATSS
         public string port = "";
         public int MinLapMilliseconds { get; private set; } = LapRaceOptions.Default.MinLapMilliseconds;
         public bool SoundOnTooFastLap { get; private set; } = true;
+        public bool VoiceAnnouncementsEnabled { get; private set; } = true;
         public string SpeechVoiceName { get; private set; } = "";
         public int ActiveLaneCount { get; private set; } = LapProtocolParser.LaneCount;
         public double TrackLengthFeet { get; private set; } = LapRaceOptions.Default.TrackLengthFeet;
@@ -57,10 +58,12 @@ namespace YATSS
             AppSettings settings = AppDatabase.LoadAppSettings(new AppSettings(
                 MinLapMilliseconds,
                 SoundOnTooFastLap,
+                VoiceAnnouncementsEnabled,
                 SpeechVoiceName,
                 ActiveLaneCount));
             MinLapMilliseconds = Math.Clamp(settings.MinLapMilliseconds, 100, 60000);
             SoundOnTooFastLap = settings.SoundOnTooFastLap;
+            VoiceAnnouncementsEnabled = settings.VoiceAnnouncementsEnabled;
             SpeechVoiceName = settings.SpeechVoiceName;
             ActiveLaneCount = Math.Clamp(settings.ActiveLaneCount, 2, LapProtocolParser.LaneCount);
             RaceReportSettings reportSettings = AppDatabase.LoadRaceReportSettings(
@@ -82,6 +85,7 @@ namespace YATSS
             LaneConfigurations = AppDatabase.LoadLaneConfigurations(LaneConfigurations);
             ApplyLaneColors();
             ApplyActiveLaneLayout();
+            SpeechAnnouncer.Enabled = VoiceAnnouncementsEnabled;
             SpeechAnnouncer.WarmUpAsync(SpeechVoiceName);
 
             KeepSystemAwake();
@@ -1222,6 +1226,7 @@ namespace YATSS
                 MinLapMilliseconds,
                 SoundOnTooFastLap,
                 port,
+                VoiceAnnouncementsEnabled,
                 SpeechVoiceName,
                 ActiveLaneCount,
                 TrackLengthFeet,
@@ -1234,6 +1239,7 @@ namespace YATSS
             {
                 MinLapMilliseconds = config.MinLapMilliseconds;
                 SoundOnTooFastLap = config.SoundOnTooFastLap;
+                VoiceAnnouncementsEnabled = config.VoiceAnnouncementsEnabled;
                 SpeechVoiceName = config.SelectedSpeechVoice;
                 ActiveLaneCount = config.ActiveLaneCount;
                 TrackLengthFeet = config.TrackLengthFeet;
@@ -1247,6 +1253,7 @@ namespace YATSS
                 AppDatabase.SaveAppSettings(new AppSettings(
                     MinLapMilliseconds,
                     SoundOnTooFastLap,
+                    VoiceAnnouncementsEnabled,
                     SpeechVoiceName,
                     ActiveLaneCount));
                 AppDatabase.SaveRaceReportSettings(new RaceReportSettings(
@@ -1256,6 +1263,7 @@ namespace YATSS
                 AppDatabase.SaveTrackLengthFeet(TrackLengthFeet);
                 AppDatabase.SaveSensorDebounceMilliseconds(SensorDebounceMilliseconds);
                 AppDatabase.SaveRawSensorLockoutMilliseconds(RawSensorLockoutMilliseconds);
+                SpeechAnnouncer.Enabled = VoiceAnnouncementsEnabled;
                 SpeechAnnouncer.WarmUpAsync(SpeechVoiceName);
                 s.ApplySettings();
                 s.SetPort(config.SelectedPort);

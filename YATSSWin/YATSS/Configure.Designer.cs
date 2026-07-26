@@ -41,6 +41,7 @@ namespace YATSS
             groupBox4 = new GroupBox();
             cbSerialPort = new ComboBox();
             groupBox5 = new GroupBox();
+            cbVoiceAnnouncements = new CheckBox();
             cbSpeechVoice = new ComboBox();
             groupBoxTrack = new GroupBox();
             activeLaneCountLabel = new Label();
@@ -167,22 +168,33 @@ namespace YATSS
             //
             // groupBox5
             //
+            groupBox5.Controls.Add(cbVoiceAnnouncements);
             groupBox5.Controls.Add(cbSpeechVoice);
             groupBox5.Location = new Point(12, 230);
             groupBox5.Name = "groupBox5";
-            groupBox5.Size = new Size(399, 53);
+            groupBox5.Size = new Size(399, 76);
             groupBox5.TabIndex = 2;
             groupBox5.TabStop = false;
             groupBox5.Text = "Voice";
+            //
+            // cbVoiceAnnouncements
+            //
+            cbVoiceAnnouncements.AutoSize = true;
+            cbVoiceAnnouncements.Location = new Point(11, 22);
+            cbVoiceAnnouncements.Name = "cbVoiceAnnouncements";
+            cbVoiceAnnouncements.Size = new Size(178, 19);
+            cbVoiceAnnouncements.TabIndex = 0;
+            cbVoiceAnnouncements.Text = "Enable voice announcements";
+            cbVoiceAnnouncements.UseVisualStyleBackColor = true;
             //
             // cbSpeechVoice
             //
             cbSpeechVoice.DropDownStyle = ComboBoxStyle.DropDownList;
             cbSpeechVoice.FormattingEnabled = true;
-            cbSpeechVoice.Location = new Point(11, 21);
+            cbSpeechVoice.Location = new Point(11, 45);
             cbSpeechVoice.Name = "cbSpeechVoice";
             cbSpeechVoice.Size = new Size(370, 23);
-            cbSpeechVoice.TabIndex = 0;
+            cbSpeechVoice.TabIndex = 1;
             //
             // groupBoxTrack
             //
@@ -190,7 +202,7 @@ namespace YATSS
             groupBoxTrack.Controls.Add(nudActiveLaneCount);
             groupBoxTrack.Controls.Add(trackLengthLabel);
             groupBoxTrack.Controls.Add(nudTrackLengthFeet);
-            groupBoxTrack.Location = new Point(12, 296);
+            groupBoxTrack.Location = new Point(12, 319);
             groupBoxTrack.Name = "groupBoxTrack";
             groupBoxTrack.Size = new Size(399, 53);
             groupBoxTrack.TabIndex = 3;
@@ -241,7 +253,7 @@ namespace YATSS
             //
             groupBoxRaceReports.Controls.Add(cbExportRaceJson);
             groupBoxRaceReports.Controls.Add(cbExportRaceCsv);
-            groupBoxRaceReports.Location = new Point(12, 362);
+            groupBoxRaceReports.Location = new Point(12, 385);
             groupBoxRaceReports.Name = "groupBoxRaceReports";
             groupBoxRaceReports.Size = new Size(399, 53);
             groupBoxRaceReports.TabIndex = 4;
@@ -270,7 +282,7 @@ namespace YATSS
             //
             // groupBoxLaneColors
             //
-            groupBoxLaneColors.Location = new Point(12, 428);
+            groupBoxLaneColors.Location = new Point(12, 451);
             groupBoxLaneColors.Name = "groupBoxLaneColors";
             groupBoxLaneColors.Size = new Size(399, 174);
             groupBoxLaneColors.TabIndex = 5;
@@ -279,7 +291,7 @@ namespace YATSS
             //
             // bOK
             //
-            bOK.Location = new Point(255, 620);
+            bOK.Location = new Point(255, 643);
             bOK.Name = "bOK";
             bOK.Size = new Size(75, 23);
             bOK.TabIndex = 6;
@@ -289,7 +301,7 @@ namespace YATSS
             //
             // bCancel
             //
-            bCancel.Location = new Point(336, 620);
+            bCancel.Location = new Point(336, 643);
             bCancel.Name = "bCancel";
             bCancel.Size = new Size(75, 23);
             bCancel.TabIndex = 7;
@@ -303,7 +315,7 @@ namespace YATSS
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             CancelButton = bCancel;
-            ClientSize = new Size(428, 659);
+            ClientSize = new Size(428, 682);
             Controls.Add(bCancel);
             Controls.Add(bOK);
             Controls.Add(groupBox5);
@@ -350,6 +362,7 @@ namespace YATSS
         private GroupBox groupBox4;
         private ComboBox cbSerialPort;
         private GroupBox groupBox5;
+        private CheckBox cbVoiceAnnouncements;
         private ComboBox cbSpeechVoice;
         private GroupBox groupBoxTrack;
         private Label activeLaneCountLabel;

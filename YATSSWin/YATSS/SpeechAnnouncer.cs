@@ -4,9 +4,17 @@ namespace YATSS
 {
     internal static class SpeechAnnouncer
     {
+        private static readonly TimeSpan SilentCountdownDuration = TimeSpan.FromSeconds(3);
         private static readonly object SyncRoot = new();
         private static BlockingCollection<SpeechRequest>? _requests;
         private static Thread? _worker;
+        private static bool _enabled = true;
+
+        public static bool Enabled
+        {
+            get => Volatile.Read(ref _enabled);
+            set => Volatile.Write(ref _enabled, value);
+        }
 
         public static List<string> GetInstalledVoices()
         {
@@ -44,25 +52,54 @@ namespace YATSS
 
         public static void WarmUpAsync(string voiceName)
         {
+            if (!Enabled)
+            {
+                return;
+            }
+
             EnsureStarted();
             _requests?.Add(SpeechRequest.Single("", voiceName));
         }
 
         public static void SpeakAsync(string phrase, string voiceName)
         {
+            if (!Enabled)
+            {
+                return;
+            }
+
             EnsureStarted();
             _requests?.Add(SpeechRequest.Single(phrase, voiceName));
         }
 
         public static void SpeakCountdownAsync(string voiceName, Action? afterSpeech = null)
         {
+            if (!Enabled)
+            {
+                _ = CompleteSilentCountdownAsync(afterSpeech);
+                return;
+            }
+
             EnsureStarted();
             _requests?.Add(new SpeechRequest(
                 new[] { "3 2 1 Let's go" },
                 voiceName,
                 TimeSpan.Zero,
                 Rate: -2,
+                SilentCountdownDuration,
                 afterSpeech));
+        }
+
+        private static async Task CompleteSilentCountdownAsync(Action? afterSpeech)
+        {
+            await Task.Delay(SilentCountdownDuration).ConfigureAwait(false);
+            try
+            {
+                afterSpeech?.Invoke();
+            }
+            catch
+            {
+            }
         }
 
         private static void EnsureStarted()
@@ -95,9 +132,16 @@ namespace YATSS
             {
                 try
                 {
+                    if (!Enabled)
+                    {
+                        Thread.Sleep(request.FallbackDelay);
+                        continue;
+                    }
+
                     voice ??= CreateVoice();
                     if (voice == null)
                     {
+                        Thread.Sleep(request.FallbackDelay);
                         continue;
                     }
 
@@ -193,10 +237,11 @@ namespace YATSS
             string VoiceName,
             TimeSpan DelayBetweenPhrases,
             int? Rate,
+            TimeSpan FallbackDelay,
             Action? AfterSpeech)
         {
             public static SpeechRequest Single(string phrase, string voiceName) =>
-                new(new[] { phrase }, voiceName, TimeSpan.Zero, null, null);
+                new(new[] { phrase }, voiceName, TimeSpan.Zero, null, TimeSpan.Zero, null);
         }
     }
 }
