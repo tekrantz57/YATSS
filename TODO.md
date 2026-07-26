@@ -1,5 +1,24 @@
 # TODO
 
+## Active race crash recovery
+
+- Persist a transactional race journal or checkpoint after accepted laps,
+  manual adjustments, heat transitions, qualifying transitions, and relevant
+  configuration changes.
+- On startup, detect an unfinished event and offer to resume it or archive and
+  discard it. Recovery must preserve controller timestamps, lane rotations,
+  stoppage time, qualifying results, and the report audit trail.
+- Exercise recovery after forced app termination, Windows restart, controller
+  reset, and power loss before relying on YATSS for long endurance races.
+
+## Complete backup schema validation
+
+- Extend database restore validation beyond SQLite integrity, foreign keys,
+  schema version, and the `users` table. Verify every required YATSS table and
+  column before accepting a backup.
+- Add tests proving that partial or falsely versioned databases are rejected
+  without replacing the active database.
+
 ## Track-power fail-safe behavior
 
 - Implemented policy: controller boot/reset and loss of Windows communication
@@ -35,3 +54,16 @@
   ESP32-C6-DevKitC-1 before committing to the production wiring harness.
 - Verify controller diagnostics, watchdog cuts, reset behavior, and sustained
   serial traffic through the CP2102N `UART` connector.
+
+## Future Formula 1-style sector timing
+
+- Consider two optional intermediate sensors per lane, producing three sector
+  times within each completed lap. Sector hardware would default to not
+  installed so the existing single start/finish sensor remains sufficient.
+- Include sector times in heat-race and qualifying reports plus JSON and CSV
+  exports when sector timing is enabled.
+- Define behavior for missing, duplicate, and out-of-order sector events before
+  implementation.
+- Evaluate input-expansion hardware before assigning pins. Eight lanes with
+  three sensors per lane plus eight track-power outputs cannot all connect
+  directly to the current ESP32-C6 GPIOs.

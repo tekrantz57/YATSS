@@ -12,12 +12,12 @@ namespace YATSS
         private readonly HeatRaceController _heatRace = new();
         private readonly QualifyingController _qualifying = new();
         private readonly SerialLog _log = new();
+        private readonly DemoLapTiming _demoLapTiming = new();
+        private readonly RaceReportService _raceReports;
         private readonly CancellationTokenSource _stop = new();
         private readonly object _portGate = new();
         private readonly object _reconnectGate = new();
         private readonly object _demoGate = new();
-        private readonly Dictionary<string, int> _demoRacerPaceMilliseconds =
-            new(StringComparer.OrdinalIgnoreCase);
         private TaskCompletionSource _reconnectNow = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private Task? _readerTask;
         private Task? _demoTask;
@@ -46,28 +46,13 @@ namespace YATSS
         private IReadOnlyList<LaneConfiguration> _configuredLaneConfigurations =
             LaneConfiguration.CreateDefaults();
         private IReadOnlyList<QualifyingResult> _qualifyingResults = Array.Empty<QualifyingResult>();
-        private const double DemoReferenceTrackLengthFeet = 155.0;
-        private const double DemoFirstBaselineLapFraction = 1.0 / 3.0;
-        private const int DemoReferenceMinimumLapMilliseconds = 4200;
-        private const int DemoReferenceMaximumLapMilliseconds = 6500;
-        private static readonly int[] DemoReferenceLanePaceMilliseconds =
-        {
-            4300,
-            4550,
-            4800,
-            5050,
-            5300,
-            5550,
-            5800,
-            6050
-        };
-
         private static readonly TimeSpan ControllerPingInterval = TimeSpan.FromSeconds(3);
         private static readonly TimeSpan ControllerPingTimeout = TimeSpan.FromSeconds(3);
 
         public Serial(YATSS form)
         {
             _form = form;
+            _raceReports = new RaceReportService(form, _log);
             Init();
             ApplySettings();
             _readerTask = Task.Run(ReadLoopAsync);
@@ -224,7 +209,7 @@ namespace YATSS
             _configuredLaneConfigurations = laneConfigurations.ToArray();
             _configuredTrackLengthFeet = trackLengthFeet;
             _qualifyingResults = Array.Empty<QualifyingResult>();
-            ConfigureDemoRacerPaces(_configuredRacers);
+            _demoLapTiming.ConfigureRacers(_configuredRacers);
             _heatRace.Configure(
                 heatLengthMinutes,
                 betweenHeatsSeconds,
@@ -480,6 +465,37 @@ namespace YATSS
             return true;
         }
 
+        public bool CanRestoreDatabase(out string reason)
+        {
+            if (_heatRace.State != HeatRaceState.Practice || _qualifying.State != QualifyingState.Inactive)
+            {
+                reason = "Return to Practice mode before restoring the database";
+                return false;
+            }
+
+            if (_startCountdownInProgress)
+            {
+                reason = "Wait for the active countdown to finish before restoring the database";
+                return false;
+            }
+
+            if (DemoLapStreamActive)
+            {
+                reason = "Stop the demo lap stream before restoring the database";
+                return false;
+            }
+
+            reason = string.Empty;
+            return true;
+        }
+
+        public void PrepareForDatabaseRestore()
+        {
+            StopControllerDiagnostics();
+            SetTrackPowerEnabled(false, null, "Track power cut for database restore");
+            _log.Info("database restore requested; track power cut");
+        }
+
         public bool StartControllerDiagnostics(out string reason)
         {
             if (_diagnosticsActive)
@@ -561,6 +577,7 @@ namespace YATSS
             int countdownVersion = ++_startCountdownVersion;
             _trackPowerEnabled = true;
             _form.SetQualifyingAvailable(false);
+            PublishHeatRaceStatus(resumePausedHeat ? "Resuming" : "Starting");
             _form.SetStatusMessage(resumePausedHeat ? "Heat restart countdown" : $"Heat {_heatRace.HeatNumber} countdown");
             _log.Info(resumePausedHeat ? "heat restart countdown queued" : $"heat {_heatRace.HeatNumber} start countdown queued");
             SpeechAnnouncer.SpeakCountdownAsync(_form.SpeechVoiceName, () => CompleteStartCountdown(resumePausedHeat, manualStart, countdownVersion));
@@ -922,7 +939,7 @@ namespace YATSS
                 uint[] laneSequences = new uint[LapProtocolParser.LaneCount];
                 uint demoTimestamp = GetDemoControllerTimestamp();
                 uint nextHeartbeat = demoTimestamp + 3000;
-                int[] demoLanePaceMilliseconds = CreateDemoLanePaces(random);
+                int[] demoLanePaceMilliseconds = DemoLapTiming.CreateLanePaces(random);
                 uint[] nextLaneEdge = new uint[LapProtocolParser.LaneCount];
                 string[] laneRacerAtNextEdge = new string[LapProtocolParser.LaneCount];
                 HeatRaceState previousDemoHeatState = _heatRace.State;
@@ -932,9 +949,12 @@ namespace YATSS
                     laneRacerAtNextEdge[lane] = GetDemoLaneRacerName(lane);
                     nextLaneEdge[lane] = demoTimestamp +
                         (uint)random.Next(0, 201) +
-                        (uint)GetDemoFirstBaselineMilliseconds(
+                        (uint)DemoLapTiming.GetFirstBaselineMilliseconds(
                             random,
-                            GetDemoReferencePaceMilliseconds(lane, demoLanePaceMilliseconds, laneRacerAtNextEdge[lane]),
+                            _demoLapTiming.GetReferencePaceMilliseconds(
+                                lane,
+                                demoLanePaceMilliseconds,
+                                laneRacerAtNextEdge[lane]),
                             _form.TrackLengthFeet,
                             _form.MinLapMilliseconds);
                 }
@@ -961,9 +981,12 @@ namespace YATSS
                                 laneRacerAtNextEdge[lane] = currentRacer;
                                 nextLaneEdge[lane] = demoTimestamp +
                                     (uint)random.Next(0, 201) +
-                                    (uint)GetDemoFirstBaselineMilliseconds(
+                                    (uint)DemoLapTiming.GetFirstBaselineMilliseconds(
                                         random,
-                                        GetDemoReferencePaceMilliseconds(lane, demoLanePaceMilliseconds, currentRacer),
+                                        _demoLapTiming.GetReferencePaceMilliseconds(
+                                            lane,
+                                            demoLanePaceMilliseconds,
+                                            currentRacer),
                                         _form.TrackLengthFeet,
                                         _form.MinLapMilliseconds);
                             }
@@ -992,9 +1015,12 @@ namespace YATSS
                             laneRacerAtNextEdge[lane] = currentRacer;
                             nextLaneEdge[lane] = demoTimestamp +
                                 (uint)random.Next(0, 201) +
-                                (uint)GetDemoFirstBaselineMilliseconds(
+                                (uint)DemoLapTiming.GetFirstBaselineMilliseconds(
                                     random,
-                                    GetDemoReferencePaceMilliseconds(lane, demoLanePaceMilliseconds, currentRacer),
+                                    _demoLapTiming.GetReferencePaceMilliseconds(
+                                        lane,
+                                        demoLanePaceMilliseconds,
+                                        currentRacer),
                                     _form.TrackLengthFeet,
                                     _form.MinLapMilliseconds);
                         }
@@ -1009,9 +1035,12 @@ namespace YATSS
                             $"EDGE:{lane}:{++laneSequences[lane]}:{edgeTimestamp}");
                         HandleDemoLine(frame);
                         nextLaneEdge[lane] = edgeTimestamp +
-                            (uint)GetDemoLapIntervalMilliseconds(
+                            (uint)DemoLapTiming.GetLapIntervalMilliseconds(
                                 random,
-                                GetDemoReferencePaceMilliseconds(lane, demoLanePaceMilliseconds, currentRacer),
+                                _demoLapTiming.GetReferencePaceMilliseconds(
+                                    lane,
+                                    demoLanePaceMilliseconds,
+                                    currentRacer),
                                 _form.TrackLengthFeet,
                                 _form.MinLapMilliseconds);
                     }
@@ -1084,26 +1113,6 @@ namespace YATSS
             _hasControllerTimestamp = true;
         }
 
-        private void ConfigureDemoRacerPaces(IReadOnlyList<string> racers)
-        {
-            Random random = new(Random.Shared.Next());
-            int[] shuffledPaces = CreateDemoLanePaces(random);
-            lock (_demoGate)
-            {
-                _demoRacerPaceMilliseconds.Clear();
-                for (int i = 0; i < racers.Count; i++)
-                {
-                    string racer = racers[i].Trim();
-                    if (racer.Length == 0)
-                    {
-                        continue;
-                    }
-
-                    _demoRacerPaceMilliseconds[racer] = shuffledPaces[i % shuffledPaces.Length];
-                }
-            }
-        }
-
         private string GetDemoLaneRacerName(int lane)
         {
             if (_heatRace.State == HeatRaceState.Practice)
@@ -1116,88 +1125,6 @@ namespace YATSS
                 ? snapshot.LaneRacers[lane].Trim()
                 : string.Empty;
         }
-
-        private int GetDemoReferencePaceMilliseconds(
-            int lane,
-            IReadOnlyList<int> lanePaceMilliseconds,
-            string racerName)
-        {
-            if (!string.IsNullOrWhiteSpace(racerName))
-            {
-                lock (_demoGate)
-                {
-                    if (_demoRacerPaceMilliseconds.TryGetValue(racerName, out int racerPace))
-                    {
-                        return racerPace;
-                    }
-                }
-            }
-
-            return lane >= 0 && lane < lanePaceMilliseconds.Count
-                ? lanePaceMilliseconds[lane]
-                : DemoReferenceLanePaceMilliseconds[0];
-        }
-
-        private static int GetDemoFirstBaselineMilliseconds(
-            Random random,
-            int referenceBaseLapMilliseconds,
-            double trackLengthFeet,
-            int configuredMinimumLapMilliseconds)
-        {
-            int fullLapMilliseconds = GetDemoLapIntervalMilliseconds(
-                random,
-                referenceBaseLapMilliseconds,
-                trackLengthFeet,
-                configuredMinimumLapMilliseconds);
-            return Math.Max(1, (int)Math.Round(fullLapMilliseconds * DemoFirstBaselineLapFraction));
-        }
-
-        private static int GetDemoLapIntervalMilliseconds(
-            Random random,
-            int referenceBaseLapMilliseconds,
-            double trackLengthFeet,
-            int configuredMinimumLapMilliseconds)
-        {
-            double trackScale = Math.Clamp(trackLengthFeet, 1.0, 10000.0) / DemoReferenceTrackLengthFeet;
-            int minimumLap = Math.Max(
-                Math.Max(0, configuredMinimumLapMilliseconds),
-                ScaleDemoMilliseconds(DemoReferenceMinimumLapMilliseconds, trackScale));
-            int maximumLap = ScaleDemoMilliseconds(DemoReferenceMaximumLapMilliseconds, trackScale);
-            int baseLap = ScaleDemoMilliseconds(referenceBaseLapMilliseconds, trackScale);
-            int interval = baseLap + ScaleDemoMilliseconds(random.Next(-280, 341), trackScale);
-
-            if (random.NextDouble() < 0.14)
-            {
-                interval -= ScaleDemoMilliseconds(random.Next(120, 281), trackScale);
-            }
-
-            if (random.NextDouble() < 0.18)
-            {
-                interval += ScaleDemoMilliseconds(random.Next(250, 651), trackScale);
-            }
-
-            return Math.Clamp(interval, minimumLap, Math.Max(minimumLap, maximumLap));
-        }
-
-        private static int[] CreateDemoLanePaces(Random random)
-        {
-            int[] paces = new int[LapProtocolParser.LaneCount];
-            for (int lane = 0; lane < paces.Length; lane++)
-            {
-                paces[lane] = DemoReferenceLanePaceMilliseconds[lane % DemoReferenceLanePaceMilliseconds.Length];
-            }
-
-            for (int i = paces.Length - 1; i > 0; i--)
-            {
-                int j = random.Next(i + 1);
-                (paces[i], paces[j]) = (paces[j], paces[i]);
-            }
-
-            return paces;
-        }
-
-        private static int ScaleDemoMilliseconds(int referenceMilliseconds, double trackScale) =>
-            Math.Max(1, (int)Math.Round(referenceMilliseconds * trackScale));
 
         private void HandleDemoLine(string frame)
         {
@@ -1516,8 +1443,8 @@ namespace YATSS
                 PublishHeatRaceStatus("Race complete");
                 _form.SetStatusMessage("Heat race complete");
                 HeatRaceReport report = _heatRace.CreateReport();
-                AnnouncePodium(report);
-                WriteHeatRaceReport(report);
+                _raceReports.AnnouncePodium(report);
+                _raceReports.Write(report);
                 return;
             }
 
@@ -1548,7 +1475,7 @@ namespace YATSS
             {
                 PublishHeatRaceStatus("Race complete");
                 _form.SetStatusMessage("Heat race complete");
-                WriteHeatRaceReport();
+                _raceReports.Write(_heatRace.CreateReport());
                 return;
             }
 
@@ -1597,48 +1524,13 @@ namespace YATSS
             _heatRace.RecordHeatResults(_race.GetLaneSnapshots());
         }
 
-        private void AnnouncePodium(HeatRaceReport report)
-        {
-            string[] placeNames = { "First", "Second", "Third" };
-            string announcement = string.Join(
-                ". ",
-                report.Racers
-                    .Take(placeNames.Length)
-                    .Select((racer, index) => $"{placeNames[index]} place, {racer.RacerName}"));
-            if (!string.IsNullOrWhiteSpace(announcement))
-            {
-                SpeechAnnouncer.SpeakAsync(announcement, _form.SpeechVoiceName);
-            }
-        }
-
-        private void WriteHeatRaceReport(HeatRaceReport? report = null)
-        {
-            try
-            {
-                RaceExportPaths paths = RaceArchiveWriter.Write(
-                    report ?? _heatRace.CreateReport(),
-                    exportOptions: new RaceExportOptions(_form.ExportRaceJson, _form.ExportRaceCsv));
-                _form.ShowHeatRaceReport(paths.Html);
-                string artifactDescription = paths switch
-                {
-                    { Json: not null, ResultsCsv: not null } => "HTML report, JSON archive, and CSV files",
-                    { Json: not null } => "HTML report and JSON archive",
-                    { ResultsCsv: not null } => "HTML report and CSV files",
-                    _ => "HTML report"
-                };
-                string? reportDirectory = Path.GetDirectoryName(paths.Html);
-                _log.Info($"heat race {artifactDescription} written to {reportDirectory}");
-                _form.SetStatusMessage($"Race {artifactDescription} written: {reportDirectory}");
-            }
-            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is InvalidOperationException)
-            {
-                _log.Error(ex, "heat race artifact export failed");
-                _form.SetStatusMessage("Race report and enabled data exports could not be written");
-            }
-        }
-
         private string GetCurrentHeatStatusName()
         {
+            if (_startCountdownInProgress)
+            {
+                return _heatRace.State == HeatRaceState.Paused ? "Resuming" : "Starting";
+            }
+
             if (_betweenHeatsTimer != null)
             {
                 return "Intermission";

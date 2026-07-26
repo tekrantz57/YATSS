@@ -42,6 +42,7 @@ arduino-cli compile --fqbn arduino:esp32:nano_nora YATSSMC
 - [Microcontroller sketch](YATSSMC/README.md)
 - [Serial protocol](docs/SERIAL_PROTOCOL.md)
 - [Race reports and data exports](docs/RACE_DATA_EXPORT.md)
+- [Database backup and restore](docs/DATABASE_BACKUP.md)
 - [Windows publish smoke test](docs/PUBLISH_SMOKE_TEST.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 

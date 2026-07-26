@@ -16,16 +16,26 @@ namespace YATSS
 
     internal static class AppDatabase
     {
+        private const int CurrentSchemaVersion = 1;
         public const int DefaultSensorDebounceMilliseconds = 1800;
         public const int DefaultRawSensorLockoutMilliseconds = 0;
         private static readonly object SyncRoot = new();
-        private static readonly string DatabasePath = Path.Combine(
+        public static string DatabasePath { get; } = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "YATSS",
             "laps.db");
+        private static readonly string AutomaticBackupDirectory = Path.Combine(
+            GetDefaultBackupDirectory(),
+            "Automatic");
+        private static readonly DatabaseMaintenance Maintenance = new(
+            DatabasePath,
+            AutomaticBackupDirectory,
+            CurrentSchemaVersion);
         private static readonly string ConnectionString = new SqliteConnectionStringBuilder
         {
-            DataSource = DatabasePath
+            DataSource = DatabasePath,
+            ForeignKeys = true,
+            Pooling = false
         }.ToString();
 
         public static SqliteConnection Connection { get; } = new(ConnectionString);
@@ -46,10 +56,53 @@ namespace YATSS
                         }
                     }
 
+                    Maintenance.BackUpBeforeSchemaUpgrade();
                     Connection.Open();
                 }
 
                 EnsureSchema();
+            }
+        }
+
+        public static string GetDefaultBackupDirectory()
+        {
+            return Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                "YATSS Backups");
+        }
+
+        public static DatabaseBackupResult? CreateAutomaticBackup(int retainedBackupCount = 14)
+        {
+            lock (SyncRoot)
+            {
+                Open();
+                return Maintenance.CreateAutomaticBackup(retainedBackupCount);
+            }
+        }
+
+        public static DatabaseBackupResult CreateBackup(string backupPath)
+        {
+            lock (SyncRoot)
+            {
+                Open();
+                return Maintenance.CreateBackup(backupPath);
+            }
+        }
+
+        public static DatabaseRestoreResult RestoreBackup(string backupPath, string safetyBackupPath)
+        {
+            lock (SyncRoot)
+            {
+                Open();
+                return Maintenance.RestoreBackup(
+                    backupPath,
+                    safetyBackupPath,
+                    closeActiveDatabase: () => Connection.Close(),
+                    initializeActiveDatabase: () =>
+                    {
+                        Connection.Open();
+                        EnsureSchema();
+                    });
             }
         }
 
@@ -463,7 +516,31 @@ namespace YATSS
                     id INTEGER PRIMARY KEY CHECK (id = 1),
                     debounce_milliseconds INTEGER NOT NULL
                 )");
-            TryExecuteNonQuery(@"ALTER TABLE controller_settings ADD COLUMN raw_sensor_lockout_milliseconds INTEGER");
+            EnsureControllerRawSensorLockoutColumn();
+            ExecuteNonQuery($"PRAGMA user_version = {CurrentSchemaVersion}");
+        }
+
+        private static void EnsureControllerRawSensorLockoutColumn()
+        {
+            using (SqliteCommand checkCommand = Connection.CreateCommand())
+            {
+                checkCommand.CommandText = "PRAGMA table_info(controller_settings);";
+                using SqliteDataReader reader = checkCommand.ExecuteReader();
+                while (reader.Read())
+                {
+                    if (string.Equals(
+                        reader.GetString(1),
+                        "raw_sensor_lockout_milliseconds",
+                        StringComparison.OrdinalIgnoreCase))
+                    {
+                        return;
+                    }
+                }
+            }
+
+            ExecuteNonQuery(
+                "ALTER TABLE controller_settings " +
+                "ADD COLUMN raw_sensor_lockout_milliseconds INTEGER");
         }
 
         private static void ExecuteNonQuery(string commandText)
@@ -473,15 +550,5 @@ namespace YATSS
             command.ExecuteNonQuery();
         }
 
-        private static void TryExecuteNonQuery(string commandText)
-        {
-            try
-            {
-                ExecuteNonQuery(commandText);
-            }
-            catch (SqliteException)
-            {
-            }
-        }
     }
 }

@@ -120,7 +120,29 @@ Disable both JSON and CSV options and complete another short demo race:
 - [ ] No JSON file is created for that race.
 - [ ] No CSV files are created for that race.
 
-## 4. Controller And Track Hardware
+## 4. Database Backup And Restore
+
+Open `Data > Back Up Database...` and save a manual backup.
+
+- [ ] The completion dialog reports that the backup was verified.
+- [ ] The backup appears under `Documents\YATSS Backups`.
+- [ ] `Data > Open Database Folder` opens `%LOCALAPPDATA%\YATSS`.
+- [ ] `Data > Open Backup Folder` opens the backup directory.
+- [ ] An automatic `YATSS-auto-YYYYMMDD.db` exists under `Automatic` after
+  startup.
+- [ ] Restarting YATSS on the same day does not create a second daily file.
+
+Make a recognizable, reversible settings or racer-name change, then restore the
+manual backup from Practice mode.
+
+- [ ] YATSS asks for confirmation and states that it will restart.
+- [ ] Track power is cut before restore.
+- [ ] A timestamped `YATSS-before-restore-*.db` safety copy is created.
+- [ ] YATSS restarts and loads the values from the selected backup.
+- [ ] Attempting restore during a configured heat or qualifying session is
+  refused.
+
+## 5. Controller And Track Hardware
 
 Connect the controller and select its COM port in Configure.
 
@@ -134,13 +156,18 @@ Connect the controller and select its COM port in Configure.
 
 Run a short hardware heat:
 
+- [ ] Before Heat 1 starts, the main status band displays
+  'PRESS SPACE TO START' in gold.
 - [ ] The first edge establishes the expected baseline.
 - [ ] Subsequent valid edges count laps.
 - [ ] Space pauses the heat and cuts track power.
+- [ ] While paused after the track call, the main status band displays
+  'PAUSED - PRESS SPACE TO RESUME' in gold.
+- [ ] Pressing Space changes the prompt to 'RESUMING...' during the countdown.
 - [ ] Space resumes through the countdown and restores the occupied lanes.
 - [ ] The heat completes and produces its reports.
 
-## 5. Communication Watchdog
+## 6. Communication Watchdog
 
 This test must interrupt Windows communication while leaving the controller and
 relay-coil supply powered.
@@ -169,7 +196,7 @@ Completely remove controller or relay-coil power as a separate test:
 - [ ] Any need for a normally open safety contactor or independent interlock is
   recorded before installation.
 
-## 6. Result Record
+## 7. Result Record
 
 ```text
 Date:

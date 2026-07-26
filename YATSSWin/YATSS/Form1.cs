@@ -26,6 +26,10 @@ namespace YATSS
         private readonly System.Windows.Forms.Timer _practiceClockTimer = new();
         private bool _practiceClockEnabled = true;
         private ControllerDiagnosticsForm? _controllerDiagnosticsForm;
+        private readonly ToolStripMenuItem _backupDatabaseMenuItem = new("Back Up Database...");
+        private readonly ToolStripMenuItem _restoreDatabaseMenuItem = new("Restore Database...");
+        private readonly ToolStripMenuItem _openDatabaseFolderMenuItem = new("Open Database Folder");
+        private readonly ToolStripMenuItem _openBackupFolderMenuItem = new("Open Backup Folder");
         private const string EmptyRacerName = "          ";
         private const string DefaultWindowTitle = "YATSS";
         public string port = "";
@@ -44,6 +48,7 @@ namespace YATSS
         public YATSS()
         {
             InitializeComponent();
+            ConfigureDataMenu();
             Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? Icon;
             KeyPreview = true;
             ConfigureBoardLayout();
@@ -90,6 +95,211 @@ namespace YATSS
                 s.Dispose();
                 AllowSystemSleep();
             };
+            Shown += (_, _) => BeginInvoke(CreateAutomaticDatabaseBackup);
+        }
+
+        private void ConfigureDataMenu()
+        {
+            ToolStripMenuItem dataMenu = new("Data");
+            dataMenu.DropDownItems.AddRange(new ToolStripItem[]
+            {
+                _backupDatabaseMenuItem,
+                _restoreDatabaseMenuItem,
+                new ToolStripSeparator(),
+                _openDatabaseFolderMenuItem,
+                _openBackupFolderMenuItem
+            });
+
+            int fileMenuIndex = menuStrip1.Items.IndexOf(fileToolStripMenuItem);
+            menuStrip1.Items.Insert(fileMenuIndex + 1, dataMenu);
+            _backupDatabaseMenuItem.Click += (_, _) => BackUpDatabase();
+            _restoreDatabaseMenuItem.Click += (_, _) => RestoreDatabase();
+            _openDatabaseFolderMenuItem.Click += (_, _) => OpenDatabaseFolder();
+            _openBackupFolderMenuItem.Click += (_, _) => OpenBackupFolder();
+        }
+
+        private void BackUpDatabase()
+        {
+            try
+            {
+                string backupDirectory = AppDatabase.GetDefaultBackupDirectory();
+                Directory.CreateDirectory(backupDirectory);
+                using SaveFileDialog dialog = new()
+                {
+                    Title = "Back Up YATSS Database",
+                    InitialDirectory = backupDirectory,
+                    FileName = $"YATSS-backup-{DateTime.Now:yyyyMMdd-HHmmss}.db",
+                    Filter = "SQLite database (*.db)|*.db|All files (*.*)|*.*",
+                    DefaultExt = "db",
+                    AddExtension = true,
+                    OverwritePrompt = true,
+                    RestoreDirectory = true
+                };
+                if (dialog.ShowDialog(this) != DialogResult.OK)
+                {
+                    return;
+                }
+
+                UseWaitCursor = true;
+                DatabaseBackupResult result = AppDatabase.CreateBackup(dialog.FileName);
+                MessageBox.Show(
+                    this,
+                    $"Database backup verified and saved.\n\n" +
+                    $"Racers: {result.RacerCount}\n\n" +
+                    result.Path,
+                    "Backup Complete",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+            }
+            catch (Exception exception)
+            {
+                MessageBox.Show(
+                    this,
+                    exception.Message,
+                    "Database Backup Failed",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
+            finally
+            {
+                UseWaitCursor = false;
+            }
+        }
+
+        private void RestoreDatabase()
+        {
+            if (!s.CanRestoreDatabase(out string reason))
+            {
+                MessageBox.Show(
+                    this,
+                    reason,
+                    "Database Restore Unavailable",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+                return;
+            }
+
+            try
+            {
+                string backupDirectory = AppDatabase.GetDefaultBackupDirectory();
+                Directory.CreateDirectory(backupDirectory);
+                using OpenFileDialog dialog = new()
+                {
+                    Title = "Restore YATSS Database",
+                    InitialDirectory = backupDirectory,
+                    Filter = "SQLite database (*.db)|*.db|All files (*.*)|*.*",
+                    CheckFileExists = true,
+                    Multiselect = false,
+                    RestoreDirectory = true
+                };
+                if (dialog.ShowDialog(this) != DialogResult.OK)
+                {
+                    return;
+                }
+
+                DialogResult confirmation = MessageBox.Show(
+                    this,
+                    "Restore the selected database?\n\n" +
+                    "The current database will be backed up automatically before it is replaced. " +
+                    "YATSS will restart after the restore.",
+                    "Confirm Database Restore",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Warning,
+                    MessageBoxDefaultButton.Button2);
+                if (confirmation != DialogResult.Yes)
+                {
+                    return;
+                }
+
+                string safetyBackupPath = Path.Combine(
+                    backupDirectory,
+                    $"YATSS-before-restore-{DateTime.Now:yyyyMMdd-HHmmss}.db");
+                CloseControllerDiagnostics();
+                s.PrepareForDatabaseRestore();
+                UseWaitCursor = true;
+                DatabaseRestoreResult result = AppDatabase.RestoreBackup(
+                    dialog.FileName,
+                    safetyBackupPath);
+
+                MessageBox.Show(
+                    this,
+                    $"Database restored and verified.\n\n" +
+                    $"Racers: {result.RacerCount}\n\n" +
+                    $"Previous database saved to:\n{result.SafetyBackupPath}\n\n" +
+                    "YATSS will now restart.",
+                    "Restore Complete",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+                Application.Restart();
+                Close();
+            }
+            catch (Exception exception)
+            {
+                MessageBox.Show(
+                    this,
+                    exception.Message,
+                    "Database Restore Failed",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
+            finally
+            {
+                UseWaitCursor = false;
+            }
+        }
+
+        private void CreateAutomaticDatabaseBackup()
+        {
+            try
+            {
+                _ = AppDatabase.CreateAutomaticBackup();
+            }
+            catch (Exception exception)
+            {
+                MessageBox.Show(
+                    this,
+                    "YATSS could not create today's automatic database backup.\n\n" +
+                    exception.Message,
+                    "Automatic Backup Failed",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
+        }
+
+        private void OpenDatabaseFolder()
+        {
+            string directory = Path.GetDirectoryName(AppDatabase.DatabasePath)
+                ?? throw new InvalidOperationException("The database folder could not be found.");
+            OpenFolder(directory, "Database Folder Could Not Be Opened");
+        }
+
+        private void OpenBackupFolder()
+        {
+            OpenFolder(
+                AppDatabase.GetDefaultBackupDirectory(),
+                "Backup Folder Could Not Be Opened");
+        }
+
+        private void OpenFolder(string directory, string errorTitle)
+        {
+            try
+            {
+                Directory.CreateDirectory(directory);
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = directory,
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception exception)
+            {
+                MessageBox.Show(
+                    this,
+                    exception.Message,
+                    errorTitle,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
         }
 
         [DllImport("kernel32.dll", SetLastError = true)]
@@ -154,7 +364,7 @@ namespace YATSS
 
         private void exitToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            Environment.Exit(0);
+            Close();
         }
 
         private void resetToolStripMenuItem_Click(object sender, EventArgs e)
@@ -611,9 +821,9 @@ namespace YATSS
                 Padding = new Padding(8, 0, 8, 0),
                 RowCount = 1
             };
-            heatStatusPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 28F));
-            heatStatusPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 28F));
-            heatStatusPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 44F));
+            heatStatusPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 48F));
+            heatStatusPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));
+            heatStatusPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 32F));
             heatStatusPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
             _heatStatusLabel = CreateHeatStatusLabel("Practice");
@@ -755,11 +965,23 @@ namespace YATSS
             {
                 SetPracticeClockEnabled(false);
                 string trimmedState = state.Trim();
+                bool waitingForSpace = string.Equals(trimmedState, "Ready", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(trimmedState, "Paused", StringComparison.OrdinalIgnoreCase);
+                string displayState = trimmedState switch
+                {
+                    "Ready" => "PRESS SPACE TO START",
+                    "Paused" => "PAUSED - PRESS SPACE TO RESUME",
+                    "Starting" => "STARTING...",
+                    "Resuming" => "RESUMING...",
+                    _ => trimmedState
+                };
                 _heatStatusLabel.Text = heatNumber > 0 && totalHeats > 0
-                    ? string.IsNullOrWhiteSpace(trimmedState)
+                    ? string.IsNullOrWhiteSpace(displayState)
                         ? $"Heat {heatNumber}/{totalHeats}"
-                        : $"Heat {heatNumber}/{totalHeats} {trimmedState}"
-                    : trimmedState;
+                        : $"Heat {heatNumber}/{totalHeats} - {displayState}"
+                    : displayState;
+                _heatStatusLabel.ForeColor = waitingForSpace ? Color.Gold : Color.White;
+                SetFontSizeToFit(_heatStatusLabel, 14F);
                 string timerPrefix = string.Equals(trimmedState, "Intermission", StringComparison.OrdinalIgnoreCase)
                     ? "Next"
                     : "Timer";
@@ -773,6 +995,7 @@ namespace YATSS
             RunOnUiThread(() =>
             {
                 _heatStatusLabel.Text = "Practice";
+                _heatStatusLabel.ForeColor = Color.White;
                 SetPracticeClockEnabled(true);
                 _onDeckLabel.Text = "On deck: ";
             });

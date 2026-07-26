@@ -1,5 +1,6 @@
 using YATSS;
 using System.Text.Json;
+using Microsoft.Data.Sqlite;
 
 static void Assert(bool condition, string message)
 {
@@ -78,6 +79,43 @@ Assert(
         TimestampMillis: 14000
     },
     "diagnostic session fields should parse");
+
+Random demoRandom = new(1979);
+int[] demoLanePaces = DemoLapTiming.CreateLanePaces(demoRandom);
+Assert(demoLanePaces.Length == LapProtocolParser.LaneCount,
+    "demo timing should create one reference pace per lane");
+Assert(demoLanePaces.Distinct().Count() == LapProtocolParser.LaneCount,
+    "demo lane reference paces should be shuffled without duplication");
+DemoLapTiming demoTiming = new();
+demoTiming.ConfigureRacers(new[] { "Ada", "Grace" });
+int adaPace = demoTiming.GetReferencePaceMilliseconds(0, demoLanePaces, "Ada");
+Assert(demoLanePaces.Contains(adaPace),
+    "configured demo racers should receive a valid reference pace");
+Assert(demoTiming.GetReferencePaceMilliseconds(3, demoLanePaces, "") == demoLanePaces[3],
+    "practice demo timing should fall back to the lane pace");
+for (int sample = 0; sample < 100; sample++)
+{
+    int interval = DemoLapTiming.GetLapIntervalMilliseconds(
+        demoRandom,
+        referenceBaseLapMilliseconds: 4300,
+        trackLengthFeet: 155,
+        configuredMinimumLapMilliseconds: 1800);
+    Assert(interval is >= 4200 and <= 6500,
+        "demo lap intervals should remain inside reference-track bounds");
+}
+Assert(DemoLapTiming.GetLapIntervalMilliseconds(
+        demoRandom,
+        referenceBaseLapMilliseconds: 4300,
+        trackLengthFeet: 155,
+        configuredMinimumLapMilliseconds: 15000) == 15000,
+    "configured minimum lap time should constrain demo timing");
+int demoBaseline = DemoLapTiming.GetFirstBaselineMilliseconds(
+    demoRandom,
+    referenceBaseLapMilliseconds: 4300,
+    trackLengthFeet: 155,
+    configuredMinimumLapMilliseconds: 1800);
+Assert(demoBaseline is >= 1400 and <= 2167,
+    "demo first baseline should represent roughly one-third of a lap");
 
 LapProtocolMessage badDiagnosticMask = LapProtocolParser.Parse(
     LapProtocolParser.EncodeFrame("DIAG:STATUS:5:A3:1800:2:12345"));
@@ -466,6 +504,122 @@ finally
     }
 }
 
+string databaseTestDirectory = Path.Combine(
+    Path.GetTempPath(),
+    "YATSS.Tests",
+    Guid.NewGuid().ToString("N"));
+string testDatabasePath = Path.Combine(databaseTestDirectory, "active.db");
+string testBackupPath = Path.Combine(databaseTestDirectory, "manual-backup.db");
+string testSafetyPath = Path.Combine(databaseTestDirectory, "before-restore.db");
+string testAutomaticDirectory = Path.Combine(databaseTestDirectory, "Automatic");
+try
+{
+    Directory.CreateDirectory(databaseTestDirectory);
+    DatabaseMaintenance maintenance = new(
+        testDatabasePath,
+        testAutomaticDirectory,
+        currentSchemaVersion: 1);
+
+    CreateTestDatabase(testDatabasePath, schemaVersion: 0, "Pre-Migration Racer");
+    maintenance.BackUpBeforeSchemaUpgrade();
+    string schemaBackupPath = Directory.GetFiles(
+        testAutomaticDirectory,
+        "YATSS-before-schema-v0-to-v1-*.db").Single();
+    Assert(ReadTestRacers(schemaBackupPath).SequenceEqual(new[] { "Pre-Migration Racer" }),
+        "schema upgrade should preserve a verified copy of the old database");
+
+    CreateTestDatabase(testDatabasePath, schemaVersion: 1, "Current Racer");
+
+    DatabaseBackupResult manualBackup = maintenance.CreateBackup(testBackupPath);
+    Assert(manualBackup.RacerCount == 1, "manual backup should report its racer count");
+    Assert(ReadTestRacers(testBackupPath).SequenceEqual(new[] { "Current Racer" }),
+        "manual backup should contain current data");
+
+    CreateTestDatabase(testDatabasePath, schemaVersion: 1, "Changed Racer");
+    DatabaseRestoreResult restore = maintenance.RestoreBackup(
+        testBackupPath,
+        testSafetyPath,
+        closeActiveDatabase: () => { },
+        initializeActiveDatabase: () => { });
+    Assert(restore.RacerCount == 1, "restore should report its racer count");
+    Assert(ReadTestRacers(testDatabasePath).SequenceEqual(new[] { "Current Racer" }),
+        "restore should replace the active database");
+    Assert(ReadTestRacers(testSafetyPath).SequenceEqual(new[] { "Changed Racer" }),
+        "restore should preserve the previous database in a safety backup");
+
+    Directory.CreateDirectory(testAutomaticDirectory);
+    File.Copy(testBackupPath, Path.Combine(testAutomaticDirectory, "YATSS-auto-20000101.db"));
+    File.Copy(testBackupPath, Path.Combine(testAutomaticDirectory, "YATSS-auto-20000102.db"));
+    DatabaseBackupResult? automaticBackup = maintenance.CreateAutomaticBackup(retainedBackupCount: 2);
+    Assert(automaticBackup is not null, "first daily automatic backup should be created");
+    Assert(Directory.GetFiles(testAutomaticDirectory, "YATSS-auto-*.db").Length == 2,
+        "automatic backup retention should remove older daily copies");
+    Assert(maintenance.CreateAutomaticBackup(retainedBackupCount: 2) is null,
+        "only one automatic backup should be created per day");
+
+    string legacyBackupPath = Path.Combine(databaseTestDirectory, "legacy-backup.db");
+    CreateTestDatabase(legacyBackupPath, schemaVersion: 0, "Legacy Racer");
+    CreateTestDatabase(testDatabasePath, schemaVersion: 1, "Before Legacy Restore");
+    _ = maintenance.RestoreBackup(
+        legacyBackupPath,
+        testSafetyPath,
+        closeActiveDatabase: () => { },
+        initializeActiveDatabase: () => SetTestSchemaVersion(testDatabasePath, 1));
+    Assert(ReadTestRacers(testDatabasePath).SequenceEqual(new[] { "Legacy Racer" }),
+        "restore should allow an older YATSS schema and migrate it");
+
+    CreateTestDatabase(testDatabasePath, schemaVersion: 1, "Rollback Racer");
+    int initializationAttempts = 0;
+    bool restoreFailed = false;
+    try
+    {
+        _ = maintenance.RestoreBackup(
+            testBackupPath,
+            testSafetyPath,
+            closeActiveDatabase: () => { },
+            initializeActiveDatabase: () =>
+            {
+                initializationAttempts++;
+                if (initializationAttempts == 1)
+                {
+                    throw new InvalidOperationException("Simulated initialization failure");
+                }
+            });
+    }
+    catch (InvalidOperationException)
+    {
+        restoreFailed = true;
+    }
+
+    Assert(restoreFailed, "a failed restore should report failure");
+    Assert(ReadTestRacers(testDatabasePath).SequenceEqual(new[] { "Rollback Racer" }),
+        "a failed restore should roll back to the previous database");
+
+    string newerBackupPath = Path.Combine(databaseTestDirectory, "newer-backup.db");
+    CreateTestDatabase(newerBackupPath, schemaVersion: 2, "Future Racer");
+    bool newerBackupRejected = false;
+    try
+    {
+        _ = maintenance.RestoreBackup(
+            newerBackupPath,
+            testSafetyPath,
+            closeActiveDatabase: () => { },
+            initializeActiveDatabase: () => { });
+    }
+    catch (InvalidDataException)
+    {
+        newerBackupRejected = true;
+    }
+    Assert(newerBackupRejected, "restore should reject a database from a newer schema");
+}
+finally
+{
+    if (Directory.Exists(databaseTestDirectory))
+    {
+        Directory.Delete(databaseTestDirectory, recursive: true);
+    }
+}
+
 QualifyingController qualifying = new();
 qualifying.Configure(new[] { "Slow", "No Lap", "Fast" }, laneIndex: 2, durationSeconds: 30);
 Assert(qualifying.State == QualifyingState.Ready, "qualifying should be ready after configuration");
@@ -514,4 +668,63 @@ IReadOnlyList<string> seededQualifiers = QualifyingController.BuildSeededRacers(
     activeLaneCount: 4);
 Assert(seededQualifiers.SequenceEqual(new[] { "B", "D", "A", "C", "E" }), "lane choices should seed physical lanes and preserve qualifying queue order");
 
-Console.WriteLine("Protocol and lap race tests passed.");
+Console.WriteLine("Protocol, lap race, export, and database tests passed.");
+
+static void CreateTestDatabase(string path, int schemaVersion, params string[] racers)
+{
+    File.Delete(path);
+    File.Delete(path + "-shm");
+    File.Delete(path + "-wal");
+    using SqliteConnection connection = new(new SqliteConnectionStringBuilder
+    {
+        DataSource = path,
+        Pooling = false
+    }.ToString());
+    connection.Open();
+    using SqliteCommand command = connection.CreateCommand();
+    command.CommandText = "CREATE TABLE users (name TEXT NOT NULL);";
+    command.ExecuteNonQuery();
+    foreach (string racer in racers)
+    {
+        command.CommandText = "INSERT INTO users (name) VALUES ($name);";
+        command.Parameters.Clear();
+        command.Parameters.AddWithValue("$name", racer);
+        command.ExecuteNonQuery();
+    }
+    command.CommandText = $"PRAGMA user_version = {schemaVersion};";
+    command.Parameters.Clear();
+    command.ExecuteNonQuery();
+}
+
+static IReadOnlyList<string> ReadTestRacers(string path)
+{
+    using SqliteConnection connection = new(new SqliteConnectionStringBuilder
+    {
+        DataSource = path,
+        Mode = SqliteOpenMode.ReadOnly,
+        Pooling = false
+    }.ToString());
+    connection.Open();
+    using SqliteCommand command = connection.CreateCommand();
+    command.CommandText = "SELECT name FROM users ORDER BY name;";
+    using SqliteDataReader reader = command.ExecuteReader();
+    List<string> racers = new();
+    while (reader.Read())
+    {
+        racers.Add(reader.GetString(0));
+    }
+    return racers;
+}
+
+static void SetTestSchemaVersion(string path, int schemaVersion)
+{
+    using SqliteConnection connection = new(new SqliteConnectionStringBuilder
+    {
+        DataSource = path,
+        Pooling = false
+    }.ToString());
+    connection.Open();
+    using SqliteCommand command = connection.CreateCommand();
+    command.CommandText = $"PRAGMA user_version = {schemaVersion};";
+    command.ExecuteNonQuery();
+}

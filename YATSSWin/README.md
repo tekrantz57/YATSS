@@ -21,7 +21,7 @@ dotnet build YATSSWin\YATSS.sln -c Release
 dotnet run --project YATSSWin\YATSS.Tests\YATSS.Tests.csproj -c Release
 ```
 
-The app targets `.NET 9` for Windows Forms.
+The app targets `.NET 10` LTS for Windows Forms.
 
 ## Serial Connection
 
@@ -37,6 +37,18 @@ App settings, lane configuration, and racer names are stored in:
 ```text
 %LOCALAPPDATA%\YATSS\laps.db
 ```
+
+The `Data` menu creates verified manual backups, restores verified backups with
+a pre-restore safety copy, and opens the database or backup folders. YATSS also
+creates one automatic backup per day and retains the newest 14 under:
+
+```text
+%USERPROFILE%\Documents\YATSS Backups\Automatic
+```
+
+Successful restore cuts track power and restarts YATSS so every restored
+setting is loaded. See [Database backup and restore](../docs/DATABASE_BACKUP.md)
+for validation, retention, schema-upgrade, and rollback details.
 
 The `File > Serial Log` window tails the current log. It follows the end of the
 file while scrolled to the bottom, pauses when you scroll up to inspect older
@@ -88,7 +100,9 @@ Heat race setup supports:
 
 Space starts a heat, pauses a running heat for a track call, and resumes a
 paused heat. Track power is cut immediately on track calls and restored after
-the spoken countdown. During stoppage time, lap counts can be adjusted by lane.
+the spoken countdown. The main status band shows a gold Space-bar prompt before
+the first heat and while paused, then changes to a countdown state after Space
+is pressed. During stoppage time, lap counts can be adjusted by lane.
 
 After a race, the app always writes a human-readable HTML report under:
 
