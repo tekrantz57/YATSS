@@ -7,3 +7,4 @@ YATSSWin/**/obj/
 *.suo
 .codex/
 .agents/
+artifacts/

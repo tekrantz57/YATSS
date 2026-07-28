@@ -16,8 +16,7 @@ ESP32-C6-WROOM-1-N8 module. In Arduino IDE:
 
 1. Install `esp32 by Espressif Systems` in Boards Manager.
 2. Select `ESP32C6 Dev Module` as the board.
-3. Select the Silicon Labs CP210x port. On the development computer it was
-   `COM14` when first installed.
+3. Select the COM port created by the Silicon Labs CP210x interface.
 4. Connect and upload through the USB-C socket labeled `UART`.
 5. Set `Flash Size` to `8MB (64Mb)`.
 6. Set `Partition Scheme` to `8M with spiffs (3MB APP/1.5MB SPIFFS)`.

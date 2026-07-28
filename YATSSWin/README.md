@@ -5,6 +5,10 @@ state, lap counting, filtering, logging, heat-race flow, qualifying, reports,
 and track-power commands. The microcontroller only reports timestamped sensor
 edges.
 
+The Carolina Blue title panel at the bottom of the main window displays the
+application release version in its lower-right corner. The value comes from
+version metadata embedded at build time.
+
 ## Build And Test
 
 From the `YATSSWin` directory:
@@ -106,6 +110,15 @@ The main status band shows a gold Space-bar prompt before the first heat and
 while paused, then changes to a countdown state after Space is pressed. During
 stoppage time, lap counts can be adjusted by lane.
 
+Space also makes and resumes track calls during qualifying. Qualifying time and
+any lap spanning the track call exclude the stopped interval. During a timed
+intermission, the first Space press pauses the automatic next-heat start; the
+status band then prompts for a subsequent Space press to start the next heat.
+
+The Next button on an unmodified Logitech R500s presenter sends Right Arrow;
+YATSS accepts that button as the same race-control command as Space. The
+presenter's Back and laser buttons have no race-control function.
+
 After a race, the app always writes a human-readable HTML report under:
 
 ```text
@@ -139,11 +152,16 @@ live sensor hardware.
 `Demo Race` seeds a heat race with sample racers so the heat-race workflow can
 be tested quickly.
 
-`Demo Lap Stream` generates simulated controller heartbeats and lane edges. It
+`Simulated Lap Input` generates simulated controller heartbeats and lane edges. It
 uses the same lap-processing path as real serial input, but ignores real serial
 lines while the demo stream is active. This is useful for testing timing board
 updates, heat transitions, qualifying and race setup behavior, and report
 output.
+
+In the Mode menu, Practice and Heat Race use mutually exclusive radio marks.
+Qualifying and Demo Race are setup commands and do not remain marked. Simulated
+Lap Input is a separate on/off toggle, so its check can appear alongside either
+primary mode while simulated edges are active.
 
 ## Configure Dialog
 

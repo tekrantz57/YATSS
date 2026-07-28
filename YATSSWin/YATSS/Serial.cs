@@ -27,6 +27,7 @@ namespace YATSS
         private uint _demoStartTimestamp;
         private bool _demoClockActive;
         private System.Threading.Timer? _betweenHeatsTimer;
+        private bool _betweenHeatsPaused;
         private DateTime? _nextHeatStartUtc;
         private DateTime? _lastControllerResponseUtc;
         private DateTime? _latestControllerTimestampUtc;
@@ -295,10 +296,18 @@ namespace YATSS
             switch (_qualifying.State)
             {
                 case QualifyingState.Ready:
-                    QueueQualifyingCountdown();
+                    QueueQualifyingCountdown(resumePausedQualifier: false);
                     return;
                 case QualifyingState.Running:
-                    _form.SetStatusMessage("Track calls are not available during qualifying");
+                    if (_qualifying.Pause(controllerTimestamp))
+                    {
+                        PublishQualifyingStatus("Paused");
+                        SetTrackPowerEnabled(false, "Track call", "Qualifying paused for track call. Press Space to resume.");
+                        _log.Info($"{_qualifying.CurrentRacer} qualifying paused for track call");
+                    }
+                    return;
+                case QualifyingState.Paused:
+                    QueueQualifyingCountdown(resumePausedQualifier: true);
                     return;
                 case QualifyingState.Complete:
                     _form.SetStatusMessage("Complete the qualifying lane selections");
@@ -322,7 +331,10 @@ namespace YATSS
                     QueueStartCountdown(resumePausedHeat: true, manualStart: true);
                     break;
                 case HeatRaceState.Complete:
-                    StartNextHeatFromComplete(manualStart: true);
+                    if (!PauseBetweenHeats())
+                    {
+                        StartNextHeatFromComplete(manualStart: true);
+                    }
                     break;
                 default:
                     SetTrackPowerEnabled(!_trackPowerEnabled);
@@ -583,9 +595,12 @@ namespace YATSS
             SpeechAnnouncer.SpeakCountdownAsync(_form.SpeechVoiceName, () => CompleteStartCountdown(resumePausedHeat, manualStart, countdownVersion));
         }
 
-        private void QueueQualifyingCountdown()
+        private void QueueQualifyingCountdown(bool resumePausedQualifier)
         {
-            if (_startCountdownInProgress || _qualifying.State != QualifyingState.Ready)
+            QualifyingState expectedState = resumePausedQualifier
+                ? QualifyingState.Paused
+                : QualifyingState.Ready;
+            if (_startCountdownInProgress || _qualifying.State != expectedState)
             {
                 return;
             }
@@ -594,27 +609,38 @@ namespace YATSS
             int countdownVersion = ++_startCountdownVersion;
             _trackPowerEnabled = true;
             _form.SetQualifyingAvailable(false);
+            PublishQualifyingStatus(resumePausedQualifier ? "Resuming" : "Starting");
             _form.SetStatusMessage(
-                $"Qualifier {_qualifying.CurrentNumber}/{_qualifying.RacerCount} countdown");
-            _log.Info($"qualifier {_qualifying.CurrentNumber} start countdown queued");
+                resumePausedQualifier
+                    ? $"{_qualifying.CurrentRacer} qualifying restart countdown"
+                    : $"Qualifier {_qualifying.CurrentNumber}/{_qualifying.RacerCount} countdown");
+            _log.Info(resumePausedQualifier
+                ? $"qualifier {_qualifying.CurrentNumber} restart countdown queued"
+                : $"qualifier {_qualifying.CurrentNumber} start countdown queued");
             SpeechAnnouncer.SpeakCountdownAsync(
                 _form.SpeechVoiceName,
-                () => CompleteQualifyingCountdown(countdownVersion));
+                () => CompleteQualifyingCountdown(resumePausedQualifier, countdownVersion));
         }
 
-        private void CompleteQualifyingCountdown(int countdownVersion)
+        private void CompleteQualifyingCountdown(bool resumePausedQualifier, int countdownVersion)
         {
             try
             {
+                QualifyingState expectedState = resumePausedQualifier
+                    ? QualifyingState.Paused
+                    : QualifyingState.Ready;
                 if (countdownVersion != _startCountdownVersion ||
-                    _qualifying.State != QualifyingState.Ready)
+                    _qualifying.State != expectedState)
                 {
                     return;
                 }
 
                 WriteLine(GetTrackPowerCommand());
                 uint controllerTimestamp = GetControllerTimestamp();
-                if (!_qualifying.Start(controllerTimestamp))
+                bool started = resumePausedQualifier
+                    ? _qualifying.Resume(controllerTimestamp)
+                    : _qualifying.Start(controllerTimestamp);
+                if (!started)
                 {
                     return;
                 }
@@ -623,7 +649,9 @@ namespace YATSS
                 _form.SetStatusMessage(
                     $"{_qualifying.CurrentRacer} qualifying; " +
                     $"{_qualifying.DurationSeconds} seconds remaining");
-                _log.Info($"qualifier {_qualifying.CurrentNumber} started");
+                _log.Info(resumePausedQualifier
+                    ? $"qualifier {_qualifying.CurrentNumber} resumed"
+                    : $"qualifier {_qualifying.CurrentNumber} started");
             }
             finally
             {
@@ -1207,7 +1235,7 @@ namespace YATSS
                 return;
             }
 
-            PublishLapUpdate(edge, _race.Process(edge));
+            PublishLapUpdate(edge, _race.Process(_qualifying.AdjustEdgeTimestamp(edge)));
         }
 
         private void PublishLapUpdate(LapEdge edge, LapUpdate update)
@@ -1457,6 +1485,7 @@ namespace YATSS
             }
 
             CancelBetweenHeatsTimer();
+            _betweenHeatsPaused = false;
             _nextHeatStartUtc = DateTime.UtcNow.AddSeconds(betweenHeatsSeconds);
             PublishHeatRaceStatus("Intermission");
             _form.SetStatusMessage($"Heat {_heatRace.HeatNumber} complete. Next heat in {betweenHeatsSeconds} seconds. {StoppedAdjustmentHint}");
@@ -1470,6 +1499,7 @@ namespace YATSS
         private void StartNextHeatFromComplete(bool manualStart)
         {
             CancelBetweenHeatsTimer();
+            _betweenHeatsPaused = false;
             RecordCurrentHeatResults();
             if (!_heatRace.PrepareNextHeat(_race.GetLapCounts()))
             {
@@ -1492,6 +1522,25 @@ namespace YATSS
             System.Threading.Timer? timer = Interlocked.Exchange(ref _betweenHeatsTimer, null);
             timer?.Dispose();
             _nextHeatStartUtc = null;
+            _betweenHeatsPaused = false;
+        }
+
+        private bool PauseBetweenHeats()
+        {
+            System.Threading.Timer? timer = Interlocked.Exchange(ref _betweenHeatsTimer, null);
+            if (timer == null)
+            {
+                return false;
+            }
+
+            timer.Dispose();
+            _nextHeatStartUtc = null;
+            _betweenHeatsPaused = true;
+            PublishHeatRaceStatus("Intermission paused");
+            _form.SetStatusMessage(
+                $"Intermission paused after Heat {_heatRace.HeatNumber}. Press Space to start the next heat. {StoppedAdjustmentHint}");
+            _log.Info($"intermission after heat {_heatRace.HeatNumber} paused manually");
+            return true;
         }
 
         private void PublishHeatRaceStatus(string state)
@@ -1536,6 +1585,11 @@ namespace YATSS
                 return "Intermission";
             }
 
+            if (_betweenHeatsPaused)
+            {
+                return "Intermission paused";
+            }
+
             return _heatRace.State == HeatRaceState.Complete && !_heatRace.HasMoreHeats
                 ? "Race complete"
                 : GetStateDisplayName(_heatRace.State);
@@ -1551,14 +1605,22 @@ namespace YATSS
                 _ => "Practice"
             };
 
-        private string GetQualifyingStateDisplayName() =>
-            _qualifying.State switch
+        private string GetQualifyingStateDisplayName()
+        {
+            if (_startCountdownInProgress)
+            {
+                return _qualifying.State == QualifyingState.Paused ? "Resuming" : "Starting";
+            }
+
+            return _qualifying.State switch
             {
                 QualifyingState.Ready => "Ready",
                 QualifyingState.Running => "Running",
+                QualifyingState.Paused => "Paused",
                 QualifyingState.Complete => "Complete",
                 _ => string.Empty
             };
+        }
 
         private static string FormatSeconds(int milliseconds) =>
             TimeSpan.FromMilliseconds(milliseconds).TotalSeconds.ToString("0.000", CultureInfo.InvariantCulture);

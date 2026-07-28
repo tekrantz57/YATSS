@@ -127,12 +127,13 @@ JSON `laneIndex` values are zero based. CSV files expose one-based
 | `bestLapMilliseconds` | Fastest accepted lap, or null when none was set. |
 | `laneIndex` | Zero-based physical qualifying lane. |
 | `configuredDurationSeconds` | Requested session duration. |
-| `elapsedMilliseconds` | Actual controller elapsed time at completion. |
+| `elapsedMilliseconds` | Active qualifying time at completion, excluding track calls. |
 | `laps` | Accepted qualifying laps in crossing order. |
 
 Each qualifying lap contains `lapNumber`, `lapMilliseconds`, and
-`sessionElapsedMilliseconds`. The elapsed value is measured from the start of
-that racer's qualifying session to the recorded crossing.
+`sessionElapsedMilliseconds`. The elapsed value is measured as active time from
+the start of that racer's qualifying session to the recorded crossing,
+excluding track calls.
 
 ### Final Racer Result
 

@@ -5,6 +5,7 @@ namespace YATSS
         Inactive,
         Ready,
         Running,
+        Paused,
         Complete
     }
 
@@ -30,6 +31,8 @@ namespace YATSS
         private readonly List<string> _racers = new();
         private readonly List<QualifyingResult> _results = new();
         private uint _startedAt;
+        private uint? _pausedAt;
+        private readonly List<(uint Start, uint End)> _pauseIntervals = new();
         private int _currentIndex;
         private int _durationMilliseconds;
 
@@ -51,6 +54,8 @@ namespace YATSS
                     .Where(racer => !string.IsNullOrWhiteSpace(racer)));
                 _results.Clear();
                 _currentIndex = 0;
+                _pausedAt = null;
+                _pauseIntervals.Clear();
                 LaneIndex = Math.Clamp(laneIndex, 0, LapProtocolParser.LaneCount - 1);
                 _durationMilliseconds = Math.Clamp(durationSeconds, 1, 3600) * 1000;
                 State = _racers.Count > 0 ? QualifyingState.Ready : QualifyingState.Inactive;
@@ -67,6 +72,39 @@ namespace YATSS
                 }
 
                 _startedAt = controllerTimestamp;
+                _pausedAt = null;
+                _pauseIntervals.Clear();
+                State = QualifyingState.Running;
+                return true;
+            }
+        }
+
+        public bool Pause(uint controllerTimestamp)
+        {
+            lock (_gate)
+            {
+                if (State != QualifyingState.Running)
+                {
+                    return false;
+                }
+
+                _pausedAt = controllerTimestamp;
+                State = QualifyingState.Paused;
+                return true;
+            }
+        }
+
+        public bool Resume(uint controllerTimestamp)
+        {
+            lock (_gate)
+            {
+                if (State != QualifyingState.Paused || !_pausedAt.HasValue)
+                {
+                    return false;
+                }
+
+                _pauseIntervals.Add((_pausedAt.Value, controllerTimestamp));
+                _pausedAt = null;
                 State = QualifyingState.Running;
                 return true;
             }
@@ -77,7 +115,7 @@ namespace YATSS
             lock (_gate)
             {
                 return State == QualifyingState.Running &&
-                    unchecked(controllerTimestamp - _startedAt) >= _durationMilliseconds;
+                    GetElapsedMillisecondsCore(controllerTimestamp) >= _durationMilliseconds;
             }
         }
 
@@ -85,10 +123,20 @@ namespace YATSS
         {
             lock (_gate)
             {
-                uint elapsed = State == QualifyingState.Running
-                    ? unchecked(controllerTimestamp - _startedAt)
+                uint elapsed = State is QualifyingState.Running or QualifyingState.Paused
+                    ? GetElapsedMillisecondsCore(controllerTimestamp)
                     : 0;
                 return TimeSpan.FromMilliseconds(Math.Max(0, _durationMilliseconds - elapsed));
+            }
+        }
+
+        public LapEdge AdjustEdgeTimestamp(LapEdge edge)
+        {
+            lock (_gate)
+            {
+                uint activeTimestamp = unchecked(
+                    _startedAt + GetElapsedMillisecondsCore(edge.TimestampMillis));
+                return edge with { TimestampMillis = activeTimestamp };
             }
         }
 
@@ -104,11 +152,13 @@ namespace YATSS
         {
             lock (_gate)
             {
-                if (State != QualifyingState.Running)
+                if (State is not (QualifyingState.Running or QualifyingState.Paused))
                 {
                     return false;
                 }
 
+                _pausedAt = null;
+                _pauseIntervals.Clear();
                 State = QualifyingState.Ready;
                 return true;
             }
@@ -131,7 +181,7 @@ namespace YATSS
                     ? null
                     : qualifyingLaps.Min(lap => lap.LapMilliseconds);
                 int elapsedMilliseconds = (int)Math.Min(
-                    unchecked(controllerTimestamp - _startedAt),
+                    GetElapsedMillisecondsCore(controllerTimestamp),
                     int.MaxValue);
                 return CompleteCurrentCore(bestLap, qualifyingLaps, elapsedMilliseconds);
             }
@@ -214,8 +264,42 @@ namespace YATSS
                 _racers.Clear();
                 _results.Clear();
                 _currentIndex = 0;
+                _pausedAt = null;
+                _pauseIntervals.Clear();
                 State = QualifyingState.Inactive;
             }
+        }
+
+        private uint GetElapsedMillisecondsCore(uint controllerTimestamp)
+        {
+            uint elapsed = unchecked(controllerTimestamp - _startedAt);
+            ulong pausedMilliseconds = 0;
+
+            foreach ((uint pauseStart, uint pauseEnd) in _pauseIntervals)
+            {
+                uint pauseStartElapsed = unchecked(pauseStart - _startedAt);
+                if (pauseStartElapsed >= elapsed)
+                {
+                    continue;
+                }
+
+                uint pauseEndElapsed = unchecked(pauseEnd - _startedAt);
+                uint overlapEnd = Math.Min(elapsed, pauseEndElapsed);
+                pausedMilliseconds += overlapEnd - pauseStartElapsed;
+            }
+
+            if (_pausedAt.HasValue)
+            {
+                uint pauseStartElapsed = unchecked(_pausedAt.Value - _startedAt);
+                if (pauseStartElapsed < elapsed)
+                {
+                    pausedMilliseconds += elapsed - pauseStartElapsed;
+                }
+            }
+
+            return pausedMilliseconds >= elapsed
+                ? 0
+                : elapsed - (uint)pausedMilliseconds;
         }
     }
 }

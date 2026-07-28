@@ -73,8 +73,8 @@ First enable both options under `Configure > Race Reports`:
 
 Then:
 
-1. Start `Demo Race`.
-2. Start `Demo Lap Stream`.
+1. Start `Demo Race...`.
+2. Confirm that `Simulated Lap Input` is checked automatically.
 3. Run the race through its final heat.
 4. Let the race finish normally.
 
@@ -83,6 +83,9 @@ Verify:
 - [ ] Lap counts, last lap, best lap, median, and speed update normally.
 - [ ] Ordinary accepted laps do not replace the bottom status message.
 - [ ] Demo lanes do not produce false missed-frame warnings.
+- [ ] Practice and Heat Race never show radio marks at the same time.
+- [ ] Simulated Lap Input remains an independent checkbox when changing the
+  primary mode.
 - [ ] Heat transitions, pauses, resumes, and completion work.
 - [ ] The final HTML report window appears automatically.
 - [ ] The report includes qualifying details when qualifying was used.
@@ -169,7 +172,20 @@ Run a short hardware heat:
   'PAUSED - PRESS SPACE TO RESUME' in gold.
 - [ ] Pressing Space changes the prompt to 'RESUMING...' during the countdown.
 - [ ] Space resumes through the countdown and restores the occupied lanes.
+- [ ] The Next button on an unmodified Logitech R500s performs the same
+  start, track-call, and resume actions as Space.
+- [ ] The R500s Back and laser buttons do not operate race control.
+- [ ] During a timed intermission, Space pauses the automatic next-heat start.
+- [ ] A subsequent Space press starts the next heat through its countdown.
 - [ ] The heat completes and produces its reports.
+
+Run a short qualifying session:
+
+- [ ] Space during qualifying cuts track power and pauses the qualifying timer.
+- [ ] The main status band prompts for Space to resume qualifying.
+- [ ] Space resumes qualifying through the countdown and restores only the
+  configured qualifying lane.
+- [ ] Qualifying session and lap times exclude the stopped interval.
 
 ## 6. Communication Watchdog
 
@@ -221,3 +237,8 @@ Follow-up work:
 A publish smoke test passes only when all required software and hardware checks
 for the intended installation pass, or when any intentionally deferred hardware
 checks are clearly recorded and accepted.
+
+For the smaller package that requires .NET 10, repeat the clean-launch and
+demo-race portions on a system with the matching .NET 10 Desktop Runtime.
+Confirm that it produces a useful runtime-install prompt, rather than an
+unrelated application error, when that runtime is absent.

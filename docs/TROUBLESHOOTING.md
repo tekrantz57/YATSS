@@ -5,8 +5,7 @@
 The ESP32-C6-DevKitC-1 uses a Silicon Labs CP2102N bridge on the USB-C socket
 labeled `UART`. Install the Silicon Labs CP210x VCP driver, reconnect the board,
 and select the resulting `Silicon Labs CP210x USB to UART Bridge` port in
-Arduino IDE. It first appeared as `COM14` on the development computer, but
-Windows may assign a different number later or on another computer.
+Arduino IDE. Windows assigns the COM number, so it may differ between systems.
 
 Use `ESP32C6 Dev Module` as the Arduino IDE board. Do not use the board's socket
 labeled `USB` with the YATSS C6 pin profile because GPIO12 and GPIO13 are

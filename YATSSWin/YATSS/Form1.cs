@@ -30,8 +30,11 @@ namespace YATSS
         private readonly ToolStripMenuItem _restoreDatabaseMenuItem = new("Restore Database...");
         private readonly ToolStripMenuItem _openDatabaseFolderMenuItem = new("Open Database Folder");
         private readonly ToolStripMenuItem _openBackupFolderMenuItem = new("Open Backup Folder");
+        private readonly Image _selectedModeIndicator = CreateModeIndicator(selected: true);
+        private readonly Image _unselectedModeIndicator = CreateModeIndicator(selected: false);
         private const string EmptyRacerName = "          ";
         private const string DefaultWindowTitle = "YATSS";
+        private string _versionedWindowTitle = DefaultWindowTitle;
         public string port = "";
         public int MinLapMilliseconds { get; private set; } = LapRaceOptions.Default.MinLapMilliseconds;
         public bool SoundOnTooFastLap { get; private set; } = true;
@@ -49,6 +52,25 @@ namespace YATSS
         public YATSS()
         {
             InitializeComponent();
+            string displayVersion = Application.ProductVersion.Split('+', 2)[0];
+            titleLabel.Text = "YATSS - Yet Another Timing/Scoring System";
+            Label versionLabel = new()
+            {
+                Anchor = AnchorStyles.Bottom | AnchorStyles.Right,
+                AutoSize = true,
+                BackColor = Color.Transparent,
+                Font = new Font("Segoe UI", 10F, FontStyle.Bold),
+                ForeColor = Color.White,
+                Text = $"v{displayVersion}"
+            };
+            versionLabel.Location = new Point(
+                titleLabel.ClientSize.Width - versionLabel.Width - 12,
+                titleLabel.ClientSize.Height - versionLabel.Height - 8);
+            titleLabel.Controls.Add(versionLabel);
+            versionLabel.BringToFront();
+            _versionedWindowTitle = $"YATSS v{displayVersion}";
+            Text = _versionedWindowTitle;
+            ConfigureModeMenu();
             ConfigureDataMenu();
             Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? Icon;
             KeyPreview = true;
@@ -97,6 +119,8 @@ namespace YATSS
                 _practiceClockTimer.Stop();
                 _practiceClockTimer.Dispose();
                 s.Dispose();
+                _selectedModeIndicator.Dispose();
+                _unselectedModeIndicator.Dispose();
                 AllowSystemSleep();
             };
             Shown += (_, _) => BeginInvoke(CreateAutomaticDatabaseBackup);
@@ -120,6 +144,55 @@ namespace YATSS
             _restoreDatabaseMenuItem.Click += (_, _) => RestoreDatabase();
             _openDatabaseFolderMenuItem.Click += (_, _) => OpenDatabaseFolder();
             _openBackupFolderMenuItem.Click += (_, _) => OpenBackupFolder();
+        }
+
+        private void ConfigureModeMenu()
+        {
+            heatRaceToolStripMenuItem.Text = "Heat Race...";
+            qualifyingToolStripMenuItem.Text = "Qualifying...";
+            demoRaceToolStripMenuItem.Text = "Demo Race...";
+            demoLapStreamToolStripMenuItem.Text = "Simulated Lap Input";
+            SetPrimaryModeIndicator(heatRace: false);
+
+            modeToolStripMenuItem.DropDownItems.Clear();
+            modeToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[]
+            {
+                practiceToolStripMenuItem,
+                heatRaceToolStripMenuItem,
+                new ToolStripSeparator(),
+                qualifyingToolStripMenuItem,
+                demoRaceToolStripMenuItem,
+                new ToolStripSeparator(),
+                demoLapStreamToolStripMenuItem
+            });
+        }
+
+        private static Bitmap CreateModeIndicator(bool selected)
+        {
+            Bitmap image = new(16, 16);
+            using Graphics graphics = Graphics.FromImage(image);
+            graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            using Pen outline = new(SystemColors.MenuText, 1.5F);
+            graphics.DrawEllipse(outline, 3.5F, 3.5F, 8F, 8F);
+            if (selected)
+            {
+                using SolidBrush fill = new(SystemColors.MenuText);
+                graphics.FillEllipse(fill, 6F, 6F, 3F, 3F);
+            }
+
+            return image;
+        }
+
+        private void SetPrimaryModeIndicator(bool heatRace)
+        {
+            practiceToolStripMenuItem.Checked = false;
+            heatRaceToolStripMenuItem.Checked = false;
+            practiceToolStripMenuItem.Image = heatRace
+                ? _unselectedModeIndicator
+                : _selectedModeIndicator;
+            heatRaceToolStripMenuItem.Image = heatRace
+                ? _selectedModeIndicator
+                : _unselectedModeIndicator;
         }
 
         private void BackUpDatabase()
@@ -326,7 +399,7 @@ namespace YATSS
                 return true;
             }
 
-            if (keyData == Keys.Space)
+            if (keyData is Keys.Space or Keys.Right)
             {
                 s.HandleSpaceBar();
                 return true;
@@ -585,14 +658,12 @@ namespace YATSS
         {
             SetRaceTitle(null);
             SetQualifyingAvailable(false);
-            practiceToolStripMenuItem.Checked = true;
-            heatRaceToolStripMenuItem.Checked = false;
+            SetPrimaryModeIndicator(heatRace: false);
         }
 
         private void SetHeatRaceMode()
         {
-            practiceToolStripMenuItem.Checked = false;
-            heatRaceToolStripMenuItem.Checked = true;
+            SetPrimaryModeIndicator(heatRace: true);
         }
 
         public void SetRaceTitle(string? raceName)
@@ -600,8 +671,8 @@ namespace YATSS
             RunOnUiThread(() =>
             {
                 Text = string.IsNullOrWhiteSpace(raceName)
-                    ? DefaultWindowTitle
-                    : $"{DefaultWindowTitle} - {raceName.Trim()}";
+                    ? _versionedWindowTitle
+                    : $"{_versionedWindowTitle} - {raceName.Trim()}";
             });
         }
 
@@ -620,7 +691,19 @@ namespace YATSS
             RunOnUiThread(() =>
             {
                 SetPracticeClockEnabled(false);
-                _heatStatusLabel.Text = $"Qualifying {qualifierNumber}/{qualifierCount} {state}";
+                string trimmedState = state.Trim();
+                bool waitingForSpace = trimmedState is "Ready" or "Paused";
+                string displayState = trimmedState switch
+                {
+                    "Ready" => "PRESS SPACE TO START",
+                    "Paused" => "PAUSED - PRESS SPACE TO RESUME",
+                    "Starting" => "STARTING...",
+                    "Resuming" => "RESUMING...",
+                    _ => trimmedState
+                };
+                _heatStatusLabel.Text = $"Qualifying {qualifierNumber}/{qualifierCount} - {displayState}";
+                _heatStatusLabel.ForeColor = waitingForSpace ? Color.Gold : Color.White;
+                SetFontSizeToFit(_heatStatusLabel, 14F);
                 _heatTimerLabel.Text = $"Timer {FormatClock(remaining)}";
                 _onDeckLabel.Text = $"Qualifier: {racerName}";
             });
@@ -970,13 +1053,15 @@ namespace YATSS
                 SetPracticeClockEnabled(false);
                 string trimmedState = state.Trim();
                 bool waitingForSpace = string.Equals(trimmedState, "Ready", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(trimmedState, "Paused", StringComparison.OrdinalIgnoreCase);
+                    string.Equals(trimmedState, "Paused", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(trimmedState, "Intermission paused", StringComparison.OrdinalIgnoreCase);
                 string displayState = trimmedState switch
                 {
                     "Ready" => "PRESS SPACE TO START",
                     "Paused" => "PAUSED - PRESS SPACE TO RESUME",
                     "Starting" => "STARTING...",
                     "Resuming" => "RESUMING...",
+                    "Intermission paused" => "INTERMISSION PAUSED - PRESS SPACE FOR NEXT HEAT",
                     _ => trimmedState
                 };
                 _heatStatusLabel.Text = heatNumber > 0 && totalHeats > 0
@@ -986,7 +1071,7 @@ namespace YATSS
                     : displayState;
                 _heatStatusLabel.ForeColor = waitingForSpace ? Color.Gold : Color.White;
                 SetFontSizeToFit(_heatStatusLabel, 14F);
-                string timerPrefix = string.Equals(trimmedState, "Intermission", StringComparison.OrdinalIgnoreCase)
+                string timerPrefix = trimmedState.StartsWith("Intermission", StringComparison.OrdinalIgnoreCase)
                     ? "Next"
                     : "Timer";
                 _heatTimerLabel.Text = $"{timerPrefix} {FormatClock(remaining)}";

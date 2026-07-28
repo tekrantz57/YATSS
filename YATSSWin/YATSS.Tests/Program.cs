@@ -655,6 +655,32 @@ Assert(slowQualifier.ElapsedMilliseconds == 30000, "qualifying result should ret
 Assert(slowQualifier.Laps.Count == 2, "qualifying result should retain every accepted lap");
 Assert(slowQualifier.Laps[1].SessionElapsedMilliseconds == 6500, "qualifying lap should retain session elapsed time");
 Assert(slowQualifier.BestLapMilliseconds == 2500, "qualifying best lap should be derived from retained laps");
+
+QualifyingController trackCallQualifying = new();
+trackCallQualifying.Configure(new[] { "Track Call" }, laneIndex: 0, durationSeconds: 30);
+Assert(trackCallQualifying.Start(1000), "track-call qualifier should start");
+LapEdge beforeTrackCall = trackCallQualifying.AdjustEdgeTimestamp(new LapEdge(0, 1, 6000));
+Assert(beforeTrackCall.TimestampMillis == 6000, "qualifying timestamp should initially follow controller time");
+Assert(trackCallQualifying.Pause(11000), "running qualifying should pause for a track call");
+Assert(trackCallQualifying.State == QualifyingState.Paused, "qualifying track call should enter paused state");
+Assert(trackCallQualifying.GetRemaining(21000) == TimeSpan.FromSeconds(20), "qualifying timer should freeze during a track call");
+Assert(!trackCallQualifying.IsExpired(41000), "paused qualifying should not expire");
+Assert(trackCallQualifying.Resume(21000), "paused qualifying should resume");
+LapEdge afterTrackCall = trackCallQualifying.AdjustEdgeTimestamp(new LapEdge(0, 2, 26000));
+Assert(afterTrackCall.TimestampMillis == 16000, "qualifying lap timing should exclude stopped time");
+Assert(!trackCallQualifying.IsExpired(40999), "resumed qualifying should not expire early");
+Assert(trackCallQualifying.IsExpired(41000), "resumed qualifying should expire after active time only");
+Assert(trackCallQualifying.CompleteCurrent(
+    new[]
+    {
+        new LaneLapRecord(5000, true, beforeTrackCall.TimestampMillis),
+        new LaneLapRecord(10000, true, afterTrackCall.TimestampMillis)
+    },
+    41000), "track-call qualifier should complete");
+QualifyingResult trackCallResult = trackCallQualifying.GetRankedResults().Single();
+Assert(trackCallResult.ElapsedMilliseconds == 30000, "qualifying result should exclude track-call time");
+Assert(trackCallResult.Laps[1].SessionElapsedMilliseconds == 15000, "qualifying report timing should exclude track-call time");
+
 IReadOnlyList<string> seededQualifiers = QualifyingController.BuildSeededRacers(
     new[]
     {
