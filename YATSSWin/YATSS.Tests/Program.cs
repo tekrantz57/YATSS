@@ -656,6 +656,23 @@ Assert(slowQualifier.Laps.Count == 2, "qualifying result should retain every acc
 Assert(slowQualifier.Laps[1].SessionElapsedMilliseconds == 6500, "qualifying lap should retain session elapsed time");
 Assert(slowQualifier.BestLapMilliseconds == 2500, "qualifying best lap should be derived from retained laps");
 
+Assert(
+    BuildIdentity.Normalize("v0.10.0-beta.1-0-gc2fb82c", "0.10.0-beta.1") == "v0.10.0-beta.1",
+    "an exact clean release tag should display without commit metadata");
+Assert(
+    BuildIdentity.Normalize("v0.10.0-beta.1-3-g1a2b3c4", "0.10.0-beta.1") == "v0.10.0-beta.1-3-g1a2b3c4",
+    "an intermediate clean build should display commit distance and hash");
+Assert(
+    BuildIdentity.Normalize("v0.10.0-beta.1-0-gc2fb82c-dirty", "0.10.0-beta.1") ==
+        "v0.10.0-beta.1-0-gc2fb82c-dirty",
+    "an exact-tag dirty build should retain its hash and dirty marker");
+Assert(
+    BuildIdentity.Normalize("1a2b3c4-dirty", "0.10.0-beta.1") == "git-1a2b3c4-dirty",
+    "an untagged dirty build should be identified as a Git build");
+Assert(
+    BuildIdentity.Normalize(null, "0.10.0-beta.1+metadata") == "v0.10.0-beta.1",
+    "a source archive build should fall back to the project version");
+
 QualifyingController trackCallQualifying = new();
 trackCallQualifying.Configure(new[] { "Track Call" }, laneIndex: 0, durationSeconds: 30);
 Assert(trackCallQualifying.Start(1000), "track-call qualifier should start");

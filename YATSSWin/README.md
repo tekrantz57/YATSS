@@ -9,6 +9,12 @@ The Carolina Blue title panel at the bottom of the main window displays the
 application release version in its lower-right corner. The value comes from
 version metadata embedded at build time.
 
+Builds made from an exact clean release tag show the concise tag, such as
+`v0.10.0-beta.1`. Intermediate builds use Git's description, such as
+`v0.10.0-beta.1-3-g1a2b3c4`; uncommitted source changes append `-dirty`. The
+same identity appears in the window title. Builds made from a source archive
+without Git metadata fall back to the project version.
+
 ## Build And Test
 
 From the `YATSSWin` directory:

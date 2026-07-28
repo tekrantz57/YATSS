@@ -39,4 +39,22 @@
     </EmbeddedResource>
   </ItemGroup>
 
+  <Target Name="AddGitBuildDescription" BeforeTargets="GetAssemblyAttributes">
+    <PropertyGroup>
+      <GitBuildDescription>v$(Version)</GitBuildDescription>
+    </PropertyGroup>
+    <Exec
+      Command="git describe --tags --always --long --dirty"
+      ConsoleToMSBuild="true"
+      IgnoreExitCode="true"
+      StandardOutputImportance="Low"
+      WorkingDirectory="$(MSBuildProjectDirectory)\..\.."
+      Condition="Exists('$(MSBuildProjectDirectory)\..\..\.git')">
+      <Output TaskParameter="ConsoleOutput" PropertyName="GitBuildDescription" />
+    </Exec>
+    <ItemGroup>
+      <AssemblyMetadata Include="GitBuildDescription" Value="$(GitBuildDescription)" />
+    </ItemGroup>
+  </Target>
+
 </Project>
