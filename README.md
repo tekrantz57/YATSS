@@ -10,8 +10,6 @@ up to eight lane-power relays.
 > **Public beta:** `v0.10.0-beta.1` is intended for evaluation, demo races, and
 > careful bench testing. YATSS has no production track installations yet.
 
-![YATSS eight-lane timing board](docs/images/yatss-main-window.png)
-
 ## Download and Try It
 
 Download a Windows x64 ZIP from
