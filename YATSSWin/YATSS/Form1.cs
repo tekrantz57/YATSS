@@ -56,16 +56,15 @@ namespace YATSS
             titleLabel.Text = "YATSS - Yet Another Timing/Scoring System";
             Label versionLabel = new()
             {
-                Anchor = AnchorStyles.Bottom | AnchorStyles.Right,
-                AutoSize = true,
+                AutoSize = false,
                 BackColor = Color.Transparent,
+                Dock = DockStyle.Fill,
                 Font = new Font("Segoe UI", 10F, FontStyle.Bold),
                 ForeColor = Color.White,
-                Text = displayVersion
+                Padding = new Padding(8, 0, 12, 8),
+                Text = displayVersion,
+                TextAlign = ContentAlignment.BottomRight
             };
-            versionLabel.Location = new Point(
-                titleLabel.ClientSize.Width - versionLabel.Width - 12,
-                titleLabel.ClientSize.Height - versionLabel.Height - 8);
             titleLabel.Controls.Add(versionLabel);
             versionLabel.BringToFront();
             _versionedWindowTitle = $"YATSS {displayVersion}";

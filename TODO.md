@@ -47,17 +47,6 @@
 - Document VS Code with C# Dev Kit as a lightweight development option while
   retaining full Visual Studio for WinForms visual-designer work.
 
-## Build version display
-
-- Prevent the lower-right version label in the Carolina Blue title panel from
-  truncating long Git identities such as
-  `v0.10.0-beta.1-3-g1a2b3c4-dirty`.
-- Keep the complete identity visible across supported window sizes and display
-  scaling, using responsive positioning or font sizing without obscuring the
-  centered YATSS title.
-- Add the clean, intermediate, and dirty forms to the publish smoke test once
-  the layout is corrected.
-
 ## ESP32-C6 controller validation
 
 - Implemented compile-time pin profiles for ESP32-C6 and Arduino Nano ESP32.
