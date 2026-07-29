@@ -46,6 +46,13 @@ the prerelease. Verify the GitHub source and checksum before running it.
   </tr>
 </table>
 
+<p align="center">
+  <a href="docs/images/yatss-demo-race-report.jpeg">
+    <img src="docs/images/yatss-demo-race-report.jpeg" width="360" alt="Completed YATSS demo race report">
+  </a><br>
+  <sub>Completed demo race report. Select the thumbnail for the full-size view.</sub>
+</p>
+
 ## Capabilities
 
 - Practice timing and demo lap generation.
