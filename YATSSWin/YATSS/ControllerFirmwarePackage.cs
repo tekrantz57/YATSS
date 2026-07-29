@@ -17,13 +17,17 @@ namespace YATSS
         string ImageFile,
         long ImageSizeBytes,
         long FlashOffset,
-        string Sha256);
+        string Sha256,
+        long FlashCapacityBytes = 0,
+        string? UsbVendorId = null,
+        string? UsbProductId = null);
 
     public sealed class ControllerFirmwarePackage
     {
-        public const int CurrentFormatVersion = 1;
+        public const int CurrentFormatVersion = 2;
         public const string PackageExtension = ".yatssfw";
         public const string Esp32C6BoardProfile = "ESP32_C6_DEVKITC1";
+        public const string ArduinoNanoEsp32BoardProfile = "ARDUINO_NANO_ESP32";
         private const int MaximumManifestBytes = 64 * 1024;
         private const int MaximumImageBytes = 16 * 1024 * 1024;
 
@@ -140,16 +144,23 @@ namespace YATSS
                 throw new InvalidDataException("Firmware manifest is missing required version or board information");
             }
 
-            if (!string.Equals(manifest.BoardProfile, Esp32C6BoardProfile, StringComparison.Ordinal) ||
-                !string.Equals(manifest.Chip, "esp32c6", StringComparison.Ordinal) ||
-                !string.Equals(manifest.UploaderBackend, "esptool", StringComparison.Ordinal))
+            bool validC6 =
+                string.Equals(manifest.BoardProfile, Esp32C6BoardProfile, StringComparison.Ordinal) &&
+                string.Equals(manifest.Chip, "esp32c6", StringComparison.Ordinal) &&
+                string.Equals(manifest.UploaderBackend, "esptool", StringComparison.Ordinal) &&
+                manifest.FlashOffset == 0 &&
+                manifest.FlashCapacityBytes == 8 * 1024 * 1024;
+            bool validNano =
+                string.Equals(manifest.BoardProfile, ArduinoNanoEsp32BoardProfile, StringComparison.Ordinal) &&
+                string.Equals(manifest.Chip, "esp32s3", StringComparison.Ordinal) &&
+                string.Equals(manifest.UploaderBackend, "dfu-util", StringComparison.Ordinal) &&
+                manifest.FlashOffset == 0 &&
+                manifest.FlashCapacityBytes == 16 * 1024 * 1024 &&
+                string.Equals(manifest.UsbVendorId, "2341", StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(manifest.UsbProductId, "0070", StringComparison.OrdinalIgnoreCase);
+            if (!validC6 && !validNano)
             {
-                throw new InvalidDataException("This YATSS version supports firmware packages only for ESP32-C6-DevKitC-1");
-            }
-
-            if (manifest.FlashOffset != 0)
-            {
-                throw new InvalidDataException("The C6 firmware package must contain a merged image for flash offset 0");
+                throw new InvalidDataException("Firmware package board, chip, uploader, or capacity is not supported");
             }
 
             if (string.IsNullOrWhiteSpace(manifest.ImageFile) ||

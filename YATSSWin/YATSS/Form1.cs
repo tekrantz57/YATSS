@@ -163,18 +163,33 @@ namespace YATSS
                 return;
             }
 
-            ControllerFirmwarePackage package;
+            ControllerFirmwarePackage? package;
+            ControllerIdentity? identity = s.CurrentControllerIdentity;
             try
             {
                 IReadOnlyList<ControllerFirmwarePackage> packages =
                     ControllerFirmwarePackage.LoadBundledPackages();
-                package = packages.SingleOrDefault(candidate =>
-                    string.Equals(
-                        candidate.Manifest.BoardProfile,
-                        ControllerFirmwarePackage.Esp32C6BoardProfile,
-                        StringComparison.Ordinal)) ??
-                    throw new FileNotFoundException(
-                        "The ESP32-C6 firmware package is missing from this YATSS installation");
+                if (packages.Count == 0)
+                {
+                    throw new FileNotFoundException("Controller firmware packages are missing from this YATSS installation");
+                }
+
+                if (identity?.HasBoardProfile == true)
+                {
+                    package = packages.SingleOrDefault(candidate => candidate.Matches(identity)) ??
+                        throw new FileNotFoundException(
+                            $"No bundled firmware package matches {identity.BoardProfile}");
+                }
+                else
+                {
+                    using ControllerFirmwareSelectionForm selectionForm = new(packages);
+                    selectionForm.Icon = Icon;
+                    if (selectionForm.ShowDialog(this) != DialogResult.OK)
+                    {
+                        return;
+                    }
+                    package = selectionForm.SelectedPackage;
+                }
             }
             catch (Exception ex) when (ex is IOException || ex is InvalidDataException || ex is InvalidOperationException)
             {
@@ -183,7 +198,11 @@ namespace YATSS
                 return;
             }
 
-            ControllerIdentity? identity = s.CurrentControllerIdentity;
+            if (package == null)
+            {
+                return;
+            }
+
             if (identity?.HasBoardProfile == true && !package.Matches(identity))
             {
                 string mismatch =
@@ -196,16 +215,21 @@ namespace YATSS
 
             string identityWarning = identity?.HasBoardProfile == true
                 ? $"Connected controller: {identity.BoardProfile}, firmware {identity.FirmwareVersion}"
-                : "YATSS cannot identify this controller. This is expected for a blank device. " +
-                  "Confirm physically that it is an ESP32-C6-DevKitC-1.";
+                : $"YATSS cannot identify this controller. Confirm physically that it is " +
+                  $"{package.Manifest.BoardDisplayName}.";
+            string toolNotice = GetFirmwareToolDownloadNotice(package);
+            string boardNotice = string.Equals(
+                    package.Manifest.BoardProfile,
+                    ControllerFirmwarePackage.ArduinoNanoEsp32BoardProfile,
+                    StringComparison.Ordinal)
+                ? "The Nano must have its Arduino DFU or recovery interface available. " +
+                  "If DFU is not found, double-tap RESET and retry. " + Environment.NewLine + Environment.NewLine
+                : string.Empty;
             string confirmation =
                 $"Install YATSSMC {package.Manifest.FirmwareVersion} for " +
                 $"{package.Manifest.BoardDisplayName} on {port}?{Environment.NewLine}{Environment.NewLine}" +
                 identityWarning + Environment.NewLine + Environment.NewLine +
-                (EspToolProvider.TryFindEspTool(out _)
-                    ? string.Empty
-                    : $"YATSS will first download the official Espressif uploader " +
-                      $"({EspToolProvider.OfficialArchiveBytes / 1_000_000} MB) and verify it.{Environment.NewLine}{Environment.NewLine}") +
+                toolNotice + boardNotice +
                 "Disconnect track power and relay-coil power before continuing. " +
                 "Do not disconnect USB or close YATSS during the update.";
             if (MessageBox.Show(
@@ -233,16 +257,13 @@ namespace YATSS
                 IProgress<string> progress = progressForm.CreateProgress();
                 progress.Report($"Package: {Path.GetFileName(package.PackagePath)}");
                 progress.Report($"Image SHA-256: {package.Manifest.Sha256}");
-                string espToolPath;
-                if (!EspToolProvider.TryFindEspTool(out espToolPath))
-                {
-                    progressForm.SetStatus("Downloading Espressif uploader...");
-                    espToolPath = await EspToolProvider.DownloadOfficialEspToolAsync(progress);
-                }
+                IControllerFirmwareFlasher flasher = await CreateFirmwareFlasherAsync(
+                    package,
+                    progressForm,
+                    progress);
 
                 await s.SuspendForFirmwareUpdateAsync();
                 serialSuspended = true;
-                Esp32C6FirmwareFlasher flasher = new(espToolPath);
                 progressForm.SetStatus("Writing controller firmware...");
                 await flasher.FlashAsync(package, port, progress);
 
@@ -252,7 +273,7 @@ namespace YATSS
                 verified = await s.WaitForControllerIdentityAsync(
                     package.Manifest.BoardProfile,
                     package.Manifest.FirmwareVersion,
-                    TimeSpan.FromSeconds(15));
+                    TimeSpan.FromSeconds(20));
             }
             catch (Exception ex) when (
                 ex is IOException ||
@@ -295,7 +316,7 @@ namespace YATSS
                 MessageBox.Show(
                     this,
                     "The firmware was written successfully, but YATSS did not receive the expected " +
-                    "controller identity within 15 seconds. Check the selected COM port and power-cycle the controller.",
+                    "controller identity within 20 seconds. Check the selected COM port and power-cycle the controller.",
                     "Controller Firmware Written",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Warning);
@@ -309,6 +330,47 @@ namespace YATSS
                 "Controller Firmware Updated",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
+        }
+
+        private static string GetFirmwareToolDownloadNotice(ControllerFirmwarePackage package)
+        {
+            if (string.Equals(package.Manifest.UploaderBackend, "esptool", StringComparison.Ordinal))
+            {
+                return EspToolProvider.TryFindEspTool(out _)
+                    ? string.Empty
+                    : $"YATSS will first download the official Espressif uploader " +
+                      $"({EspToolProvider.OfficialArchiveBytes / 1_000_000} MB) and verify it." +
+                      Environment.NewLine + Environment.NewLine;
+            }
+
+            return DfuToolProvider.TryFindDfuUtil(out _)
+                ? string.Empty
+                : $"YATSS will first download Arduino's official DFU utility " +
+                  $"({DfuToolProvider.OfficialArchiveBytes / 1_000} KB) and verify it." +
+                  Environment.NewLine + Environment.NewLine;
+        }
+
+        private static async Task<IControllerFirmwareFlasher> CreateFirmwareFlasherAsync(
+            ControllerFirmwarePackage package,
+            FirmwareUpdateProgressForm progressForm,
+            IProgress<string> progress)
+        {
+            if (string.Equals(package.Manifest.UploaderBackend, "esptool", StringComparison.Ordinal))
+            {
+                if (!EspToolProvider.TryFindEspTool(out string espToolPath))
+                {
+                    progressForm.SetStatus("Downloading Espressif uploader...");
+                    espToolPath = await EspToolProvider.DownloadOfficialEspToolAsync(progress);
+                }
+                return new Esp32C6FirmwareFlasher(espToolPath);
+            }
+
+            if (!DfuToolProvider.TryFindDfuUtil(out string dfuUtilPath))
+            {
+                progressForm.SetStatus("Downloading Arduino DFU utility...");
+                dfuUtilPath = await DfuToolProvider.DownloadOfficialDfuUtilAsync(progress);
+            }
+            return new ArduinoNanoFirmwareFlasher(dfuUtilPath);
         }
 
         private void ConfigureModeMenu()

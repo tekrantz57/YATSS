@@ -35,6 +35,31 @@ Assert(identifiedBoot.ControllerIdentity is
         FirmwareVersion: "0.10.0-beta.1-dev"
     }, "protocol-v3 HELLO should identify board and firmware");
 
+if (string.Equals(
+        Environment.GetEnvironmentVariable("YATSS_TEST_OFFICIAL_DOWNLOADS"),
+        "1",
+        StringComparison.Ordinal))
+{
+    string downloadTestDirectory = Path.Combine(
+        Path.GetTempPath(),
+        "YATSS.Tests",
+        Guid.NewGuid().ToString("N"));
+    try
+    {
+        string downloadedDfuUtil = await DfuToolProvider.DownloadOfficialDfuUtilAsync(
+            localApplicationData: downloadTestDirectory);
+        Assert(File.Exists(downloadedDfuUtil) && new FileInfo(downloadedDfuUtil).Length > 0,
+            "official Arduino DFU utility should download, verify, and extract");
+    }
+    finally
+    {
+        if (Directory.Exists(downloadTestDirectory))
+        {
+            Directory.Delete(downloadTestDirectory, recursive: true);
+        }
+    }
+}
+
 string firmwarePackageTestDirectory = Path.Combine(
     Path.GetTempPath(),
     "YATSS.Tests",
@@ -46,7 +71,7 @@ try
     string imageName = "test-c6.bin";
     string packagePath = Path.Combine(firmwarePackageTestDirectory, "test.yatssfw");
     ControllerFirmwareManifest manifest = new(
-        FormatVersion: 1,
+        FormatVersion: ControllerFirmwarePackage.CurrentFormatVersion,
         Product: "YATSSMC",
         FirmwareVersion: "test-version",
         BoardProfile: ControllerFirmwarePackage.Esp32C6BoardProfile,
@@ -58,7 +83,8 @@ try
         ImageFile: imageName,
         ImageSizeBytes: testImage.Length,
         FlashOffset: 0,
-        Sha256: Convert.ToHexString(SHA256.HashData(testImage)));
+        Sha256: Convert.ToHexString(SHA256.HashData(testImage)),
+        FlashCapacityBytes: 8 * 1024 * 1024);
     using (ZipArchive archive = ZipFile.Open(packagePath, ZipArchiveMode.Create))
     {
         using (Stream manifestStream = archive.CreateEntry("manifest.json").Open())
@@ -100,6 +126,48 @@ try
         tamperedPackageRejected = true;
     }
     Assert(tamperedPackageRejected, "firmware package should reject an image that fails SHA-256 validation");
+
+    byte[] nanoImage = Enumerable.Range(0, 2048).Select(value => (byte)(value * 3)).ToArray();
+    string nanoImageName = "test-nano.bin";
+    string nanoPackagePath = Path.Combine(firmwarePackageTestDirectory, "test-nano.yatssfw");
+    ControllerFirmwareManifest nanoManifest = new(
+        FormatVersion: ControllerFirmwarePackage.CurrentFormatVersion,
+        Product: "YATSSMC",
+        FirmwareVersion: "test-version",
+        BoardProfile: ControllerFirmwarePackage.ArduinoNanoEsp32BoardProfile,
+        BoardDisplayName: "Arduino Nano ESP32",
+        Chip: "esp32s3",
+        UploaderBackend: "dfu-util",
+        ArduinoFqbn: "arduino:esp32:nano_nora",
+        ArduinoCoreVersion: "test-core",
+        ImageFile: nanoImageName,
+        ImageSizeBytes: nanoImage.Length,
+        FlashOffset: 0,
+        Sha256: Convert.ToHexString(SHA256.HashData(nanoImage)),
+        FlashCapacityBytes: 16 * 1024 * 1024,
+        UsbVendorId: "2341",
+        UsbProductId: "0070");
+    using (ZipArchive archive = ZipFile.Open(nanoPackagePath, ZipArchiveMode.Create))
+    {
+        using (Stream manifestStream = archive.CreateEntry("manifest.json").Open())
+        {
+            JsonSerializer.Serialize(manifestStream, nanoManifest);
+        }
+        using Stream imageStream = archive.CreateEntry(nanoImageName).Open();
+        imageStream.Write(nanoImage);
+    }
+    ControllerFirmwarePackage loadedNanoPackage = ControllerFirmwarePackage.Load(nanoPackagePath);
+    Assert(loadedNanoPackage.Manifest.BoardProfile == ControllerFirmwarePackage.ArduinoNanoEsp32BoardProfile,
+        "firmware package should accept the Arduino Nano ESP32 DFU profile");
+    IReadOnlyList<string> nanoArguments = ArduinoNanoFirmwareFlasher.CreateFlashArguments(
+        loadedNanoPackage.Manifest,
+        "nano.bin");
+    Assert(nanoArguments.SequenceEqual(new[] { "--device", "2341:0070", "-D", "nano.bin", "-Q" }),
+        "Nano flasher should use Arduino's VID/PID and quiet-reset DFU upload recipe");
+    Assert(DfuToolProvider.GetCachedDfuUtilPath("C:\\LocalData").EndsWith(
+        $"YATSS\\Tools\\dfu-util\\{DfuToolProvider.OfficialVersion}\\dfu-util.exe",
+        StringComparison.OrdinalIgnoreCase),
+        "Arduino DFU utility should be cached outside the YATSS installation");
 }
 finally
 {

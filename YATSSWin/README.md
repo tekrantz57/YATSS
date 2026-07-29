@@ -84,15 +84,18 @@ another race mode closes diagnostics first.
 ## Controller Firmware Updates
 
 `File > Update Controller Firmware...` installs the bundled YATSSMC image on
-an ESP32-C6-DevKitC-1 from Practice mode. It works with an identified running
-controller or a blank C6 when the correct COM port is selected. Track power and
-relay-coil power must be physically disconnected during flashing.
+an ESP32-C6-DevKitC-1 or Arduino Nano ESP32 from Practice mode. Protocol-v3
+controllers select their package automatically; legacy, recovery-mode, or blank
+hardware requires the operator to select the physically confirmed board. Track
+power and relay-coil power must be physically disconnected during flashing.
 
 YATSS reuses `esptool.exe` from an installed Espressif Arduino core or from
 `YATSS_ESPTOOL_PATH`. If neither exists, the operator can approve a direct
 download of Espressif's official pinned release; YATSS verifies the archive's
 published SHA-256 and caches it under `%LOCALAPPDATA%\YATSS\Tools`. The
-uploader is not bundled in YATSS release ZIPs. See
+uploader is not bundled in YATSS release ZIPs. Nano updates similarly reuse
+Arduino's installed `dfu-util.exe` or download Arduino's pinned official build
+after approval and SHA-256 verification. See
 [Controller firmware updates](../docs/CONTROLLER_FIRMWARE_UPDATE.md).
 
 ## Practice Mode

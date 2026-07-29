@@ -67,11 +67,15 @@
 
   <Target Name="RequireControllerFirmwarePackage" BeforeTargets="Publish">
     <ItemGroup>
-      <_ControllerFirmwarePackage Include="..\..\YATSSMC\dist\*.yatssfw" />
+      <_C6FirmwarePackage Include="..\..\YATSSMC\dist\YATSSMC-esp32-c6-devkitc1-*.yatssfw" />
+      <_NanoFirmwarePackage Include="..\..\YATSSMC\dist\YATSSMC-arduino-nano-esp32-*.yatssfw" />
     </ItemGroup>
     <Error
-      Condition="'@(_ControllerFirmwarePackage)' == ''"
-      Text="Build the C6 controller package with tools\Build-ControllerFirmware.ps1 before publishing YATSS." />
+      Condition="'@(_C6FirmwarePackage)' == ''"
+      Text="Build the C6 controller firmware with tools\Build-ControllerFirmware.ps1 before publishing YATSS." />
+    <Error
+      Condition="'@(_NanoFirmwarePackage)' == ''"
+      Text="Build the Nano controller firmware with tools\Build-ControllerFirmware.ps1 before publishing YATSS." />
   </Target>
 
 </Project>

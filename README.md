@@ -56,7 +56,7 @@ the prerelease. Verify the GitHub source and checksum before running it.
 - HTML reports and configurable JSON and CSV exports.
 - Manual and automatic database backups with verified restore.
 - Live controller diagnostics and track-power relay pulse tests.
-- In-app ESP32-C6 controller firmware installation, including blank devices.
+- In-app controller firmware installation for ESP32-C6 and Arduino Nano ESP32.
 - Optional voice announcements and Logitech R500s Next-button race control.
 - Controller watchdog that cuts all lanes when Windows communication stops.
 

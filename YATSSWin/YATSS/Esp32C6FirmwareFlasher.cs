@@ -1,8 +1,6 @@
-using System.Diagnostics;
-
 namespace YATSS
 {
-    public sealed class Esp32C6FirmwareFlasher
+    public sealed class Esp32C6FirmwareFlasher : IControllerFirmwareFlasher
     {
         private const int FlashBaud = 460800;
         private readonly string _esptoolPath;
@@ -52,13 +50,15 @@ namespace YATSS
                 await File.WriteAllBytesAsync(imagePath, package.ImageBytes, cancellationToken);
                 progress?.Report($"Using {Path.GetFileName(_esptoolPath)}");
                 progress?.Report($"Checking ESP32-C6 on {portName}");
-                await RunEspToolAsync(
+                await FirmwareToolRunner.RunAsync(
+                    _esptoolPath,
                     CreateProbeArguments(portName),
                     progress,
                     cancellationToken);
 
                 progress?.Report($"Writing {package.Manifest.FirmwareVersion} to {portName}");
-                await RunEspToolAsync(
+                await FirmwareToolRunner.RunAsync(
+                    _esptoolPath,
                     CreateFlashArguments(portName, imagePath),
                     progress,
                     cancellationToken);
@@ -100,61 +100,5 @@ namespace YATSS
                 "0x0", imagePath
             };
 
-        private async Task RunEspToolAsync(
-            IReadOnlyList<string> arguments,
-            IProgress<string>? progress,
-            CancellationToken cancellationToken)
-        {
-            ProcessStartInfo startInfo = new(_esptoolPath)
-            {
-                CreateNoWindow = true,
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true
-            };
-            foreach (string argument in arguments)
-            {
-                startInfo.ArgumentList.Add(argument);
-            }
-
-            using Process process = new() { StartInfo = startInfo };
-            List<string> output = new();
-            object outputGate = new();
-            void CaptureLine(string? line)
-            {
-                if (string.IsNullOrWhiteSpace(line))
-                {
-                    return;
-                }
-
-                lock (outputGate)
-                {
-                    output.Add(line);
-                }
-                progress?.Report(line);
-            }
-
-            process.OutputDataReceived += (_, args) => CaptureLine(args.Data);
-            process.ErrorDataReceived += (_, args) => CaptureLine(args.Data);
-            if (!process.Start())
-            {
-                throw new InvalidOperationException("esptool did not start");
-            }
-
-            process.BeginOutputReadLine();
-            process.BeginErrorReadLine();
-            await process.WaitForExitAsync(cancellationToken);
-            process.WaitForExit();
-            if (process.ExitCode != 0)
-            {
-                string detail;
-                lock (outputGate)
-                {
-                    detail = string.Join(Environment.NewLine, output.TakeLast(12));
-                }
-                throw new InvalidOperationException(
-                    $"esptool failed with exit code {process.ExitCode}.{Environment.NewLine}{detail}");
-            }
-        }
     }
 }

@@ -161,8 +161,8 @@ Connect the controller and select its COM port in Configure.
 Before energizing track or relay-coil power, verify firmware installation with
 the production ZIP:
 
-- [ ] The publish folder contains one C6 `.yatssfw` file under `Firmware` and
-  does not contain `esptool.exe`.
+- [ ] The publish folder contains one C6 and one Nano `.yatssfw` file under
+  `Firmware` and contains neither `esptool.exe` nor `dfu-util.exe`.
 - [ ] `File > Update Controller Firmware...` is refused outside idle Practice
   mode, during simulated input, and while Controller Diagnostics is open.
 - [ ] With Arduino's ESP32 core installed, YATSS reuses its uploader without a
@@ -174,6 +174,13 @@ the production ZIP:
   profile is rejected.
 - [ ] A physically confirmed blank C6 can be provisioned on its selected COM
   port.
+- [ ] An identified Nano selects its Nano package automatically and completes
+  a DFU update.
+- [ ] A Nano in factory recovery mode can be selected manually and updated
+  after double-tapping RESET.
+- [ ] On a clean Windows account, Nano update asks before downloading Arduino's
+  official DFU utility, verifies it, and caches it under
+  `%LOCALAPPDATA%\YATSS\Tools`.
 - [ ] After writing, YATSS reconnects and verifies the expected board profile
   and firmware version.
 - [ ] Cancelling before write and a deliberately failed probe leave normal

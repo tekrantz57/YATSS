@@ -1,13 +1,12 @@
 # Controller Firmware Updates
 
-YATSS can provision a blank ESP32-C6-DevKitC-1 or update an existing C6 from
-`File > Update Controller Firmware...`. Arduino Nano ESP32 remains supported by
-the sketch and package design, but its in-app upload backend is future work.
+YATSS can provision a blank ESP32-C6-DevKitC-1/N8 and update either an existing
+C6 or Arduino Nano ESP32 from `File > Update Controller Firmware...`.
 
 ## Operator Procedure
 
-1. Connect the C6 through the USB-C socket labeled `UART` and select its COM
-   port in Configure.
+1. Connect the C6 through its USB-C socket labeled `UART`, or connect the Nano
+   through USB, and select its COM port in Configure.
 2. Disconnect track power and relay-coil power. Leave only USB connected.
 3. Return YATSS to Practice mode, stop simulated lap input, and close Controller
    Diagnostics.
@@ -15,20 +14,22 @@ the sketch and package design, but its in-app upload backend is future work.
    the warning.
 5. Keep USB connected and YATSS open until verification completes.
 
-For a running protocol-v3 controller, YATSS compares its reported board profile
-with the package. Older or blank devices cannot identify themselves, so the
-operator must physically confirm that the selected port belongs to an
-ESP32-C6-DevKitC-1. The uploader probes the chip before writing and refuses a
-different ESP32 family.
+For a running protocol-v3 controller, YATSS selects the matching package from
+its reported board profile. Older, recovery-mode, or blank devices cannot
+identify themselves, so YATSS presents the bundled board choices and requires
+the operator to confirm the printed model. The C6 uploader probes the chip
+before writing and refuses a different ESP32 family. The Nano uploader targets
+Arduino USB VID `2341` and PID `0070` through DFU.
 
-YATSS requests `TRACK_POWER:OFF`, closes its serial connection, probes the C6,
-writes a merged image at flash offset `0x0`, resets the controller, reconnects,
-and waits for the expected board profile and firmware version. A successful
+YATSS requests `TRACK_POWER:OFF`, closes its serial connection, runs the board's
+uploader, reconnects, and waits for the expected board profile and firmware
+version. C6 receives a complete merged 8 MB image at flash offset `0x0`; Nano
+receives the application image through its Arduino DFU interface. A successful
 write that does not produce the expected identity is reported as unverified.
 
 ## Uploader Acquisition
 
-YATSS does not redistribute Espressif's uploader. It searches in this order:
+YATSS does not redistribute either uploader. For C6, it searches in this order:
 
 1. `YATSS_ESPTOOL_PATH`, for development or managed installations.
 2. A previously approved YATSS cache under
@@ -45,35 +46,52 @@ before YATSS releases the serial port and cannot alter the controller.
 Its license and source are available from
 <https://github.com/espressif/esptool>. YATSS itself remains MIT licensed.
 
+For Nano, YATSS searches `YATSS_DFU_UTIL_PATH`, its per-user cache, and
+Arduino's installed tools. If necessary, it asks before downloading Arduino's
+official `dfu-util 0.11.0-arduino5` archive from `downloads.arduino.cc`, verifies
+Arduino's published SHA-256, and extracts it to the per-user cache. `dfu-util`
+is GPL-2.0-or-later; source and license information are available from
+<https://dfu-util.sourceforge.net/>.
+
 ## Firmware Package
 
-The Windows project includes `YATSSMC\dist\*.yatssfw` in both build and publish
-output under `Firmware`. A `.yatssfw` file is a ZIP containing:
+The Windows project includes the C6 and Nano files from
+`YATSSMC\dist\*.yatssfw` in both build and publish output under `Firmware`. A
+`.yatssfw` file is a ZIP containing:
 
 - `manifest.json`, with package format, product, firmware version, board
   profile, chip, uploader backend, Arduino FQBN/core version, image name, flash
-  offset, byte count, and SHA-256.
-- One merged `.bin` firmware image.
+  offset, flash capacity, byte count, SHA-256, and any backend-specific USB
+  identity.
+- One `.bin` firmware image: merged full flash for C6 or application-only for
+  Nano DFU.
+
+Package format 2 adds required flash-capacity metadata and backend-specific USB
+identity for safely selecting between the C6 and Nano upload paths.
 
 YATSS validates package structure, board/chip/backend, image size, filename,
 flash offset, and SHA-256 before presenting the update confirmation.
 
-Build the C6 package from the repository root after changing the sketch or
+Build both packages from the repository root after changing the sketch or
 firmware version:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools\Build-ControllerFirmware.ps1
 ```
 
-The script requires Arduino CLI and the Espressif ESP32 Arduino core. It builds
-`esp32:esp32:esp32c6`, creates the merged image, and replaces the versioned C6
-package in `YATSSMC\dist`. Commit the package with the source that produced it.
+The script requires Arduino CLI, the Espressif ESP32 core, and Arduino ESP32
+Boards. It builds the C6/N8 merged image and Nano application image, then
+replaces both versioned packages in `YATSSMC\dist`. Commit the packages with the
+source that produced them.
 
 ## Failure Recovery
 
 If probing or writing fails, YATSS reopens its normal serial loop and leaves
 track power disabled in application state. Keep relay-coil and track power
 disconnected, check the selected COM port and USB cable, then retry. Espressif
-bootloader mode is in ROM, so a blank device or a device with an interrupted
-application flash can normally be programmed again. Do not rely on software
-power control while firmware is absent or being replaced.
+bootloader mode is in ROM, so a blank C6 or a C6 with an interrupted application
+flash can normally be programmed again. A Nano with its factory recovery
+partition intact can enter DFU recovery by double-tapping RESET and be updated
+again. If that recovery partition was erased, restore it with Arduino tooling
+and esptool before using YATSS's application-only DFU updater. Do not rely on
+software power control while firmware is absent or being replaced.

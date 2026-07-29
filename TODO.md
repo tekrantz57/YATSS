@@ -56,15 +56,19 @@
   serial traffic through the CP2102N `UART` connector.
 - Exercise in-app firmware installation on both a blank C6 and an already
   programmed C6, including interrupted or failed uploads and serial recovery.
+- Add separate N4 (4 MB) and N8 (8 MB) C6 firmware packages. Detect flash
+  capacity with the uploader, select the matching package automatically, store
+  the required capacity in the package manifest, and refuse a mismatch rather
+  than asking the operator to choose.
 
-## Arduino Nano ESP32 in-app firmware updates
+## Arduino Nano ESP32 firmware-update validation
 
-- Extend the board-neutral `.yatssfw` package manifest and updater UI with an
-  Arduino Nano ESP32 package and its required bootloader/upload backend.
-- Preserve board-identity matching so a C6 image can never be offered to a Nano
-  and vice versa.
-- Validate first-time provisioning and updates on physical Nano ESP32 hardware
-  before enabling the package in release builds.
+- Bench-test in-app DFU updates from current YATSSMC firmware and from the Nano
+  recovery mode entered by double-tapping RESET.
+- Exercise failed and interrupted DFU transfers and confirm that recovery mode
+  remains available and YATSS reconnects to the configured COM port afterward.
+- Document and bench-test restoring an erased Nano factory recovery partition
+  with Arduino tooling; normal in-app DFU updates cannot recreate it.
 
 ## Future Formula 1-style sector timing
 
