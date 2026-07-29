@@ -12,7 +12,7 @@ selected Arduino board determines the pin map at compile time.
 ### ESP32-C6-DevKitC-1 V1.2
 
 The production candidate is an Espressif ESP32-C6-DevKitC-1 V1.2 with an
-ESP32-C6-WROOM-1-N8 module. In Arduino IDE:
+ESP32-C6-WROOM-1-N8 module. The N4 module is also supported. In Arduino IDE:
 
 1. Install `esp32 by Espressif Systems` in Boards Manager.
 2. Select `ESP32C6 Dev Module` as the board.
@@ -30,6 +30,9 @@ arduino-cli compile `
   YATSSMC
 ```
 
+For an N4 module, use `FlashSize=4M,PartitionScheme=default` instead. Do not
+upload an N8 image to N4 hardware.
+
 To build the validated C6 and Nano firmware packages embedded in Windows
 publish output:
 
@@ -37,9 +40,9 @@ publish output:
 powershell -ExecutionPolicy Bypass -File tools\Build-ControllerFirmware.ps1
 ```
 
-This compiles a merged C6/N8 flash image plus a Nano application image and
-writes two `.yatssfw` packages under `YATSSMC\dist`. The packages contain YATSS
-firmware only; the required Espressif or Arduino uploader is located or
+This compiles merged C6/N4 and C6/N8 flash images plus a Nano application image
+and writes three `.yatssfw` packages under `YATSSMC\dist`. The packages contain
+YATSS firmware only; the required Espressif or Arduino uploader is located or
 downloaded by the Windows app when an update is requested.
 
 The C6 profile preserves GPIO16/GPIO17 for the CP2102N USB-to-UART bridge and

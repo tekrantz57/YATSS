@@ -161,7 +161,7 @@ Connect the controller and select its COM port in Configure.
 Before energizing track or relay-coil power, verify firmware installation with
 the production ZIP:
 
-- [ ] The publish folder contains one C6 and one Nano `.yatssfw` file under
+- [ ] The publish folder contains C6/N4, C6/N8, and Nano `.yatssfw` files under
   `Firmware` and contains neither `esptool.exe` nor `dfu-util.exe`.
 - [ ] `File > Update Controller Firmware...` is refused outside idle Practice
   mode, during simulated input, and while Controller Diagnostics is open.
@@ -172,6 +172,11 @@ the production ZIP:
   `%LOCALAPPDATA%\YATSS\Tools`.
 - [ ] An existing C6 is identified before confirmation and a different board
   profile is rejected.
+- [ ] Protocol-v4 C6 firmware selects N4 or N8 from its reported capacity.
+- [ ] Older and blank C6 firmware is probed read-only and selects the package
+  matching the detected capacity.
+- [ ] Immediately before writing, a second C6 capacity probe refuses a
+  deliberately mismatched package.
 - [ ] A physically confirmed blank C6 can be provisioned on its selected COM
   port.
 - [ ] An identified Nano selects its Nano package automatically and completes

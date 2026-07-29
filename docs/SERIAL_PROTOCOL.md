@@ -15,18 +15,19 @@ checksum.
 ## Controller To Windows
 
 ```text
-HELLO:YATSSMC:3:<lane-count>:<board-profile>:<firmware-version>*XX
+HELLO:YATSSMC:4:<lane-count>:<board-profile>:<firmware-version>:<flash-bytes>*XX
 ```
 
-Sent when the sketch starts or when Windows sends `PING`. Version `3` adds the
-compile-time board profile and firmware version so Windows can reject a
-mismatched firmware update. `YATSSMC` identifies the YATSS microcontroller
-firmware. Current board profiles are `ESP32_C6_DEVKITC1` and
-`ARDUINO_NANO_ESP32`.
+Sent when the sketch starts or when Windows sends `PING`. Version `4` reports
+the compile-time board profile, firmware version, and runtime-detected flash
+capacity so Windows can reject a mismatched firmware update. `YATSSMC`
+identifies the YATSS microcontroller firmware. Current board profiles are
+`ESP32_C6_DEVKITC1` and `ARDUINO_NANO_ESP32`.
 
-Windows still accepts the version 2 form, `HELLO:YATSSMC:2:<lane-count>`, from
-older controllers. Because that form cannot identify the board, an update
-requires the operator to confirm the hardware physically.
+Windows still accepts version 2 and 3 forms from older controllers. Version 2
+cannot identify the board; version 3 identifies the board but not its flash
+capacity. Firmware update uses physical confirmation or a read-only capacity
+probe when required.
 
 ```text
 HEARTBEAT:<millis>*XX

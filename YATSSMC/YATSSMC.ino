@@ -6,7 +6,7 @@
   and reconnect behavior.
 
   Protocol frames are ASCII lines:
-    HELLO:YATSSMC:3:<lane-count>:<board-profile>:<firmware-version>*XX
+    HELLO:YATSSMC:4:<lane-count>:<board-profile>:<firmware-version>:<flash-bytes>*XX
     HEARTBEAT:<millis>*XX
     EDGE:<zero-based-lane>:<per-lane-sequence>:<millis>*XX
     ERR:QUEUE_FULL:<dropped-count>*XX
@@ -302,8 +302,9 @@ void handleCommands() {
 
 void sendControllerHello() {
   sendFrame(
-    String(F("HELLO:YATSSMC:3:")) + LaneCount + ":" +
-    ControllerBoardProfile + ":" + YATSSMC_FIRMWARE_VERSION);
+    String(F("HELLO:YATSSMC:4:")) + LaneCount + ":" +
+    ControllerBoardProfile + ":" + YATSSMC_FIRMWARE_VERSION + ":" +
+    ESP.getFlashChipSize());
 }
 
 byte readActiveSensorMask() {

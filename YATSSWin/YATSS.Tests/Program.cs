@@ -35,6 +35,14 @@ Assert(identifiedBoot.ControllerIdentity is
         FirmwareVersion: "0.10.0-beta.1-dev"
     }, "protocol-v3 HELLO should identify board and firmware");
 
+LapProtocolMessage capacityBoot = LapProtocolParser.Parse(LapProtocolParser.EncodeFrame(
+    "HELLO:YATSSMC:4:8:ESP32_C6_DEVKITC1:0.10.0-beta.1-dev:4194304"));
+Assert(capacityBoot.ControllerIdentity is
+    {
+        ProtocolVersion: 4,
+        FlashCapacityBytes: 4194304
+    }, "protocol-v4 HELLO should report runtime flash capacity");
+
 if (string.Equals(
         Environment.GetEnvironmentVariable("YATSS_TEST_OFFICIAL_DOWNLOADS"),
         "1",
@@ -67,7 +75,11 @@ string firmwarePackageTestDirectory = Path.Combine(
 try
 {
     Directory.CreateDirectory(firmwarePackageTestDirectory);
-    byte[] testImage = Enumerable.Range(0, 1024).Select(value => (byte)value).ToArray();
+    byte[] testImage = new byte[4 * 1024 * 1024];
+    for (int index = 0; index < 256; index++)
+    {
+        testImage[index * 4096] = (byte)index;
+    }
     string imageName = "test-c6.bin";
     string packagePath = Path.Combine(firmwarePackageTestDirectory, "test.yatssfw");
     ControllerFirmwareManifest manifest = new(
@@ -75,16 +87,16 @@ try
         Product: "YATSSMC",
         FirmwareVersion: "test-version",
         BoardProfile: ControllerFirmwarePackage.Esp32C6BoardProfile,
-        BoardDisplayName: "ESP32-C6-DevKitC-1",
+        BoardDisplayName: "ESP32-C6-DevKitC-1 N4",
         Chip: "esp32c6",
         UploaderBackend: "esptool",
-        ArduinoFqbn: "esp32:esp32:esp32c6",
+        ArduinoFqbn: "esp32:esp32:esp32c6:FlashSize=4M,PartitionScheme=default",
         ArduinoCoreVersion: "test-core",
         ImageFile: imageName,
         ImageSizeBytes: testImage.Length,
         FlashOffset: 0,
         Sha256: Convert.ToHexString(SHA256.HashData(testImage)),
-        FlashCapacityBytes: 8 * 1024 * 1024);
+        FlashCapacityBytes: 4 * 1024 * 1024);
     using (ZipArchive archive = ZipFile.Open(packagePath, ZipArchiveMode.Create))
     {
         using (Stream manifestStream = archive.CreateEntry("manifest.json").Open())
@@ -99,11 +111,24 @@ try
     Assert(loadedPackage.ImageBytes.SequenceEqual(testImage),
         "firmware package should retain an image that matches its manifest hash");
     Assert(loadedPackage.Matches(identifiedBoot.ControllerIdentity!),
-        "firmware package should match the controller board profile");
+        "legacy firmware identity should match the controller board profile before probing");
+    Assert(loadedPackage.Matches(capacityBoot.ControllerIdentity!),
+        "N4 package should match an N4 protocol-v4 controller");
+    Assert(!loadedPackage.Matches(new ControllerIdentity(
+            4,
+            8,
+            ControllerFirmwarePackage.Esp32C6BoardProfile,
+            "test-version",
+            8 * 1024 * 1024)),
+        "N4 package should not match an N8 protocol-v4 controller");
 
     IReadOnlyList<string> flashArguments = Esp32C6FirmwareFlasher.CreateFlashArguments("COM9", "firmware.bin");
     Assert(flashArguments.Contains("esp32c6") && flashArguments.TakeLast(2).SequenceEqual(new[] { "0x0", "firmware.bin" }),
         "C6 flasher should enforce the chip and merged-image offset");
+    Assert(Esp32C6FirmwareFlasher.ParseFlashCapacity(new[] { "Detected flash size: 4MB" }) == 4 * 1024 * 1024,
+        "C6 probe should parse an N4 capacity");
+    Assert(Esp32C6FirmwareFlasher.ParseFlashCapacity(new[] { "Flash size: 8 MB" }) == 8 * 1024 * 1024,
+        "C6 probe should parse an N8 capacity with optional spacing");
     Assert(EspToolProvider.GetCachedEspToolPath("C:\\LocalData").EndsWith(
         $"YATSS\\Tools\\esptool\\{EspToolProvider.OfficialVersion}\\esptool.exe",
         StringComparison.OrdinalIgnoreCase),

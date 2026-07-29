@@ -56,10 +56,9 @@
   serial traffic through the CP2102N `UART` connector.
 - Exercise in-app firmware installation on both a blank C6 and an already
   programmed C6, including interrupted or failed uploads and serial recovery.
-- Add separate N4 (4 MB) and N8 (8 MB) C6 firmware packages. Detect flash
-  capacity with the uploader, select the matching package automatically, store
-  the required capacity in the package manifest, and refuse a mismatch rather
-  than asking the operator to choose.
+- Bench-test automatic N4/N8 selection on physical N4 hardware. Protocol-v4
+  firmware reports runtime capacity; older or blank C6 boards use a read-only
+  uploader probe, and the flasher probes again before writing.
 
 ## Arduino Nano ESP32 firmware-update validation
 

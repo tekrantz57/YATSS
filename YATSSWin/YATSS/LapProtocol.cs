@@ -19,7 +19,8 @@ namespace YATSS
         int ProtocolVersion,
         int LaneCount,
         string BoardProfile,
-        string FirmwareVersion)
+        string FirmwareVersion,
+        long? FlashCapacityBytes = null)
     {
         public bool HasBoardProfile => !string.IsNullOrWhiteSpace(BoardProfile);
     }
@@ -173,7 +174,17 @@ namespace YATSS
 
             string boardProfile = parts.Length >= 5 ? parts[4].Trim().ToUpperInvariant() : string.Empty;
             string firmwareVersion = parts.Length >= 6 ? parts[5].Trim() : string.Empty;
-            return new ControllerIdentity(protocolVersion, laneCount, boardProfile, firmwareVersion);
+            long? flashCapacityBytes = parts.Length >= 7 &&
+                long.TryParse(parts[6], NumberStyles.None, CultureInfo.InvariantCulture, out long parsedCapacity) &&
+                parsedCapacity > 0
+                    ? parsedCapacity
+                    : null;
+            return new ControllerIdentity(
+                protocolVersion,
+                laneCount,
+                boardProfile,
+                firmwareVersion,
+                flashCapacityBytes);
         }
 
         private static LapProtocolMessage ParseDiagnostic(string rawLine, string body, string[] parts)

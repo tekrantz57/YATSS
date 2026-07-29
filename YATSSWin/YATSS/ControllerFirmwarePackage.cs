@@ -118,9 +118,14 @@ namespace YATSS
         }
 
         public bool Matches(ControllerIdentity identity) =>
+            MatchesBoardProfile(identity.BoardProfile) &&
+            (!identity.FlashCapacityBytes.HasValue ||
+             identity.FlashCapacityBytes.Value == Manifest.FlashCapacityBytes);
+
+        public bool MatchesBoardProfile(string boardProfile) =>
             string.Equals(
                 Manifest.BoardProfile,
-                identity.BoardProfile,
+                boardProfile,
                 StringComparison.OrdinalIgnoreCase);
 
         private static void ValidateManifest(ControllerFirmwareManifest manifest)
@@ -149,7 +154,8 @@ namespace YATSS
                 string.Equals(manifest.Chip, "esp32c6", StringComparison.Ordinal) &&
                 string.Equals(manifest.UploaderBackend, "esptool", StringComparison.Ordinal) &&
                 manifest.FlashOffset == 0 &&
-                manifest.FlashCapacityBytes == 8 * 1024 * 1024;
+                manifest.FlashCapacityBytes is 4 * 1024 * 1024 or 8 * 1024 * 1024 &&
+                manifest.ImageSizeBytes == manifest.FlashCapacityBytes;
             bool validNano =
                 string.Equals(manifest.BoardProfile, ArduinoNanoEsp32BoardProfile, StringComparison.Ordinal) &&
                 string.Equals(manifest.Chip, "esp32s3", StringComparison.Ordinal) &&

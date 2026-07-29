@@ -11,9 +11,11 @@ namespace YATSS
             CancellationToken cancellationToken = default);
     }
 
+    internal sealed record FirmwareToolResult(IReadOnlyList<string> OutputLines);
+
     internal static class FirmwareToolRunner
     {
-        public static async Task RunAsync(
+        public static async Task<FirmwareToolResult> RunAsync(
             string executablePath,
             IReadOnlyList<string> arguments,
             IProgress<string>? progress,
@@ -69,6 +71,11 @@ namespace YATSS
                 throw new InvalidOperationException(
                     $"{Path.GetFileName(executablePath)} failed with exit code {process.ExitCode}." +
                     $"{Environment.NewLine}{detail}");
+            }
+
+            lock (outputGate)
+            {
+                return new FirmwareToolResult(output.ToArray());
             }
         }
     }

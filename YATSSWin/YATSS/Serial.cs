@@ -997,7 +997,10 @@ namespace YATSS
                         _log.Info(
                             $"controller identity {message.ControllerIdentity.BoardProfile} " +
                             $"firmware {message.ControllerIdentity.FirmwareVersion} " +
-                            $"protocol {message.ControllerIdentity.ProtocolVersion}");
+                            $"protocol {message.ControllerIdentity.ProtocolVersion}" +
+                            (message.ControllerIdentity.FlashCapacityBytes.HasValue
+                                ? $" flash {message.ControllerIdentity.FlashCapacityBytes.Value} bytes"
+                                : string.Empty));
                     }
 
                     if (message.Detail.StartsWith("HELLO:YATSSMC:", StringComparison.OrdinalIgnoreCase))

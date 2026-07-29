@@ -62,7 +62,9 @@ namespace YATSS
         private sealed record PackageChoice(ControllerFirmwarePackage Package)
         {
             public override string ToString() =>
-                $"{Package.Manifest.BoardDisplayName} ({Package.Manifest.FirmwareVersion})";
+                Package.MatchesBoardProfile(ControllerFirmwarePackage.Esp32C6BoardProfile)
+                    ? $"ESP32-C6-DevKitC-1 (N4/N8 detected automatically)"
+                    : $"{Package.Manifest.BoardDisplayName} ({Package.Manifest.FirmwareVersion})";
         }
     }
 }

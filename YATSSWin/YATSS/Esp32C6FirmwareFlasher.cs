@@ -49,12 +49,16 @@ namespace YATSS
             {
                 await File.WriteAllBytesAsync(imagePath, package.ImageBytes, cancellationToken);
                 progress?.Report($"Using {Path.GetFileName(_esptoolPath)}");
-                progress?.Report($"Checking ESP32-C6 on {portName}");
-                await FirmwareToolRunner.RunAsync(
-                    _esptoolPath,
-                    CreateProbeArguments(portName),
+                long detectedCapacity = await ProbeFlashCapacityAsync(
+                    portName,
                     progress,
                     cancellationToken);
+                if (detectedCapacity != package.Manifest.FlashCapacityBytes)
+                {
+                    throw new InvalidOperationException(
+                        $"Connected C6 has {FormatCapacity(detectedCapacity)} flash, but the selected " +
+                        $"package requires {FormatCapacity(package.Manifest.FlashCapacityBytes)}");
+                }
 
                 progress?.Report($"Writing {package.Manifest.FirmwareVersion} to {portName}");
                 await FirmwareToolRunner.RunAsync(
@@ -73,6 +77,25 @@ namespace YATSS
                 {
                 }
             }
+        }
+
+        public async Task<long> ProbeFlashCapacityAsync(
+            string portName,
+            IProgress<string>? progress = null,
+            CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(portName))
+            {
+                throw new InvalidOperationException("Configure the controller COM port before inspecting firmware");
+            }
+
+            progress?.Report($"Checking ESP32-C6 flash capacity on {portName}");
+            FirmwareToolResult result = await FirmwareToolRunner.RunAsync(
+                _esptoolPath,
+                CreateProbeArguments(portName),
+                progress,
+                cancellationToken);
+            return ParseFlashCapacity(result.OutputLines);
         }
 
         internal static IReadOnlyList<string> CreateProbeArguments(string portName) =>
@@ -99,6 +122,38 @@ namespace YATSS
                 "--flash-size", "keep",
                 "0x0", imagePath
             };
+
+        internal static long ParseFlashCapacity(IEnumerable<string> outputLines)
+        {
+            foreach (string line in outputLines)
+            {
+                System.Text.RegularExpressions.Match match =
+                    System.Text.RegularExpressions.Regex.Match(
+                        line,
+                        @"flash\s+size:\s*(?<value>\d+)\s*(?<unit>KB|MB)",
+                        System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                if (!match.Success ||
+                    !long.TryParse(
+                        match.Groups["value"].Value,
+                        System.Globalization.NumberStyles.None,
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        out long value))
+                {
+                    continue;
+                }
+
+                return string.Equals(match.Groups["unit"].Value, "MB", StringComparison.OrdinalIgnoreCase)
+                    ? value * 1024 * 1024
+                    : value * 1024;
+            }
+
+            throw new InvalidOperationException("esptool did not report the connected C6 flash capacity");
+        }
+
+        private static string FormatCapacity(long bytes) =>
+            bytes % (1024 * 1024) == 0
+                ? $"{bytes / (1024 * 1024)} MB"
+                : $"{bytes} bytes";
 
     }
 }

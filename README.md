@@ -56,7 +56,8 @@ the prerelease. Verify the GitHub source and checksum before running it.
 - HTML reports and configurable JSON and CSV exports.
 - Manual and automatic database backups with verified restore.
 - Live controller diagnostics and track-power relay pulse tests.
-- In-app controller firmware installation for ESP32-C6 and Arduino Nano ESP32.
+- In-app controller firmware installation for ESP32-C6 N4/N8 and Arduino Nano
+  ESP32, with automatic flash-capacity selection.
 - Optional voice announcements and Logitech R500s Next-button race control.
 - Controller watchdog that cuts all lanes when Windows communication stops.
 
@@ -99,14 +100,25 @@ not sufficient.
 
 ```text
 YATSSWin/
-  YATSS.sln
-  YATSS/          Windows app project
-  YATSS.Tests/    lightweight test runner
+  YATSS.sln                         Windows solution
+  YATSS/                            Windows Forms application
+    Properties/PublishProfiles/     x64 and ARM64 publish definitions
+  YATSS.Tests/                      lightweight integration test runner
 
 YATSSMC/
-  YATSSMC.ino     ESP32-C6 and Arduino Nano ESP32 sketch
+  YATSSMC.ino                       shared ESP32 controller sketch
+  FirmwareVersion.h                controller firmware identity
+  dist/                             packaged C6/N4, C6/N8, and Nano firmware
 
-docs/             protocol, reporting, backup, release, and test documentation
+tools/
+  Build-ControllerFirmware.ps1     reproducible firmware package builder
+
+docs/                              protocol, hardware, release, and test guides
+
+README.md                          project overview and build entry point
+TODO.md                            active engineering backlog
+CONTRIBUTING.md                    contribution and diagnostic-data guidance
+LICENSE                            MIT project license
 ```
 
 ## Build and Test
@@ -117,6 +129,7 @@ From the repository root:
 dotnet build YATSSWin\YATSS.sln -c Release
 dotnet run --project YATSSWin\YATSS.Tests\YATSS.Tests.csproj -c Release
 arduino-cli compile --fqbn arduino:esp32:nano_nora YATSSMC
+arduino-cli compile --fqbn "esp32:esp32:esp32c6:CDCOnBoot=default,FlashSize=4M,PartitionScheme=default" YATSSMC
 arduino-cli compile --fqbn "esp32:esp32:esp32c6:CDCOnBoot=default,FlashSize=8M,PartitionScheme=default_8MB" YATSSMC
 ```
 

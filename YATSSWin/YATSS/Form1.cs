@@ -174,26 +174,17 @@ namespace YATSS
                     throw new FileNotFoundException("Controller firmware packages are missing from this YATSS installation");
                 }
 
-                if (identity?.HasBoardProfile == true)
-                {
-                    package = packages.SingleOrDefault(candidate => candidate.Matches(identity)) ??
-                        throw new FileNotFoundException(
-                            $"No bundled firmware package matches {identity.BoardProfile}");
-                }
-                else
-                {
-                    using ControllerFirmwareSelectionForm selectionForm = new(packages);
-                    selectionForm.Icon = Icon;
-                    if (selectionForm.ShowDialog(this) != DialogResult.OK)
-                    {
-                        return;
-                    }
-                    package = selectionForm.SelectedPackage;
-                }
+                package = await SelectFirmwarePackageAsync(packages, identity);
             }
-            catch (Exception ex) when (ex is IOException || ex is InvalidDataException || ex is InvalidOperationException)
+            catch (Exception ex) when (
+                ex is IOException ||
+                ex is InvalidDataException ||
+                ex is InvalidOperationException ||
+                ex is UnauthorizedAccessException ||
+                ex is HttpRequestException ||
+                ex is System.Security.Cryptography.CryptographicException)
             {
-                SetStatusMessage("Controller firmware package is unavailable");
+                SetStatusMessage("Controller firmware selection failed");
                 MessageBox.Show(this, ex.Message, "Controller Firmware", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
@@ -214,7 +205,10 @@ namespace YATSS
             }
 
             string identityWarning = identity?.HasBoardProfile == true
-                ? $"Connected controller: {identity.BoardProfile}, firmware {identity.FirmwareVersion}"
+                ? $"Connected controller: {identity.BoardProfile}, firmware {identity.FirmwareVersion}" +
+                  (identity.FlashCapacityBytes.HasValue
+                      ? $", {FormatFirmwareCapacity(identity.FlashCapacityBytes.Value)} flash"
+                      : string.Empty)
                 : $"YATSS cannot identify this controller. Confirm physically that it is " +
                   $"{package.Manifest.BoardDisplayName}.";
             string toolNotice = GetFirmwareToolDownloadNotice(package);
@@ -331,6 +325,128 @@ namespace YATSS
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
         }
+
+        private async Task<ControllerFirmwarePackage?> SelectFirmwarePackageAsync(
+            IReadOnlyList<ControllerFirmwarePackage> packages,
+            ControllerIdentity? identity)
+        {
+            string boardProfile;
+            if (identity?.HasBoardProfile == true)
+            {
+                boardProfile = identity.BoardProfile;
+            }
+            else
+            {
+                ControllerFirmwarePackage[] boardChoices = packages
+                    .GroupBy(
+                        candidate => candidate.Manifest.BoardProfile,
+                        StringComparer.OrdinalIgnoreCase)
+                    .Select(group => group.First())
+                    .ToArray();
+                using ControllerFirmwareSelectionForm selectionForm = new(boardChoices);
+                selectionForm.Icon = Icon;
+                if (selectionForm.ShowDialog(this) != DialogResult.OK ||
+                    selectionForm.SelectedPackage == null)
+                {
+                    return null;
+                }
+                boardProfile = selectionForm.SelectedPackage.Manifest.BoardProfile;
+            }
+
+            ControllerFirmwarePackage[] candidates = packages
+                .Where(candidate => candidate.MatchesBoardProfile(boardProfile))
+                .ToArray();
+            if (candidates.Length == 0)
+            {
+                throw new FileNotFoundException($"No bundled firmware package matches {boardProfile}");
+            }
+
+            if (identity?.FlashCapacityBytes is long reportedCapacity)
+            {
+                return candidates.SingleOrDefault(candidate =>
+                           candidate.Manifest.FlashCapacityBytes == reportedCapacity) ??
+                    throw new InvalidDataException(
+                        $"No {FormatFirmwareCapacity(reportedCapacity)} firmware package matches {boardProfile}");
+            }
+
+            if (candidates.Length == 1)
+            {
+                return candidates[0];
+            }
+
+            if (candidates.All(candidate => string.Equals(
+                    candidate.Manifest.UploaderBackend,
+                    "esptool",
+                    StringComparison.Ordinal)))
+            {
+                return await DetectC6FirmwarePackageAsync(candidates);
+            }
+
+            throw new InvalidDataException($"Multiple firmware packages match {boardProfile}");
+        }
+
+        private async Task<ControllerFirmwarePackage?> DetectC6FirmwarePackageAsync(
+            IReadOnlyList<ControllerFirmwarePackage> candidates)
+        {
+            string confirmation =
+                $"YATSS needs to inspect the C6 flash capacity on {port} before choosing N4 or N8." +
+                Environment.NewLine + Environment.NewLine +
+                GetFirmwareToolDownloadNotice(candidates[0]) +
+                "Disconnect track power and relay-coil power before continuing. " +
+                "The inspection is read-only and will reset the controller.";
+            if (MessageBox.Show(
+                    this,
+                    confirmation,
+                    "Inspect Controller Flash?",
+                    MessageBoxButtons.OKCancel,
+                    MessageBoxIcon.Warning,
+                    MessageBoxDefaultButton.Button2) != DialogResult.OK)
+            {
+                return null;
+            }
+
+            FirmwareUpdateProgressForm progressForm = new() { Icon = Icon };
+            progressForm.Show(this);
+            Enabled = false;
+            bool serialSuspended = false;
+            try
+            {
+                IProgress<string> progress = progressForm.CreateProgress();
+                string espToolPath;
+                if (!EspToolProvider.TryFindEspTool(out espToolPath))
+                {
+                    progressForm.SetStatus("Downloading Espressif uploader...");
+                    espToolPath = await EspToolProvider.DownloadOfficialEspToolAsync(progress);
+                }
+
+                await s.SuspendForFirmwareUpdateAsync();
+                serialSuspended = true;
+                progressForm.SetStatus("Inspecting controller flash...");
+                Esp32C6FirmwareFlasher flasher = new(espToolPath);
+                long capacity = await flasher.ProbeFlashCapacityAsync(port, progress);
+                return candidates.SingleOrDefault(candidate =>
+                           candidate.Manifest.FlashCapacityBytes == capacity) ??
+                    throw new InvalidDataException(
+                        $"No bundled C6 package supports the detected {FormatFirmwareCapacity(capacity)} flash");
+            }
+            finally
+            {
+                if (serialSuspended)
+                {
+                    s.ResumeAfterFirmwareUpdate();
+                }
+                progressForm.Complete();
+                progressForm.Close();
+                progressForm.Dispose();
+                Enabled = true;
+                Activate();
+            }
+        }
+
+        private static string FormatFirmwareCapacity(long bytes) =>
+            bytes % (1024 * 1024) == 0
+                ? $"{bytes / (1024 * 1024)} MB"
+                : $"{bytes} bytes";
 
         private static string GetFirmwareToolDownloadNotice(ControllerFirmwarePackage package)
         {
