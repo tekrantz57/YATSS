@@ -929,7 +929,8 @@ namespace YATSS
             new(portName, 115200)
             {
                 NewLine = "\n",
-                ReadTimeout = 500,
+                // Heartbeats arrive once per second; allow margin for USB scheduling jitter.
+                ReadTimeout = 1500,
                 WriteTimeout = 500,
                 DtrEnable = true,
                 RtsEnable = true
