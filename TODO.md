@@ -54,6 +54,17 @@
   ESP32-C6-DevKitC-1 before committing to the production wiring harness.
 - Verify controller diagnostics, watchdog cuts, reset behavior, and sustained
   serial traffic through the CP2102N `UART` connector.
+- Exercise in-app firmware installation on both a blank C6 and an already
+  programmed C6, including interrupted or failed uploads and serial recovery.
+
+## Arduino Nano ESP32 in-app firmware updates
+
+- Extend the board-neutral `.yatssfw` package manifest and updater UI with an
+  Arduino Nano ESP32 package and its required bootloader/upload backend.
+- Preserve board-identity matching so a C6 image can never be offered to a Nano
+  and vice versa.
+- Validate first-time provisioning and updates on physical Nano ESP32 hardware
+  before enabling the package in release builds.
 
 ## Future Formula 1-style sector timing
 

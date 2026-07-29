@@ -81,6 +81,20 @@ transition counts, refresh controller status, or cut all track power. Diagnostic
 sensor activity is logged but never enters the lap-counting path. Starting
 another race mode closes diagnostics first.
 
+## Controller Firmware Updates
+
+`File > Update Controller Firmware...` installs the bundled YATSSMC image on
+an ESP32-C6-DevKitC-1 from Practice mode. It works with an identified running
+controller or a blank C6 when the correct COM port is selected. Track power and
+relay-coil power must be physically disconnected during flashing.
+
+YATSS reuses `esptool.exe` from an installed Espressif Arduino core or from
+`YATSS_ESPTOOL_PATH`. If neither exists, the operator can approve a direct
+download of Espressif's official pinned release; YATSS verifies the archive's
+published SHA-256 and caches it under `%LOCALAPPDATA%\YATSS\Tools`. The
+uploader is not bundled in YATSS release ZIPs. See
+[Controller firmware updates](../docs/CONTROLLER_FIRMWARE_UPDATE.md).
+
 ## Practice Mode
 
 Practice is the default mode. Edges from active lanes establish a baseline on

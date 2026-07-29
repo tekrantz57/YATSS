@@ -1,5 +1,7 @@
 using YATSS;
 using System.Text.Json;
+using System.IO.Compression;
+using System.Security.Cryptography;
 using Microsoft.Data.Sqlite;
 
 static void Assert(bool condition, string message)
@@ -20,6 +22,92 @@ Assert(corrupt.Kind == LapProtocolMessageKind.Invalid, "bad checksum should be r
 
 LapProtocolMessage boot = LapProtocolParser.Parse(LapProtocolParser.EncodeFrame("HELLO:YATSSMC:2:8"));
 Assert(boot.Kind == LapProtocolMessageKind.Hello, "HELLO should parse");
+Assert(boot.ControllerIdentity is { ProtocolVersion: 2, LaneCount: 8, HasBoardProfile: false },
+    "legacy HELLO should retain protocol and lane count without claiming a board identity");
+
+LapProtocolMessage identifiedBoot = LapProtocolParser.Parse(LapProtocolParser.EncodeFrame(
+    "HELLO:YATSSMC:3:8:ESP32_C6_DEVKITC1:0.10.0-beta.1-dev"));
+Assert(identifiedBoot.ControllerIdentity is
+    {
+        ProtocolVersion: 3,
+        LaneCount: 8,
+        BoardProfile: "ESP32_C6_DEVKITC1",
+        FirmwareVersion: "0.10.0-beta.1-dev"
+    }, "protocol-v3 HELLO should identify board and firmware");
+
+string firmwarePackageTestDirectory = Path.Combine(
+    Path.GetTempPath(),
+    "YATSS.Tests",
+    Guid.NewGuid().ToString("N"));
+try
+{
+    Directory.CreateDirectory(firmwarePackageTestDirectory);
+    byte[] testImage = Enumerable.Range(0, 1024).Select(value => (byte)value).ToArray();
+    string imageName = "test-c6.bin";
+    string packagePath = Path.Combine(firmwarePackageTestDirectory, "test.yatssfw");
+    ControllerFirmwareManifest manifest = new(
+        FormatVersion: 1,
+        Product: "YATSSMC",
+        FirmwareVersion: "test-version",
+        BoardProfile: ControllerFirmwarePackage.Esp32C6BoardProfile,
+        BoardDisplayName: "ESP32-C6-DevKitC-1",
+        Chip: "esp32c6",
+        UploaderBackend: "esptool",
+        ArduinoFqbn: "esp32:esp32:esp32c6",
+        ArduinoCoreVersion: "test-core",
+        ImageFile: imageName,
+        ImageSizeBytes: testImage.Length,
+        FlashOffset: 0,
+        Sha256: Convert.ToHexString(SHA256.HashData(testImage)));
+    using (ZipArchive archive = ZipFile.Open(packagePath, ZipArchiveMode.Create))
+    {
+        using (Stream manifestStream = archive.CreateEntry("manifest.json").Open())
+        {
+            JsonSerializer.Serialize(manifestStream, manifest);
+        }
+        using Stream imageStream = archive.CreateEntry(imageName).Open();
+        imageStream.Write(testImage);
+    }
+
+    ControllerFirmwarePackage loadedPackage = ControllerFirmwarePackage.Load(packagePath);
+    Assert(loadedPackage.ImageBytes.SequenceEqual(testImage),
+        "firmware package should retain an image that matches its manifest hash");
+    Assert(loadedPackage.Matches(identifiedBoot.ControllerIdentity!),
+        "firmware package should match the controller board profile");
+
+    IReadOnlyList<string> flashArguments = Esp32C6FirmwareFlasher.CreateFlashArguments("COM9", "firmware.bin");
+    Assert(flashArguments.Contains("esp32c6") && flashArguments.TakeLast(2).SequenceEqual(new[] { "0x0", "firmware.bin" }),
+        "C6 flasher should enforce the chip and merged-image offset");
+    Assert(EspToolProvider.GetCachedEspToolPath("C:\\LocalData").EndsWith(
+        $"YATSS\\Tools\\esptool\\{EspToolProvider.OfficialVersion}\\esptool.exe",
+        StringComparison.OrdinalIgnoreCase),
+        "official uploader should be cached outside the YATSS installation");
+
+    using (ZipArchive archive = ZipFile.Open(packagePath, ZipArchiveMode.Update))
+    {
+        ZipArchiveEntry imageEntry = archive.GetEntry(imageName)!;
+        imageEntry.Delete();
+        using Stream replacement = archive.CreateEntry(imageName).Open();
+        replacement.Write(new byte[testImage.Length]);
+    }
+    bool tamperedPackageRejected = false;
+    try
+    {
+        _ = ControllerFirmwarePackage.Load(packagePath);
+    }
+    catch (InvalidDataException)
+    {
+        tamperedPackageRejected = true;
+    }
+    Assert(tamperedPackageRejected, "firmware package should reject an image that fails SHA-256 validation");
+}
+finally
+{
+    if (Directory.Exists(firmwarePackageTestDirectory))
+    {
+        Directory.Delete(firmwarePackageTestDirectory, recursive: true);
+    }
+}
 
 LapProtocolMessage heartbeat = LapProtocolParser.Parse(LapProtocolParser.EncodeFrame("HEARTBEAT:12345"));
 Assert(heartbeat.Kind == LapProtocolMessageKind.Heartbeat, "HEARTBEAT should parse");

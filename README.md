@@ -56,6 +56,7 @@ the prerelease. Verify the GitHub source and checksum before running it.
 - HTML reports and configurable JSON and CSV exports.
 - Manual and automatic database backups with verified restore.
 - Live controller diagnostics and track-power relay pulse tests.
+- In-app ESP32-C6 controller firmware installation, including blank devices.
 - Optional voice announcements and Logitech R500s Next-button race control.
 - Controller watchdog that cuts all lanes when Windows communication stops.
 
@@ -116,7 +117,7 @@ From the repository root:
 dotnet build YATSSWin\YATSS.sln -c Release
 dotnet run --project YATSSWin\YATSS.Tests\YATSS.Tests.csproj -c Release
 arduino-cli compile --fqbn arduino:esp32:nano_nora YATSSMC
-arduino-cli compile --fqbn esp32:esp32:esp32c6 YATSSMC
+arduino-cli compile --fqbn "esp32:esp32:esp32c6:CDCOnBoot=default,FlashSize=8M,PartitionScheme=default_8MB" YATSSMC
 ```
 
 Visual Studio Community and VS Code with C# Dev Kit can both build the Windows
@@ -126,6 +127,7 @@ solution. The Windows application targets .NET 10 LTS.
 
 - [Windows application](YATSSWin/README.md)
 - [Controller sketch, pin maps, and wiring](YATSSMC/README.md)
+- [Controller firmware updates](docs/CONTROLLER_FIRMWARE_UPDATE.md)
 - [Serial protocol](docs/SERIAL_PROTOCOL.md)
 - [Race reports and data exports](docs/RACE_DATA_EXPORT.md)
 - [Database backup and restore](docs/DATABASE_BACKUP.md)

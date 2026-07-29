@@ -15,12 +15,18 @@ checksum.
 ## Controller To Windows
 
 ```text
-HELLO:YATSSMC:2:<lane-count>*XX
+HELLO:YATSSMC:3:<lane-count>:<board-profile>:<firmware-version>*XX
 ```
 
-Sent when the sketch starts or when Windows sends `PING`. Version `2` means the
-controller sends timestamped sensor edges only; Windows owns lap counting.
-`YATSSMC` identifies the YATSS microcontroller firmware.
+Sent when the sketch starts or when Windows sends `PING`. Version `3` adds the
+compile-time board profile and firmware version so Windows can reject a
+mismatched firmware update. `YATSSMC` identifies the YATSS microcontroller
+firmware. Current board profiles are `ESP32_C6_DEVKITC1` and
+`ARDUINO_NANO_ESP32`.
+
+Windows still accepts the version 2 form, `HELLO:YATSSMC:2:<lane-count>`, from
+older controllers. Because that form cannot identify the board, an update
+requires the operator to confirm the hardware physically.
 
 ```text
 HEARTBEAT:<millis>*XX
@@ -88,7 +94,7 @@ serial output, waits briefly, then restarts.
 PING*XX
 ```
 
-Requests a `HELLO:YATSSMC:2:<lane-count>*XX` response.
+Requests the current `HELLO:YATSSMC` response.
 
 ```text
 KEEPALIVE*XX

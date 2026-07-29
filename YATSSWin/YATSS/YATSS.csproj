@@ -39,6 +39,14 @@
     </EmbeddedResource>
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="..\..\YATSSMC\dist\*.yatssfw">
+      <Link>Firmware\%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+
   <Target Name="AddGitBuildDescription" BeforeTargets="GetAssemblyAttributes">
     <PropertyGroup>
       <GitBuildDescription>v$(Version)</GitBuildDescription>
@@ -55,6 +63,15 @@
     <ItemGroup>
       <AssemblyMetadata Include="GitBuildDescription" Value="$(GitBuildDescription)" />
     </ItemGroup>
+  </Target>
+
+  <Target Name="RequireControllerFirmwarePackage" BeforeTargets="Publish">
+    <ItemGroup>
+      <_ControllerFirmwarePackage Include="..\..\YATSSMC\dist\*.yatssfw" />
+    </ItemGroup>
+    <Error
+      Condition="'@(_ControllerFirmwarePackage)' == ''"
+      Text="Build the C6 controller package with tools\Build-ControllerFirmware.ps1 before publishing YATSS." />
   </Target>
 
 </Project>

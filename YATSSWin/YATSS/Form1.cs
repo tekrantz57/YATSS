@@ -30,6 +30,7 @@ namespace YATSS
         private readonly ToolStripMenuItem _restoreDatabaseMenuItem = new("Restore Database...");
         private readonly ToolStripMenuItem _openDatabaseFolderMenuItem = new("Open Database Folder");
         private readonly ToolStripMenuItem _openBackupFolderMenuItem = new("Open Backup Folder");
+        private readonly ToolStripMenuItem _updateControllerFirmwareMenuItem = new("Update Controller Firmware...");
         private readonly Image _selectedModeIndicator = CreateModeIndicator(selected: true);
         private readonly Image _unselectedModeIndicator = CreateModeIndicator(selected: false);
         private const string EmptyRacerName = "          ";
@@ -71,6 +72,7 @@ namespace YATSS
             Text = _versionedWindowTitle;
             ConfigureModeMenu();
             ConfigureDataMenu();
+            ConfigureControllerMenu();
             Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? Icon;
             KeyPreview = true;
             ConfigureBoardLayout();
@@ -143,6 +145,170 @@ namespace YATSS
             _restoreDatabaseMenuItem.Click += (_, _) => RestoreDatabase();
             _openDatabaseFolderMenuItem.Click += (_, _) => OpenDatabaseFolder();
             _openBackupFolderMenuItem.Click += (_, _) => OpenBackupFolder();
+        }
+
+        private void ConfigureControllerMenu()
+        {
+            int diagnosticsIndex = fileToolStripMenuItem.DropDownItems.IndexOf(controllerDiagnosticsToolStripMenuItem);
+            fileToolStripMenuItem.DropDownItems.Insert(diagnosticsIndex + 1, _updateControllerFirmwareMenuItem);
+            _updateControllerFirmwareMenuItem.Click += async (_, _) => await UpdateControllerFirmwareAsync();
+        }
+
+        private async Task UpdateControllerFirmwareAsync()
+        {
+            if (!s.CanUpdateControllerFirmware(out string reason))
+            {
+                SetStatusMessage(reason);
+                MessageBox.Show(this, reason, "Controller Firmware", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            ControllerFirmwarePackage package;
+            try
+            {
+                IReadOnlyList<ControllerFirmwarePackage> packages =
+                    ControllerFirmwarePackage.LoadBundledPackages();
+                package = packages.SingleOrDefault(candidate =>
+                    string.Equals(
+                        candidate.Manifest.BoardProfile,
+                        ControllerFirmwarePackage.Esp32C6BoardProfile,
+                        StringComparison.Ordinal)) ??
+                    throw new FileNotFoundException(
+                        "The ESP32-C6 firmware package is missing from this YATSS installation");
+            }
+            catch (Exception ex) when (ex is IOException || ex is InvalidDataException || ex is InvalidOperationException)
+            {
+                SetStatusMessage("Controller firmware package is unavailable");
+                MessageBox.Show(this, ex.Message, "Controller Firmware", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            ControllerIdentity? identity = s.CurrentControllerIdentity;
+            if (identity?.HasBoardProfile == true && !package.Matches(identity))
+            {
+                string mismatch =
+                    $"The connected controller identifies itself as {identity.BoardProfile}. " +
+                    $"The bundled package is for {package.Manifest.BoardDisplayName}.";
+                SetStatusMessage("Controller firmware package does not match the connected board");
+                MessageBox.Show(this, mismatch, "Controller Firmware", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            string identityWarning = identity?.HasBoardProfile == true
+                ? $"Connected controller: {identity.BoardProfile}, firmware {identity.FirmwareVersion}"
+                : "YATSS cannot identify this controller. This is expected for a blank device. " +
+                  "Confirm physically that it is an ESP32-C6-DevKitC-1.";
+            string confirmation =
+                $"Install YATSSMC {package.Manifest.FirmwareVersion} for " +
+                $"{package.Manifest.BoardDisplayName} on {port}?{Environment.NewLine}{Environment.NewLine}" +
+                identityWarning + Environment.NewLine + Environment.NewLine +
+                (EspToolProvider.TryFindEspTool(out _)
+                    ? string.Empty
+                    : $"YATSS will first download the official Espressif uploader " +
+                      $"({EspToolProvider.OfficialArchiveBytes / 1_000_000} MB) and verify it.{Environment.NewLine}{Environment.NewLine}") +
+                "Disconnect track power and relay-coil power before continuing. " +
+                "Do not disconnect USB or close YATSS during the update.";
+            if (MessageBox.Show(
+                    this,
+                    confirmation,
+                    "Update Controller Firmware?",
+                    MessageBoxButtons.OKCancel,
+                    MessageBoxIcon.Warning,
+                    MessageBoxDefaultButton.Button2) != DialogResult.OK)
+            {
+                return;
+            }
+
+            FirmwareUpdateProgressForm progressForm = new();
+            progressForm.Icon = Icon;
+            progressForm.Show(this);
+            Enabled = false;
+            Exception? failure = null;
+            bool verified = false;
+            bool serialSuspended = false;
+            bool serialResumed = false;
+
+            try
+            {
+                IProgress<string> progress = progressForm.CreateProgress();
+                progress.Report($"Package: {Path.GetFileName(package.PackagePath)}");
+                progress.Report($"Image SHA-256: {package.Manifest.Sha256}");
+                string espToolPath;
+                if (!EspToolProvider.TryFindEspTool(out espToolPath))
+                {
+                    progressForm.SetStatus("Downloading Espressif uploader...");
+                    espToolPath = await EspToolProvider.DownloadOfficialEspToolAsync(progress);
+                }
+
+                await s.SuspendForFirmwareUpdateAsync();
+                serialSuspended = true;
+                Esp32C6FirmwareFlasher flasher = new(espToolPath);
+                progressForm.SetStatus("Writing controller firmware...");
+                await flasher.FlashAsync(package, port, progress);
+
+                progressForm.SetStatus("Firmware written; waiting for YATSSMC...");
+                s.ResumeAfterFirmwareUpdate();
+                serialResumed = true;
+                verified = await s.WaitForControllerIdentityAsync(
+                    package.Manifest.BoardProfile,
+                    package.Manifest.FirmwareVersion,
+                    TimeSpan.FromSeconds(15));
+            }
+            catch (Exception ex) when (
+                ex is IOException ||
+                ex is InvalidOperationException ||
+                ex is UnauthorizedAccessException ||
+                ex is HttpRequestException ||
+                ex is System.Security.Cryptography.CryptographicException)
+            {
+                failure = ex;
+            }
+            finally
+            {
+                if (serialSuspended && !serialResumed)
+                {
+                    s.ResumeAfterFirmwareUpdate();
+                }
+
+                progressForm.Complete();
+                progressForm.Close();
+                progressForm.Dispose();
+                Enabled = true;
+                Activate();
+            }
+
+            if (failure != null)
+            {
+                SetStatusMessage("Controller firmware update failed");
+                MessageBox.Show(
+                    this,
+                    failure.Message,
+                    "Controller Firmware Update Failed",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+                return;
+            }
+
+            if (!verified)
+            {
+                SetStatusMessage("Firmware written; controller confirmation not received");
+                MessageBox.Show(
+                    this,
+                    "The firmware was written successfully, but YATSS did not receive the expected " +
+                    "controller identity within 15 seconds. Check the selected COM port and power-cycle the controller.",
+                    "Controller Firmware Written",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                return;
+            }
+
+            SetStatusMessage($"Controller firmware updated to {package.Manifest.FirmwareVersion}");
+            MessageBox.Show(
+                this,
+                $"The controller is running YATSSMC {package.Manifest.FirmwareVersion}.",
+                "Controller Firmware Updated",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
         }
 
         private void ConfigureModeMenu()

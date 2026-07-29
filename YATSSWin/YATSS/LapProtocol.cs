@@ -15,6 +15,15 @@ namespace YATSS
 
     public sealed record LapEdge(int LaneIndex, uint Sequence, uint TimestampMillis);
 
+    public sealed record ControllerIdentity(
+        int ProtocolVersion,
+        int LaneCount,
+        string BoardProfile,
+        string FirmwareVersion)
+    {
+        public bool HasBoardProfile => !string.IsNullOrWhiteSpace(BoardProfile);
+    }
+
     public abstract record ControllerDiagnostic;
 
     public sealed record ControllerDiagnosticStatus(
@@ -48,7 +57,8 @@ namespace YATSS
         uint? ControllerTimestampMillis,
         string RawLine,
         string Detail,
-        ControllerDiagnostic? Diagnostic = null)
+        ControllerDiagnostic? Diagnostic = null,
+        ControllerIdentity? ControllerIdentity = null)
     {
         public static LapProtocolMessage Invalid(string rawLine, string detail) =>
             new(LapProtocolMessageKind.Invalid, null, null, rawLine, detail);
@@ -82,7 +92,13 @@ namespace YATSS
 
             if (command == "HELLO")
             {
-                return new LapProtocolMessage(LapProtocolMessageKind.Hello, null, null, rawLine, body);
+                return new LapProtocolMessage(
+                    LapProtocolMessageKind.Hello,
+                    null,
+                    null,
+                    rawLine,
+                    body,
+                    ControllerIdentity: ParseControllerIdentity(parts));
             }
 
             if (command == "HEARTBEAT")
@@ -142,6 +158,22 @@ namespace YATSS
             }
 
             return LapProtocolMessage.Invalid(rawLine, "unknown protocol line");
+        }
+
+        private static ControllerIdentity? ParseControllerIdentity(string[] parts)
+        {
+            if (parts.Length < 4 ||
+                !string.Equals(parts[1], "YATSSMC", StringComparison.OrdinalIgnoreCase) ||
+                !int.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out int protocolVersion) ||
+                !int.TryParse(parts[3], NumberStyles.None, CultureInfo.InvariantCulture, out int laneCount) ||
+                protocolVersion < 1 || laneCount < 1)
+            {
+                return null;
+            }
+
+            string boardProfile = parts.Length >= 5 ? parts[4].Trim().ToUpperInvariant() : string.Empty;
+            string firmwareVersion = parts.Length >= 6 ? parts[5].Trim() : string.Empty;
+            return new ControllerIdentity(protocolVersion, laneCount, boardProfile, firmwareVersion);
         }
 
         private static LapProtocolMessage ParseDiagnostic(string rawLine, string body, string[] parts)

@@ -158,6 +158,27 @@ manual backup from Practice mode.
 
 Connect the controller and select its COM port in Configure.
 
+Before energizing track or relay-coil power, verify firmware installation with
+the production ZIP:
+
+- [ ] The publish folder contains one C6 `.yatssfw` file under `Firmware` and
+  does not contain `esptool.exe`.
+- [ ] `File > Update Controller Firmware...` is refused outside idle Practice
+  mode, during simulated input, and while Controller Diagnostics is open.
+- [ ] With Arduino's ESP32 core installed, YATSS reuses its uploader without a
+  download prompt.
+- [ ] On a clean Windows account, YATSS asks before downloading the official
+  Espressif uploader, verifies it, and caches it under
+  `%LOCALAPPDATA%\YATSS\Tools`.
+- [ ] An existing C6 is identified before confirmation and a different board
+  profile is rejected.
+- [ ] A physically confirmed blank C6 can be provisioned on its selected COM
+  port.
+- [ ] After writing, YATSS reconnects and verifies the expected board profile
+  and firmware version.
+- [ ] Cancelling before write and a deliberately failed probe leave normal
+  serial reconnection available.
+
 - [ ] YATSS reports that the controller is responding.
 - [ ] The COM-port selection remains after restarting YATSS.
 - [ ] Controller Diagnostics opens.

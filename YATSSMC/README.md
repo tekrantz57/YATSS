@@ -25,8 +25,20 @@ ESP32-C6-WROOM-1-N8 module. In Arduino IDE:
 The equivalent CLI build is:
 
 ```powershell
-arduino-cli compile --fqbn esp32:esp32:esp32c6 YATSSMC
+arduino-cli compile `
+  --fqbn "esp32:esp32:esp32c6:CDCOnBoot=default,FlashSize=8M,PartitionScheme=default_8MB" `
+  YATSSMC
 ```
+
+To build the validated firmware package embedded in Windows publish output:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\Build-ControllerFirmware.ps1
+```
+
+This compiles a merged C6 flash image and writes a `.yatssfw` package under
+`YATSSMC\dist`. The package contains YATSS firmware only; the Espressif uploader
+is located or downloaded by the Windows app when an update is requested.
 
 The C6 profile preserves GPIO16/GPIO17 for the CP2102N USB-to-UART bridge and
 avoids the board's boot-strapping pins and GPIO8 RGB LED. GPIO12 and GPIO13 are

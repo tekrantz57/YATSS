@@ -35,6 +35,8 @@ namespace YATSS
         private bool _hasControllerTimestamp;
         private bool _trackPowerEnabled = true;
         private bool _diagnosticsActive;
+        private volatile bool _firmwareUpdateActive;
+        private ControllerIdentity? _controllerIdentity;
         private bool _startCountdownInProgress;
         private int _startCountdownVersion;
         private bool _qualifyingLaneSelectionPending;
@@ -64,6 +66,8 @@ namespace YATSS
         public event Action<ControllerDiagnostic>? DiagnosticReceived;
 
         public bool DiagnosticsActive => _diagnosticsActive;
+
+        public ControllerIdentity? CurrentControllerIdentity => Volatile.Read(ref _controllerIdentity);
 
         public bool DemoLapStreamActive
         {
@@ -134,6 +138,7 @@ namespace YATSS
             }
 
             _form.port = portName;
+            Volatile.Write(ref _controllerIdentity, null);
             SavePort(portName);
             _log.Info(string.IsNullOrWhiteSpace(portName) ? "serial port cleared" : $"serial port set to {portName}");
             _form.SetStatusMessage(string.IsNullOrWhiteSpace(portName) ? "No serial port configured" : $"Serial port set to {portName}");
@@ -501,6 +506,98 @@ namespace YATSS
             return true;
         }
 
+        public bool CanUpdateControllerFirmware(out string reason)
+        {
+            if (_heatRace.State != HeatRaceState.Practice || _qualifying.State != QualifyingState.Inactive)
+            {
+                reason = "Controller firmware can be updated only in Practice mode";
+                return false;
+            }
+
+            if (_startCountdownInProgress)
+            {
+                reason = "Wait for the active countdown to finish before updating controller firmware";
+                return false;
+            }
+
+            if (DemoLapStreamActive)
+            {
+                reason = "Stop Simulated Lap Input before updating controller firmware";
+                return false;
+            }
+
+            if (_diagnosticsActive)
+            {
+                reason = "Close Controller Diagnostics before updating controller firmware";
+                return false;
+            }
+
+            if (_firmwareUpdateActive)
+            {
+                reason = "A controller firmware update is already running";
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(_form.port))
+            {
+                reason = "Configure the controller COM port before updating firmware";
+                return false;
+            }
+
+            reason = string.Empty;
+            return true;
+        }
+
+        public async Task SuspendForFirmwareUpdateAsync()
+        {
+            if (!CanUpdateControllerFirmware(out string reason))
+            {
+                throw new InvalidOperationException(reason);
+            }
+
+            _firmwareUpdateActive = true;
+            _trackPowerEnabled = false;
+            if (IsPortOpen())
+            {
+                WriteLine("TRACK_POWER:OFF");
+                await Task.Delay(250);
+            }
+
+            CloseActivePort();
+            Volatile.Write(ref _controllerIdentity, null);
+            _log.Info("serial connection suspended for controller firmware update");
+            _form.SetStatusMessage("Controller firmware update in progress");
+        }
+
+        public void ResumeAfterFirmwareUpdate()
+        {
+            _firmwareUpdateActive = false;
+            _log.Info("serial connection resumed after controller firmware update");
+            RequestReconnect("Waiting for controller after firmware update");
+        }
+
+        public async Task<bool> WaitForControllerIdentityAsync(
+            string boardProfile,
+            string firmwareVersion,
+            TimeSpan timeout)
+        {
+            DateTime deadline = DateTime.UtcNow + timeout;
+            while (DateTime.UtcNow < deadline && !_stop.IsCancellationRequested)
+            {
+                ControllerIdentity? identity = Volatile.Read(ref _controllerIdentity);
+                if (identity != null &&
+                    string.Equals(identity.BoardProfile, boardProfile, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(identity.FirmwareVersion, firmwareVersion, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+
+                await Task.Delay(200);
+            }
+
+            return false;
+        }
+
         public void PrepareForDatabaseRestore()
         {
             StopControllerDiagnostics();
@@ -743,6 +840,12 @@ namespace YATSS
         {
             while (!_stop.IsCancellationRequested)
             {
+                if (_firmwareUpdateActive)
+                {
+                    await DelayDuringFirmwareUpdateAsync();
+                    continue;
+                }
+
                 string portName = _form.port;
                 if (string.IsNullOrWhiteSpace(portName))
                 {
@@ -775,7 +878,7 @@ namespace YATSS
                     DateTime lastPingSent = DateTime.MinValue;
                     bool waitingForPingReply = false;
 
-                    while (!_stop.IsCancellationRequested && port.IsOpen)
+                    while (!_stop.IsCancellationRequested && !_firmwareUpdateActive && port.IsOpen)
                     {
                         string line;
                         try
@@ -793,8 +896,11 @@ namespace YATSS
                         }
                         catch (Exception ex) when (ex is IOException || ex is InvalidOperationException || ex is NullReferenceException)
                         {
-                            _log.Error(ex, $"serial read failed on {portName}");
-                            _form.SetStatusMessage($"Serial disconnected from {portName}");
+                            if (!_firmwareUpdateActive)
+                            {
+                                _log.Error(ex, $"serial read failed on {portName}");
+                                _form.SetStatusMessage($"Serial disconnected from {portName}");
+                            }
                             break;
                         }
 
@@ -812,6 +918,7 @@ namespace YATSS
                 finally
                 {
                     CloseActivePort();
+                    Volatile.Write(ref _controllerIdentity, null);
                 }
 
                 await DelayReconnectAsync();
@@ -884,6 +991,15 @@ namespace YATSS
                     }
                     break;
                 case LapProtocolMessageKind.Hello:
+                    if (!isDemoLine && message.ControllerIdentity != null)
+                    {
+                        Volatile.Write(ref _controllerIdentity, message.ControllerIdentity);
+                        _log.Info(
+                            $"controller identity {message.ControllerIdentity.BoardProfile} " +
+                            $"firmware {message.ControllerIdentity.FirmwareVersion} " +
+                            $"protocol {message.ControllerIdentity.ProtocolVersion}");
+                    }
+
                     if (message.Detail.StartsWith("HELLO:YATSSMC:", StringComparison.OrdinalIgnoreCase))
                     {
                         WriteLine(GetSensorDebounceCommand());
@@ -1661,6 +1777,17 @@ namespace YATSS
 
                 Task delay = Task.Delay(TimeSpan.FromSeconds(2), _stop.Token);
                 await Task.WhenAny(delay, reconnectNow);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+
+        private async Task DelayDuringFirmwareUpdateAsync()
+        {
+            try
+            {
+                await Task.Delay(200, _stop.Token);
             }
             catch (OperationCanceledException)
             {

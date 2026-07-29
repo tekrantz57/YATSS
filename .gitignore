@@ -8,3 +8,5 @@ YATSSWin/**/obj/
 .codex/
 .agents/
 artifacts/
+.build/
+YATSSMC/build/

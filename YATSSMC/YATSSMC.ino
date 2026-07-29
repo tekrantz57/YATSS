@@ -6,7 +6,7 @@
   and reconnect behavior.
 
   Protocol frames are ASCII lines:
-    HELLO:YATSSMC:2:<lane-count>*XX
+    HELLO:YATSSMC:3:<lane-count>:<board-profile>:<firmware-version>*XX
     HEARTBEAT:<millis>*XX
     EDGE:<zero-based-lane>:<per-lane-sequence>:<millis>*XX
     ERR:QUEUE_FULL:<dropped-count>*XX
@@ -20,6 +20,8 @@
 
   XX is a two-digit hex XOR checksum of every character before the '*'.
 */
+
+#include "FirmwareVersion.h"
 
 const byte LaneCount = 8;
 const byte QueueSize = 32;
@@ -36,9 +38,11 @@ const unsigned long MaxDiagnosticRelayPulseMillis = 2000;
 static_assert((QueueSize & QueueMask) == 0, "QueueSize must be a power of two");
 
 #if defined(CONFIG_IDF_TARGET_ESP32C6)
+const char ControllerBoardProfile[] = "ESP32_C6_DEVKITC1";
 const byte sensorPins[LaneCount] = { 0, 1, 2, 3, 6, 7, 10, 11 };
 const byte trackPowerCutPins[LaneCount] = { 23, 22, 21, 20, 19, 18, 13, 12 };
 #else
+const char ControllerBoardProfile[] = "ARDUINO_NANO_ESP32";
 const byte sensorPins[LaneCount] = { D2, A4, D4, D5, D6, D7, D8, D9 };
 const byte trackPowerCutPins[LaneCount] = { D10, D11, D12, D13, A0, A1, A2, A3 };
 #endif
@@ -150,7 +154,7 @@ void setup() {
     attachInterrupt(digitalPinToInterrupt(sensorPins[lane]), isrHandlers[lane], FALLING);
   }
 
-  sendFrame(String(F("HELLO:YATSSMC:2:")) + LaneCount);
+  sendControllerHello();
 }
 
 void loop() {
@@ -288,12 +292,18 @@ void handleCommands() {
   } else if (command.startsWith("DIAG:RELAY:PULSE:")) {
     handleDiagnosticRelayPulse(command.substring(17));
   } else if (command == "PING") {
-    sendFrame(String(F("HELLO:YATSSMC:2:8")));
+    sendControllerHello();
   } else if (command == "KEEPALIVE") {
     return;
   } else if (command.length() > 0) {
     sendFrame(String(F("ERR:UNKNOWN_COMMAND:")) + command);
   }
+}
+
+void sendControllerHello() {
+  sendFrame(
+    String(F("HELLO:YATSSMC:3:")) + LaneCount + ":" +
+    ControllerBoardProfile + ":" + YATSSMC_FIRMWARE_VERSION);
 }
 
 byte readActiveSensorMask() {
