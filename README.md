@@ -7,6 +7,8 @@ race board handles lap scoring, qualifying, heat rotation, reports, backups,
 and operator workflow. An ESP32 controller timestamps sensor edges and controls
 up to eight lane-power relays.
 
+[![YATSS running the second heat of a demo race](docs/images/yatss-demo-race-heat-2.png)](docs/images/yatss-demo-race-heat-2.png)
+
 > **Public beta:** `v0.10.0-beta.1` is intended for evaluation, demo races, and
 > careful bench testing. YATSS has no production track installations yet.
 
@@ -30,6 +32,19 @@ Download a Windows x64 ZIP from
 
 The executable is not code-signed, so Windows may show a reputation warning for
 the prerelease. Verify the GitHub source and checksum before running it.
+
+## Screenshots
+
+<table>
+  <tr>
+    <th>Simulated practice</th>
+    <th>Idle timing board</th>
+  </tr>
+  <tr>
+    <td><a href="docs/images/yatss-practice.png"><img src="docs/images/yatss-practice.png" alt="YATSS practice timing with simulated laps"></a></td>
+    <td><a href="docs/images/yatss-idle.png"><img src="docs/images/yatss-idle.png" alt="YATSS idle timing board"></a></td>
+  </tr>
+</table>
 
 ## Capabilities
 
