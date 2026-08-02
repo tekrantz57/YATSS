@@ -22,6 +22,7 @@ namespace YATSS
         private Task? _readerTask;
         private Task? _demoTask;
         private SerialPort? _port;
+        private int _connectionGeneration;
         private CancellationTokenSource? _demoStop;
         private Stopwatch? _demoClock;
         private uint _demoStartTimestamp;
@@ -563,7 +564,8 @@ namespace YATSS
                 await Task.Delay(250);
             }
 
-            CloseActivePort();
+            RequestReconnect();
+            await WaitForPortToCloseAsync(TimeSpan.FromSeconds(3));
             Volatile.Write(ref _controllerIdentity, null);
             _log.Info("serial connection suspended for controller firmware update");
             _form.SetStatusMessage("Controller firmware update in progress");
@@ -857,6 +859,7 @@ namespace YATSS
 
                 try
                 {
+                    int connectionGeneration = Volatile.Read(ref _connectionGeneration);
                     using SerialPort port = CreatePort(portName);
                     port.Open();
                     port.DiscardInBuffer();
@@ -878,7 +881,10 @@ namespace YATSS
                     DateTime lastPingSent = DateTime.MinValue;
                     bool waitingForPingReply = false;
 
-                    while (!_stop.IsCancellationRequested && !_firmwareUpdateActive && port.IsOpen)
+                    while (!_stop.IsCancellationRequested &&
+                           !_firmwareUpdateActive &&
+                           connectionGeneration == Volatile.Read(ref _connectionGeneration) &&
+                           port.IsOpen)
                     {
                         string line;
                         try
@@ -1805,7 +1811,7 @@ namespace YATSS
                 _form.SetStatusMessage(statusMessage);
             }
 
-            CloseActivePort();
+            Interlocked.Increment(ref _connectionGeneration);
             TaskCompletionSource reconnectNow;
             lock (_reconnectGate)
             {
@@ -1814,6 +1820,21 @@ namespace YATSS
             }
 
             reconnectNow.TrySetResult();
+        }
+
+        private async Task WaitForPortToCloseAsync(TimeSpan timeout)
+        {
+            DateTime deadline = DateTime.UtcNow + timeout;
+            while (IsPortOpen() && DateTime.UtcNow < deadline && !_stop.IsCancellationRequested)
+            {
+                await Task.Delay(25);
+            }
+
+            if (IsPortOpen())
+            {
+                _log.Warn("serial read did not stop before the close timeout; forcing the port closed");
+                CloseActivePort();
+            }
         }
 
         private void CloseActivePort()
@@ -1847,15 +1868,17 @@ namespace YATSS
             StopControllerDiagnostics();
             StopDemoLapStream();
             _stop.Cancel();
+            Interlocked.Increment(ref _connectionGeneration);
             CancelBetweenHeatsTimer();
-            CloseActivePort();
             try
             {
-                _readerTask?.Wait(TimeSpan.FromSeconds(1));
+                _readerTask?.Wait(TimeSpan.FromSeconds(3));
             }
             catch
             {
             }
+
+            CloseActivePort();
 
             _stop.Dispose();
         }
