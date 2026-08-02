@@ -17,6 +17,9 @@ $artifactRoot = Join-Path $repositoryRoot "artifacts\controller-firmware"
 $nanoBuildDirectory = Join-Path $artifactRoot "nano-build"
 $nanoStagingDirectory = Join-Path $artifactRoot "nano-package"
 $nanoFqbn = "arduino:esp32:nano_nora:USBMode=default,PartitionScheme=default,PinNumbers=default"
+$c5BuildDirectory = Join-Path $artifactRoot "c5-n16r8-build"
+$c5StagingDirectory = Join-Path $artifactRoot "c5-n16r8-package"
+$c5Fqbn = "esp32:esp32:esp32c5:CDCOnBoot=default,CPUFreq=240,FlashFreq=80,FlashMode=qio,FlashSize=16M,PartitionScheme=fatflash,PSRAM=enabled"
 $c6Profiles = @(
     [pscustomobject]@{
         Label         = "n4"
@@ -55,11 +58,11 @@ if ($LASTEXITCODE -ne 0) {
     throw "Arduino CLI could not list installed cores"
 }
 
-$c6CoreLine = $coreList | Where-Object { $_ -match '^esp32:esp32\s+' } | Select-Object -First 1
-if ($null -eq $c6CoreLine -or $c6CoreLine -notmatch '^esp32:esp32\s+(?<version>\S+)') {
+$espCoreLine = $coreList | Where-Object { $_ -match '^esp32:esp32\s+' } | Select-Object -First 1
+if ($null -eq $espCoreLine -or $espCoreLine -notmatch '^esp32:esp32\s+(?<version>\S+)') {
     throw "The Espressif ESP32 Arduino core is not installed"
 }
-$c6CoreVersion = $Matches["version"]
+$espCoreVersion = $Matches["version"]
 
 $nanoCoreLine = $coreList | Where-Object { $_ -match '^arduino:esp32\s+' } | Select-Object -First 1
 if ($null -eq $nanoCoreLine -or $nanoCoreLine -notmatch '^arduino:esp32\s+(?<version>\S+)') {
@@ -67,7 +70,11 @@ if ($null -eq $nanoCoreLine -or $nanoCoreLine -notmatch '^arduino:esp32\s+(?<ver
 }
 $nanoCoreVersion = $Matches["version"]
 
-$generatedPaths = @($nanoBuildDirectory, $nanoStagingDirectory) +
+$generatedPaths = @(
+    $nanoBuildDirectory,
+    $nanoStagingDirectory,
+    $c5BuildDirectory,
+    $c5StagingDirectory) +
     @($c6Profiles | ForEach-Object { $_.BuildPath; $_.StagingPath })
 foreach ($path in $generatedPaths) {
     if (Test-Path -LiteralPath $path) {
@@ -82,6 +89,7 @@ foreach ($path in $generatedPaths) {
 New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
 foreach ($pattern in @(
     "YATSSMC-esp32-c6-devkitc1-*.yatssfw",
+    "YATSSMC-esp32-c5-waveshare-wifi6-n16r8-*.yatssfw",
     "YATSSMC-arduino-nano-esp32-*.yatssfw")) {
     Get-ChildItem -LiteralPath $OutputDirectory -Filter $pattern -File -ErrorAction SilentlyContinue |
         Remove-Item -Force
@@ -120,7 +128,7 @@ foreach ($profile in $c6Profiles) {
         chip               = "esp32c6"
         uploaderBackend    = "esptool"
         arduinoFqbn         = $profile.Fqbn
-        arduinoCoreVersion = $c6CoreVersion
+        arduinoCoreVersion = $espCoreVersion
         imageFile          = $imageName
         imageSizeBytes     = $image.Length
         flashOffset        = 0
@@ -143,11 +151,71 @@ foreach ($profile in $c6Profiles) {
     $results += [pscustomobject]@{
         Package         = $packagePath
         FirmwareVersion = $firmwareVersion
-        ArduinoCore     = $c6CoreVersion
+        ArduinoCore     = $espCoreVersion
         ImageBytes      = $image.Length
         PackageBytes    = (Get-Item -LiteralPath $packagePath).Length
         SHA256          = $sha256
     }
+}
+
+& $ArduinoCli compile `
+    --fqbn $c5Fqbn `
+    --build-path $c5BuildDirectory `
+    $sketchDirectory
+if ($LASTEXITCODE -ne 0) {
+    throw "Waveshare ESP32-C5 N16R8 firmware compilation failed"
+}
+
+$c5MergedImage = Join-Path $c5BuildDirectory "YATSSMC.ino.merged.bin"
+if (-not (Test-Path -LiteralPath $c5MergedImage -PathType Leaf)) {
+    throw "Arduino did not produce the merged C5 N16R8 firmware image"
+}
+
+$c5CapacityBytes = 16777216
+$c5ImageName = "YATSSMC-esp32-c5-waveshare-wifi6-n16r8-$safeVersion.bin"
+$c5StagedImage = Join-Path $c5StagingDirectory $c5ImageName
+Copy-Item -LiteralPath $c5MergedImage -Destination $c5StagedImage
+$c5Image = Get-Item -LiteralPath $c5StagedImage
+if ($c5Image.Length -ne $c5CapacityBytes) {
+    throw "C5 N16R8 merged image size does not match its flash capacity"
+}
+$c5Sha256 = (Get-FileHash -LiteralPath $c5StagedImage -Algorithm SHA256).Hash
+$c5Manifest = [ordered]@{
+    formatVersion      = 2
+    product            = "YATSSMC"
+    firmwareVersion    = $firmwareVersion
+    boardProfile       = "ESP32_C5_WAVESHARE_WIFI6_N16R8"
+    boardDisplayName   = "Waveshare ESP32-C5-WIFI6-KIT N16R8"
+    chip               = "esp32c5"
+    uploaderBackend    = "esptool"
+    arduinoFqbn         = $c5Fqbn
+    arduinoCoreVersion = $espCoreVersion
+    imageFile          = $c5ImageName
+    imageSizeBytes     = $c5Image.Length
+    flashOffset        = 0
+    sha256             = $c5Sha256
+    flashCapacityBytes = $c5CapacityBytes
+}
+$c5Manifest | ConvertTo-Json |
+    Set-Content -LiteralPath (Join-Path $c5StagingDirectory "manifest.json") -Encoding utf8
+
+$c5PackageName = "YATSSMC-esp32-c5-waveshare-wifi6-n16r8-$safeVersion.yatssfw"
+$c5PackagePath = Join-Path ([System.IO.Path]::GetFullPath($OutputDirectory)) $c5PackageName
+$c5TemporaryZip = [System.IO.Path]::ChangeExtension($c5PackagePath, ".zip")
+Remove-Item -LiteralPath $c5PackagePath, $c5TemporaryZip -Force -ErrorAction SilentlyContinue
+Compress-Archive `
+    -Path (Join-Path $c5StagingDirectory "*") `
+    -DestinationPath $c5TemporaryZip `
+    -CompressionLevel Optimal
+Move-Item -LiteralPath $c5TemporaryZip -Destination $c5PackagePath
+
+$results += [pscustomobject]@{
+    Package         = $c5PackagePath
+    FirmwareVersion = $firmwareVersion
+    ArduinoCore     = $espCoreVersion
+    ImageBytes      = $c5Image.Length
+    PackageBytes    = (Get-Item -LiteralPath $c5PackagePath).Length
+    SHA256          = $c5Sha256
 }
 
 & $ArduinoCli compile `

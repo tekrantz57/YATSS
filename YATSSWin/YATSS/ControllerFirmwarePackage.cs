@@ -27,6 +27,7 @@ namespace YATSS
         public const int CurrentFormatVersion = 2;
         public const string PackageExtension = ".yatssfw";
         public const string Esp32C6BoardProfile = "ESP32_C6_DEVKITC1";
+        public const string Esp32C5WaveshareBoardProfile = "ESP32_C5_WAVESHARE_WIFI6_N16R8";
         public const string ArduinoNanoEsp32BoardProfile = "ARDUINO_NANO_ESP32";
         private const int MaximumManifestBytes = 64 * 1024;
         private const int MaximumImageBytes = 16 * 1024 * 1024;
@@ -156,6 +157,13 @@ namespace YATSS
                 manifest.FlashOffset == 0 &&
                 manifest.FlashCapacityBytes is 4 * 1024 * 1024 or 8 * 1024 * 1024 &&
                 manifest.ImageSizeBytes == manifest.FlashCapacityBytes;
+            bool validC5 =
+                string.Equals(manifest.BoardProfile, Esp32C5WaveshareBoardProfile, StringComparison.Ordinal) &&
+                string.Equals(manifest.Chip, "esp32c5", StringComparison.Ordinal) &&
+                string.Equals(manifest.UploaderBackend, "esptool", StringComparison.Ordinal) &&
+                manifest.FlashOffset == 0 &&
+                manifest.FlashCapacityBytes == 16 * 1024 * 1024 &&
+                manifest.ImageSizeBytes == manifest.FlashCapacityBytes;
             bool validNano =
                 string.Equals(manifest.BoardProfile, ArduinoNanoEsp32BoardProfile, StringComparison.Ordinal) &&
                 string.Equals(manifest.Chip, "esp32s3", StringComparison.Ordinal) &&
@@ -164,7 +172,7 @@ namespace YATSS
                 manifest.FlashCapacityBytes == 16 * 1024 * 1024 &&
                 string.Equals(manifest.UsbVendorId, "2341", StringComparison.OrdinalIgnoreCase) &&
                 string.Equals(manifest.UsbProductId, "0070", StringComparison.OrdinalIgnoreCase);
-            if (!validC6 && !validNano)
+            if (!validC6 && !validC5 && !validNano)
             {
                 throw new InvalidDataException("Firmware package board, chip, uploader, or capacity is not supported");
             }

@@ -35,8 +35,8 @@
 - Add a GitHub Actions workflow that builds the Windows solution and runs the
   protocol and lap-race tests.
 - Compile `YATSSMC` for `arduino:esp32:nano_nora` in CI so firmware regressions
-  are caught on each push. Also compile the ESP32-C6 profile with
-  `esp32:esp32:esp32c6`.
+  are caught on each push. Also compile the ESP32-C5 and ESP32-C6 profiles with
+  `esp32:esp32:esp32c5` and `esp32:esp32:esp32c6`.
 
 ## Optional VS Code support
 
@@ -59,6 +59,19 @@
 - Bench-test automatic N4/N8 selection on physical N4 hardware. Protocol-v4
   firmware reports runtime capacity; older or blank C6 boards use a read-only
   uploader probe, and the flasher probes again before writing.
+
+## Waveshare ESP32-C5 controller validation
+
+- Implemented the compile-time N16R8 pin profile and packaged 16 MB merged
+  firmware image for the Waveshare ESP32-C5-WIFI6-KIT-N16R8.
+- Bench-test all eight sensor inputs and all eight track-power outputs before
+  building a production wiring harness.
+- Verify controller diagnostics, watchdog cuts, reset behavior, and sustained
+  serial traffic through the CH343 UART connector. The current mapping uses
+  GPIO13/GPIO14, so native USB must remain disconnected.
+- Exercise in-app firmware installation on both a blank C5 and an already
+  programmed C5, including chip/capacity refusal, interrupted uploads, and
+  serial recovery.
 
 ## Arduino Nano ESP32 firmware-update validation
 

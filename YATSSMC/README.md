@@ -6,8 +6,35 @@ app over serial.
 
 ## Board
 
-The sketch supports both controller boards without requiring source edits. The
+The sketch supports all controller boards without requiring source edits. The
 selected Arduino board determines the pin map at compile time.
+
+### Waveshare ESP32-C5-WIFI6-KIT-N16R8
+
+The Waveshare N16R8 variant has 16 MB flash and 8 MB PSRAM. In Arduino IDE,
+using `esp32 by Espressif Systems` 3.3.11 or later:
+
+1. Select `ESP32C5 Dev Module` as the board.
+2. Select the COM port created by the WCH CH343 USB-to-UART interface.
+3. Connect and upload through the board's UART USB-C socket.
+4. Set `CPU Frequency` to `240MHz` and `Flash Frequency` to `80MHz`.
+5. Set `Flash Mode` to `QIO` and `Flash Size` to `16MB (128Mb)`.
+6. Set `Partition Scheme` to `16M Flash (2MB APP/12.5MB FATFS)`.
+7. Set `PSRAM` to `Enabled` and leave `USB CDC On Boot` disabled.
+
+The equivalent CLI build is:
+
+```powershell
+arduino-cli compile `
+  --fqbn "esp32:esp32:esp32c5:CDCOnBoot=default,CPUFreq=240,FlashFreq=80,FlashMode=qio,FlashSize=16M,PartitionScheme=fatflash,PSRAM=enabled" `
+  YATSSMC
+```
+
+GPIO15 is unavailable on the N16R8 module because it is used by PSRAM. The
+profile also avoids the GPIO26-GPIO28 boot-mode pins, the GPIO27 RGB LED, and
+the GPIO11/GPIO12 UART connection. GPIO13 and GPIO14 are assigned to relay
+outputs, which makes the native USB connector unavailable with this profile.
+Use only the UART USB-C socket for upload and YATSS communication.
 
 ### ESP32-C6-DevKitC-1 V1.2
 
@@ -33,17 +60,17 @@ arduino-cli compile `
 For an N4 module, use `FlashSize=4M,PartitionScheme=default` instead. Do not
 upload an N8 image to N4 hardware.
 
-To build the validated C6 and Nano firmware packages embedded in Windows
-publish output:
+To build the controller firmware packages embedded in Windows publish output:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools\Build-ControllerFirmware.ps1
 ```
 
-This compiles merged C6/N4 and C6/N8 flash images plus a Nano application image
-and writes three `.yatssfw` packages under `YATSSMC\dist`. The packages contain
-YATSS firmware only; the required Espressif or Arduino uploader is located or
-downloaded by the Windows app when an update is requested.
+This compiles merged C5/N16R8, C6/N4, and C6/N8 flash images plus a Nano
+application image and writes four `.yatssfw` packages under `YATSSMC\dist`.
+The packages contain YATSS firmware only; the required Espressif or Arduino
+uploader is located or downloaded by the Windows app when an update is
+requested.
 
 The C6 profile preserves GPIO16/GPIO17 for the CP2102N USB-to-UART bridge and
 avoids the board's boot-strapping pins and GPIO8 RGB LED. GPIO12 and GPIO13 are
@@ -67,6 +94,19 @@ sketch folder. If `dfu-util` fails after a successful compile, see
 
 Sensor inputs use `INPUT_PULLUP` and `FALLING` interrupts. The expected signal
 is normally high and pulled low when the dead-strip/opto circuit trips.
+
+Waveshare ESP32-C5-WIFI6-KIT-N16R8 logical lane to physical input map:
+
+| Windows lane | Protocol lane | ESP32-C5 GPIO |
+| --- | ---: | ---: |
+| 1 | 0 | 0 |
+| 2 | 1 | 1 |
+| 3 | 2 | 4 |
+| 4 | 3 | 5 |
+| 5 | 4 | 6 |
+| 6 | 5 | 8 |
+| 7 | 6 | 9 |
+| 8 | 7 | 10 |
 
 ESP32-C6 logical lane to physical input map:
 
@@ -99,6 +139,19 @@ generate reliable interrupt edges on the bench-tested board. The Windows app
 still sees it as protocol lane `1`.
 
 ## Track Power Outputs
+
+Waveshare ESP32-C5-WIFI6-KIT-N16R8 logical lane to track-power output map:
+
+| Windows lane | ESP32-C5 GPIO |
+| --- | ---: |
+| 1 | 2 |
+| 2 | 3 |
+| 3 | 7 |
+| 4 | 13 |
+| 5 | 14 |
+| 6 | 23 |
+| 7 | 24 |
+| 8 | 25 |
 
 ESP32-C6 logical lane to track-power output map:
 

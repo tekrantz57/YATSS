@@ -22,7 +22,8 @@ Sent when the sketch starts or when Windows sends `PING`. Version `4` reports
 the compile-time board profile, firmware version, and runtime-detected flash
 capacity so Windows can reject a mismatched firmware update. `YATSSMC`
 identifies the YATSS microcontroller firmware. Current board profiles are
-`ESP32_C6_DEVKITC1` and `ARDUINO_NANO_ESP32`.
+`ESP32_C5_WAVESHARE_WIFI6_N16R8`, `ESP32_C6_DEVKITC1`, and
+`ARDUINO_NANO_ESP32`.
 
 Windows still accepts version 2 and 3 forms from older controllers. Version 2
 cannot identify the board; version 3 identifies the board but not its flash

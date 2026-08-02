@@ -1,5 +1,16 @@
 # Troubleshooting
 
+## ESP32-C5 UART Port Does Not Appear
+
+The Waveshare ESP32-C5-WIFI6-KIT-N16R8 uses a WCH CH343 USB-to-UART bridge.
+Install the WCH driver, reconnect the board through its UART USB-C socket, and
+select the resulting COM port in Arduino IDE or YATSS.
+
+Use `ESP32C5 Dev Module` as the Arduino IDE board. Do not use the native USB
+socket with the YATSS C5 pin profile because GPIO13 and GPIO14 are assigned to
+track-power outputs. If Arduino IDE invokes `dfu-util`, reselect the ESP32C5
+board and its CH343 COM port; C5 uploads use Espressif's `esptool`.
+
 ## ESP32-C6 UART Port Does Not Appear
 
 The ESP32-C6-DevKitC-1 uses a Silicon Labs CP2102N bridge on the USB-C socket

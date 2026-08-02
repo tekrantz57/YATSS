@@ -1,12 +1,13 @@
 # Controller Firmware Updates
 
-YATSS can provision a blank ESP32-C6-DevKitC-1 N4/N8 and update either an
-existing C6 or Arduino Nano ESP32 from `File > Update Controller Firmware...`.
+YATSS can provision a blank Waveshare ESP32-C5-WIFI6-KIT-N16R8 or
+ESP32-C6-DevKitC-1 N4/N8 and update those boards or an Arduino Nano ESP32 from
+`File > Update Controller Firmware...`.
 
 ## Operator Procedure
 
-1. Connect the C6 through its USB-C socket labeled `UART`, or connect the Nano
-   through USB, and select its COM port in Configure.
+1. Connect a C5 or C6 through its UART USB-C socket, or connect the Nano through
+   USB, and select its COM port in Configure.
 2. Disconnect track power and relay-coil power. Leave only USB connected.
 3. Return YATSS to Practice mode, stop simulated lap input, and close Controller
    Diagnostics.
@@ -15,25 +16,27 @@ existing C6 or Arduino Nano ESP32 from `File > Update Controller Firmware...`.
 5. Keep USB connected and YATSS open until verification completes.
 
 For a running protocol-v4 controller, YATSS selects the matching package from
-its reported board profile and runtime flash capacity. Older C6 firmware or a
-blank C6 is read-only probed with `esptool` to distinguish N4 from N8. Other
+its reported board profile and runtime flash capacity. Older or blank Espressif
+firmware is read-only probed with `esptool`; this distinguishes C6 N4 from N8
+and confirms the C5 chip and its 16 MB capacity. Other
 legacy, recovery-mode, or blank devices cannot identify themselves, so YATSS
 presents the bundled board families and requires the operator to confirm the
-printed model. The C6 uploader probes the chip and capacity again immediately
+printed model. The Espressif uploader probes the chip and capacity again immediately
 before writing and refuses a different ESP32 family or package-capacity
 mismatch. The Nano uploader targets Arduino USB VID `2341` and PID `0070`
 through DFU.
 
 YATSS requests `TRACK_POWER:OFF`, closes its serial connection, runs the board's
 uploader, reconnects, and waits for the expected board profile and firmware
-version. C6 receives a complete merged 4 MB or 8 MB image at flash offset `0x0`;
-Nano receives the application image through its Arduino DFU interface. A
+version. C5 and C6 receive complete merged 16 MB, 4 MB, or 8 MB images at flash
+offset `0x0`; Nano receives the application image through its Arduino DFU interface. A
 successful write that does not produce the expected identity is reported as
 unverified.
 
 ## Uploader Acquisition
 
-YATSS does not redistribute either uploader. For C6, it searches in this order:
+YATSS does not redistribute either uploader. For C5 and C6, it searches in this
+order:
 
 1. `YATSS_ESPTOOL_PATH`, for development or managed installations.
 2. A previously approved YATSS cache under
@@ -59,7 +62,7 @@ is GPL-2.0-or-later; source and license information are available from
 
 ## Firmware Package
 
-The Windows project includes the C6/N4, C6/N8, and Nano files from
+The Windows project includes the C5/N16R8, C6/N4, C6/N8, and Nano files from
 `YATSSMC\dist\*.yatssfw` in both build and publish output under `Firmware`. A
 `.yatssfw` file is a ZIP containing:
 
@@ -67,16 +70,16 @@ The Windows project includes the C6/N4, C6/N8, and Nano files from
   profile, chip, uploader backend, Arduino FQBN/core version, image name, flash
   offset, flash capacity, byte count, SHA-256, and any backend-specific USB
   identity.
-- One `.bin` firmware image: merged full flash for C6 or application-only for
-  Nano DFU.
+- One `.bin` firmware image: merged full flash for C5/C6 or application-only
+  for Nano DFU.
 
 Package format 2 adds required flash-capacity metadata and backend-specific USB
-identity for safely selecting between the C6 and Nano upload paths.
+identity for safely selecting among the C5, C6, and Nano upload paths.
 
 YATSS validates package structure, board/chip/backend, image size, filename,
 flash offset, and SHA-256 before presenting the update confirmation.
 
-Build both packages from the repository root after changing the sketch or
+Build all packages from the repository root after changing the sketch or
 firmware version:
 
 ```powershell
@@ -84,16 +87,16 @@ powershell -ExecutionPolicy Bypass -File tools\Build-ControllerFirmware.ps1
 ```
 
 The script requires Arduino CLI, the Espressif ESP32 core, and Arduino ESP32
-Boards. It builds both C6 merged images and the Nano application image, then
-replaces all three versioned packages in `YATSSMC\dist`. Commit the packages
-with the source that produced them.
+Boards. It builds the C5/N16R8 and both C6 merged images plus the Nano
+application image, then replaces all four versioned packages in
+`YATSSMC\dist`. Commit the packages with the source that produced them.
 
 ## Failure Recovery
 
 If probing or writing fails, YATSS reopens its normal serial loop and leaves
 track power disabled in application state. Keep relay-coil and track power
 disconnected, check the selected COM port and USB cable, then retry. Espressif
-bootloader mode is in ROM, so a blank C6 or a C6 with an interrupted application
+bootloader mode is in ROM, so a blank C5/C6 or one with an interrupted application
 flash can normally be programmed again. A Nano with its factory recovery
 partition intact can enter DFU recovery by double-tapping RESET and be updated
 again. If that recovery partition was erased, restore it with Arduino tooling

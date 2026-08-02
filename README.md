@@ -63,15 +63,17 @@ the prerelease. Verify the GitHub source and checksum before running it.
 - HTML reports and configurable JSON and CSV exports.
 - Manual and automatic database backups with verified restore.
 - Live controller diagnostics and track-power relay pulse tests.
-- In-app controller firmware installation for ESP32-C6 N4/N8 and Arduino Nano
-  ESP32, with automatic flash-capacity selection.
+- In-app controller firmware installation for Waveshare ESP32-C5 N16R8,
+  ESP32-C6 N4/N8, and Arduino Nano ESP32, with automatic flash-capacity
+  selection.
 - Optional voice announcements and Logitech R500s Next-button race control.
 - Controller watchdog that cuts all lanes when Windows communication stops.
 
 ## Architecture
 
 - `YATSSWin` is the .NET 10 Windows Forms race-control application.
-- `YATSSMC` is the ESP32-C6-DevKitC-1 and Arduino Nano ESP32 controller sketch.
+- `YATSSMC` is the shared ESP32-C5, ESP32-C6, and Arduino Nano ESP32 controller
+  sketch.
 
 The controller timestamps debounced sensor edges and reports them over serial.
 The Windows app owns lap counting, heat-race state, qualifying, reports,
@@ -82,7 +84,9 @@ logging, filtering, and track-power commands.
 The Arduino Nano ESP32 profile remains supported. The ESP32-C6-DevKitC-1 V1.2
 profile compiles, uploads, and communicates through its CP2102N UART connector;
 complete eight-lane sensor, relay, watchdog, and production-harness validation
-is still pending.
+is still pending. The Waveshare ESP32-C5-WIFI6-KIT-N16R8 profile compiles and
+has a packaged firmware image; its pin map, UART communication, flashing, and
+complete hardware behavior still require bench validation.
 
 The communication watchdog cuts all lanes after five seconds without Windows
 acknowledgements, provided that the controller and relay-coil supply remain
@@ -115,7 +119,7 @@ YATSSWin/
 YATSSMC/
   YATSSMC.ino                       shared ESP32 controller sketch
   FirmwareVersion.h                controller firmware identity
-  dist/                             packaged C6/N4, C6/N8, and Nano firmware
+  dist/                             packaged C5/N16R8, C6/N4, C6/N8, and Nano firmware
 
 tools/
   Build-ControllerFirmware.ps1     reproducible firmware package builder
@@ -136,6 +140,7 @@ From the repository root:
 dotnet build YATSSWin\YATSS.sln -c Release
 dotnet run --project YATSSWin\YATSS.Tests\YATSS.Tests.csproj -c Release
 arduino-cli compile --fqbn arduino:esp32:nano_nora YATSSMC
+arduino-cli compile --fqbn "esp32:esp32:esp32c5:CDCOnBoot=default,CPUFreq=240,FlashFreq=80,FlashMode=qio,FlashSize=16M,PartitionScheme=fatflash,PSRAM=enabled" YATSSMC
 arduino-cli compile --fqbn "esp32:esp32:esp32c6:CDCOnBoot=default,FlashSize=4M,PartitionScheme=default" YATSSMC
 arduino-cli compile --fqbn "esp32:esp32:esp32c6:CDCOnBoot=default,FlashSize=8M,PartitionScheme=default_8MB" YATSSMC
 ```

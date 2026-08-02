@@ -43,6 +43,16 @@ Assert(capacityBoot.ControllerIdentity is
         FlashCapacityBytes: 4194304
     }, "protocol-v4 HELLO should report runtime flash capacity");
 
+LapProtocolMessage c5Boot = LapProtocolParser.Parse(LapProtocolParser.EncodeFrame(
+    "HELLO:YATSSMC:4:8:ESP32_C5_WAVESHARE_WIFI6_N16R8:0.10.0-beta.1-dev:16777216"));
+Assert(c5Boot.ControllerIdentity is
+    {
+        ProtocolVersion: 4,
+        LaneCount: 8,
+        BoardProfile: "ESP32_C5_WAVESHARE_WIFI6_N16R8",
+        FlashCapacityBytes: 16777216
+    }, "protocol-v4 HELLO should identify the Waveshare C5 N16R8");
+
 if (string.Equals(
         Environment.GetEnvironmentVariable("YATSS_TEST_OFFICIAL_DOWNLOADS"),
         "1",
@@ -122,17 +132,64 @@ try
             8 * 1024 * 1024)),
         "N4 package should not match an N8 protocol-v4 controller");
 
-    IReadOnlyList<string> flashArguments = Esp32C6FirmwareFlasher.CreateFlashArguments("COM9", "firmware.bin");
+    IReadOnlyList<string> flashArguments = Esp32FirmwareFlasher.CreateFlashArguments(
+        "esp32c6",
+        "COM9",
+        "firmware.bin");
     Assert(flashArguments.Contains("esp32c6") && flashArguments.TakeLast(2).SequenceEqual(new[] { "0x0", "firmware.bin" }),
         "C6 flasher should enforce the chip and merged-image offset");
-    Assert(Esp32C6FirmwareFlasher.ParseFlashCapacity(new[] { "Detected flash size: 4MB" }) == 4 * 1024 * 1024,
+    Assert(Esp32FirmwareFlasher.ParseFlashCapacity(new[] { "Detected flash size: 4MB" }) == 4 * 1024 * 1024,
         "C6 probe should parse an N4 capacity");
-    Assert(Esp32C6FirmwareFlasher.ParseFlashCapacity(new[] { "Flash size: 8 MB" }) == 8 * 1024 * 1024,
+    Assert(Esp32FirmwareFlasher.ParseFlashCapacity(new[] { "Flash size: 8 MB" }) == 8 * 1024 * 1024,
         "C6 probe should parse an N8 capacity with optional spacing");
     Assert(EspToolProvider.GetCachedEspToolPath("C:\\LocalData").EndsWith(
         $"YATSS\\Tools\\esptool\\{EspToolProvider.OfficialVersion}\\esptool.exe",
         StringComparison.OrdinalIgnoreCase),
         "official uploader should be cached outside the YATSS installation");
+
+    byte[] c5Image = new byte[16 * 1024 * 1024];
+    string c5ImageName = "test-c5.bin";
+    string c5PackagePath = Path.Combine(firmwarePackageTestDirectory, "test-c5.yatssfw");
+    ControllerFirmwareManifest c5Manifest = new(
+        FormatVersion: ControllerFirmwarePackage.CurrentFormatVersion,
+        Product: "YATSSMC",
+        FirmwareVersion: "test-version",
+        BoardProfile: ControllerFirmwarePackage.Esp32C5WaveshareBoardProfile,
+        BoardDisplayName: "Waveshare ESP32-C5-WIFI6-KIT N16R8",
+        Chip: "esp32c5",
+        UploaderBackend: "esptool",
+        ArduinoFqbn: "esp32:esp32:esp32c5:FlashSize=16M,PartitionScheme=fatflash,PSRAM=enabled",
+        ArduinoCoreVersion: "test-core",
+        ImageFile: c5ImageName,
+        ImageSizeBytes: c5Image.Length,
+        FlashOffset: 0,
+        Sha256: Convert.ToHexString(SHA256.HashData(c5Image)),
+        FlashCapacityBytes: 16 * 1024 * 1024);
+    using (ZipArchive archive = ZipFile.Open(c5PackagePath, ZipArchiveMode.Create))
+    {
+        using (Stream manifestStream = archive.CreateEntry("manifest.json").Open())
+        {
+            JsonSerializer.Serialize(manifestStream, c5Manifest);
+        }
+        using Stream imageStream = archive.CreateEntry(c5ImageName).Open();
+        imageStream.Write(c5Image);
+    }
+
+    ControllerFirmwarePackage loadedC5Package = ControllerFirmwarePackage.Load(c5PackagePath);
+    Assert(loadedC5Package.Manifest.BoardProfile == ControllerFirmwarePackage.Esp32C5WaveshareBoardProfile,
+        "firmware package should accept the Waveshare ESP32-C5 N16R8 profile");
+    Assert(loadedC5Package.Matches(c5Boot.ControllerIdentity!),
+        "C5 package should match the N16R8 controller identity");
+    IReadOnlyList<string> c5Arguments = Esp32FirmwareFlasher.CreateFlashArguments(
+        "esp32c5",
+        "COM10",
+        "c5.bin");
+    Assert(c5Arguments.Contains("esp32c5") && c5Arguments.TakeLast(2).SequenceEqual(new[] { "0x0", "c5.bin" }),
+        "C5 flasher should enforce the chip and merged-image offset");
+    Assert(Esp32FirmwareFlasher.CreateProbeArguments("esp32c5", "COM10").Contains("esp32c5"),
+        "C5 probe should enforce the connected chip family");
+    Assert(Esp32FirmwareFlasher.ParseFlashCapacity(new[] { "Detected flash size: 16MB" }) == 16 * 1024 * 1024,
+        "C5 probe should parse the N16 capacity");
 
     using (ZipArchive archive = ZipFile.Open(packagePath, ZipArchiveMode.Update))
     {

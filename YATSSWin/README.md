@@ -84,12 +84,14 @@ another race mode closes diagnostics first.
 ## Controller Firmware Updates
 
 `File > Update Controller Firmware...` installs the bundled YATSSMC image on
-an ESP32-C6-DevKitC-1 N4/N8 or Arduino Nano ESP32 from Practice mode.
+a Waveshare ESP32-C5-WIFI6-KIT-N16R8, ESP32-C6-DevKitC-1 N4/N8, or Arduino
+Nano ESP32 from Practice mode.
 Protocol-v4 controllers select their board and flash-capacity package
-automatically. Older C6 firmware and blank C6 hardware are read-only probed to
-select N4 or N8; legacy, recovery-mode, or blank hardware still requires the
-operator to confirm the board family. Track power and relay-coil power must be
-physically disconnected during flashing.
+automatically. Unidentified C5/C6 hardware is read-only probed after the
+operator confirms the printed board family; this verifies the C5 chip and
+capacity or selects C6 N4 versus N8. The chip and capacity are probed again
+immediately before writing. Track power and relay-coil power must be physically
+disconnected during flashing.
 
 YATSS reuses `esptool.exe` from an installed Espressif Arduino core or from
 `YATSS_ESPTOOL_PATH`. If neither exists, the operator can approve a direct

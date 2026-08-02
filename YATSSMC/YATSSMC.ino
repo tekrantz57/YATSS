@@ -41,6 +41,10 @@ static_assert((QueueSize & QueueMask) == 0, "QueueSize must be a power of two");
 const char ControllerBoardProfile[] = "ESP32_C6_DEVKITC1";
 const byte sensorPins[LaneCount] = { 0, 1, 2, 3, 6, 7, 10, 11 };
 const byte trackPowerCutPins[LaneCount] = { 23, 22, 21, 20, 19, 18, 13, 12 };
+#elif defined(CONFIG_IDF_TARGET_ESP32C5)
+const char ControllerBoardProfile[] = "ESP32_C5_WAVESHARE_WIFI6_N16R8";
+const byte sensorPins[LaneCount] = { 0, 1, 4, 5, 6, 8, 9, 10 };
+const byte trackPowerCutPins[LaneCount] = { 2, 3, 7, 13, 14, 23, 24, 25 };
 #else
 const char ControllerBoardProfile[] = "ARDUINO_NANO_ESP32";
 const byte sensorPins[LaneCount] = { D2, A4, D4, D5, D6, D7, D8, D9 };

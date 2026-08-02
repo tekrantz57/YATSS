@@ -1,11 +1,11 @@
 namespace YATSS
 {
-    public sealed class Esp32C6FirmwareFlasher : IControllerFirmwareFlasher
+    public sealed class Esp32FirmwareFlasher : IControllerFirmwareFlasher
     {
         private const int FlashBaud = 460800;
         private readonly string _esptoolPath;
 
-        public Esp32C6FirmwareFlasher(string esptoolPath)
+        public Esp32FirmwareFlasher(string esptoolPath)
         {
             if (string.IsNullOrWhiteSpace(esptoolPath) || !File.Exists(esptoolPath))
             {
@@ -29,12 +29,10 @@ namespace YATSS
                 throw new InvalidOperationException("Configure the controller COM port before updating firmware");
             }
 
-            if (!string.Equals(
-                    package.Manifest.BoardProfile,
-                    ControllerFirmwarePackage.Esp32C6BoardProfile,
-                    StringComparison.Ordinal))
+            if (!string.Equals(package.Manifest.UploaderBackend, "esptool", StringComparison.Ordinal) ||
+                package.Manifest.Chip is not ("esp32c5" or "esp32c6"))
             {
-                throw new InvalidOperationException("The selected package is not supported by the C6 flasher");
+                throw new InvalidOperationException("The selected package is not supported by the ESP32 flasher");
             }
 
             string temporaryDirectory = Path.Combine(
@@ -50,20 +48,21 @@ namespace YATSS
                 await File.WriteAllBytesAsync(imagePath, package.ImageBytes, cancellationToken);
                 progress?.Report($"Using {Path.GetFileName(_esptoolPath)}");
                 long detectedCapacity = await ProbeFlashCapacityAsync(
+                    package.Manifest.Chip,
                     portName,
                     progress,
                     cancellationToken);
                 if (detectedCapacity != package.Manifest.FlashCapacityBytes)
                 {
                     throw new InvalidOperationException(
-                        $"Connected C6 has {FormatCapacity(detectedCapacity)} flash, but the selected " +
+                        $"Connected controller has {FormatCapacity(detectedCapacity)} flash, but the selected " +
                         $"package requires {FormatCapacity(package.Manifest.FlashCapacityBytes)}");
                 }
 
                 progress?.Report($"Writing {package.Manifest.FirmwareVersion} to {portName}");
                 await FirmwareToolRunner.RunAsync(
                     _esptoolPath,
-                    CreateFlashArguments(portName, imagePath),
+                    CreateFlashArguments(package.Manifest.Chip, portName, imagePath),
                     progress,
                     cancellationToken);
             }
@@ -80,6 +79,7 @@ namespace YATSS
         }
 
         public async Task<long> ProbeFlashCapacityAsync(
+            string chip,
             string portName,
             IProgress<string>? progress = null,
             CancellationToken cancellationToken = default)
@@ -89,29 +89,32 @@ namespace YATSS
                 throw new InvalidOperationException("Configure the controller COM port before inspecting firmware");
             }
 
-            progress?.Report($"Checking ESP32-C6 flash capacity on {portName}");
+            progress?.Report($"Checking {chip} flash capacity on {portName}");
             FirmwareToolResult result = await FirmwareToolRunner.RunAsync(
                 _esptoolPath,
-                CreateProbeArguments(portName),
+                CreateProbeArguments(chip, portName),
                 progress,
                 cancellationToken);
             return ParseFlashCapacity(result.OutputLines);
         }
 
-        internal static IReadOnlyList<string> CreateProbeArguments(string portName) =>
+        internal static IReadOnlyList<string> CreateProbeArguments(string chip, string portName) =>
             new[]
             {
-                "--chip", "esp32c6",
+                "--chip", chip,
                 "--port", portName,
                 "--before", "default-reset",
                 "--after", "hard-reset",
                 "flash-id"
             };
 
-        internal static IReadOnlyList<string> CreateFlashArguments(string portName, string imagePath) =>
+        internal static IReadOnlyList<string> CreateFlashArguments(
+            string chip,
+            string portName,
+            string imagePath) =>
             new[]
             {
-                "--chip", "esp32c6",
+                "--chip", chip,
                 "--port", portName,
                 "--baud", FlashBaud.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 "--before", "default-reset",
@@ -147,7 +150,7 @@ namespace YATSS
                     : value * 1024;
             }
 
-            throw new InvalidOperationException("esptool did not report the connected C6 flash capacity");
+            throw new InvalidOperationException("esptool did not report the connected controller flash capacity");
         }
 
         private static string FormatCapacity(long bytes) =>

@@ -369,27 +369,33 @@ namespace YATSS
                         $"No {FormatFirmwareCapacity(reportedCapacity)} firmware package matches {boardProfile}");
             }
 
+            bool allEspressifPackages = candidates.All(candidate => string.Equals(
+                    candidate.Manifest.UploaderBackend,
+                    "esptool",
+                    StringComparison.Ordinal));
+            if (identity?.HasBoardProfile != true && allEspressifPackages)
+            {
+                return await DetectEsp32FirmwarePackageAsync(candidates);
+            }
+
             if (candidates.Length == 1)
             {
                 return candidates[0];
             }
 
-            if (candidates.All(candidate => string.Equals(
-                    candidate.Manifest.UploaderBackend,
-                    "esptool",
-                    StringComparison.Ordinal)))
+            if (allEspressifPackages)
             {
-                return await DetectC6FirmwarePackageAsync(candidates);
+                return await DetectEsp32FirmwarePackageAsync(candidates);
             }
 
             throw new InvalidDataException($"Multiple firmware packages match {boardProfile}");
         }
 
-        private async Task<ControllerFirmwarePackage?> DetectC6FirmwarePackageAsync(
+        private async Task<ControllerFirmwarePackage?> DetectEsp32FirmwarePackageAsync(
             IReadOnlyList<ControllerFirmwarePackage> candidates)
         {
             string confirmation =
-                $"YATSS needs to inspect the C6 flash capacity on {port} before choosing N4 or N8." +
+                $"YATSS needs to inspect the controller flash capacity on {port} before choosing a package." +
                 Environment.NewLine + Environment.NewLine +
                 GetFirmwareToolDownloadNotice(candidates[0]) +
                 "Disconnect track power and relay-coil power before continuing. " +
@@ -422,12 +428,15 @@ namespace YATSS
                 await s.SuspendForFirmwareUpdateAsync();
                 serialSuspended = true;
                 progressForm.SetStatus("Inspecting controller flash...");
-                Esp32C6FirmwareFlasher flasher = new(espToolPath);
-                long capacity = await flasher.ProbeFlashCapacityAsync(port, progress);
+                Esp32FirmwareFlasher flasher = new(espToolPath);
+                long capacity = await flasher.ProbeFlashCapacityAsync(
+                    candidates[0].Manifest.Chip,
+                    port,
+                    progress);
                 return candidates.SingleOrDefault(candidate =>
                            candidate.Manifest.FlashCapacityBytes == capacity) ??
                     throw new InvalidDataException(
-                        $"No bundled C6 package supports the detected {FormatFirmwareCapacity(capacity)} flash");
+                        $"No bundled package supports the detected {FormatFirmwareCapacity(capacity)} flash");
             }
             finally
             {
@@ -478,7 +487,7 @@ namespace YATSS
                     progressForm.SetStatus("Downloading Espressif uploader...");
                     espToolPath = await EspToolProvider.DownloadOfficialEspToolAsync(progress);
                 }
-                return new Esp32C6FirmwareFlasher(espToolPath);
+                return new Esp32FirmwareFlasher(espToolPath);
             }
 
             if (!DfuToolProvider.TryFindDfuUtil(out string dfuUtilPath))

@@ -69,6 +69,7 @@
     <ItemGroup>
       <_C6N4FirmwarePackage Include="..\..\YATSSMC\dist\YATSSMC-esp32-c6-devkitc1-n4-*.yatssfw" />
       <_C6N8FirmwarePackage Include="..\..\YATSSMC\dist\YATSSMC-esp32-c6-devkitc1-n8-*.yatssfw" />
+      <_C5N16R8FirmwarePackage Include="..\..\YATSSMC\dist\YATSSMC-esp32-c5-waveshare-wifi6-n16r8-*.yatssfw" />
       <_NanoFirmwarePackage Include="..\..\YATSSMC\dist\YATSSMC-arduino-nano-esp32-*.yatssfw" />
     </ItemGroup>
     <Error
@@ -77,6 +78,9 @@
     <Error
       Condition="'@(_C6N8FirmwarePackage)' == ''"
       Text="Build the C6/N8 controller firmware with tools\Build-ControllerFirmware.ps1 before publishing YATSS." />
+    <Error
+      Condition="'@(_C5N16R8FirmwarePackage)' == ''"
+      Text="Build the Waveshare C5/N16R8 controller firmware with tools\Build-ControllerFirmware.ps1 before publishing YATSS." />
     <Error
       Condition="'@(_NanoFirmwarePackage)' == ''"
       Text="Build the Nano controller firmware with tools\Build-ControllerFirmware.ps1 before publishing YATSS." />
