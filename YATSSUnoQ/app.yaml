@@ -1,0 +1,4 @@
+name: YATSS UNO Q Controller
+description: Bridges the UNO Q real-time MCU to YATSS through a local TCP connection.
+ports:
+  - 45991

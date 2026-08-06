@@ -4,11 +4,12 @@ namespace YATSS
 {
     internal static class SpeechAnnouncer
     {
-        private static readonly TimeSpan SilentCountdownDuration = TimeSpan.FromSeconds(3);
+        private static readonly TimeSpan SilentCountdownDuration = TimeSpan.FromSeconds(1.5);
         private static readonly object SyncRoot = new();
         private static BlockingCollection<SpeechRequest>? _requests;
         private static Thread? _worker;
         private static bool _enabled = true;
+        private static SpeechBackendMode _backendMode = SpeechBackendMode.Automatic;
 
         public static bool Enabled
         {
@@ -16,90 +17,63 @@ namespace YATSS
             set => Volatile.Write(ref _enabled, value);
         }
 
-        public static List<string> GetInstalledVoices()
+        public static SpeechBackendMode BackendMode
         {
-            List<string> voices = new();
+            get => _backendMode;
+            set => _backendMode = value;
+        }
+
+        public static List<string> GetInstalledVoices(SpeechBackendMode mode)
+        {
             try
             {
-                Type? voiceType = Type.GetTypeFromProgID("SAPI.SpVoice");
-                if (voiceType == null)
-                {
-                    return voices;
-                }
-
-                dynamic? voice = Activator.CreateInstance(voiceType);
-                if (voice == null)
-                {
-                    return voices;
-                }
-
-                dynamic installedVoices = voice.GetVoices();
-                for (int i = 0; i < installedVoices.Count; i++)
-                {
-                    string? description = installedVoices.Item(i).GetDescription();
-                    if (!string.IsNullOrWhiteSpace(description))
-                    {
-                        voices.Add(description);
-                    }
-                }
+                using ISpeechBackend? backend = SpeechBackendFactory.Create(mode);
+                return backend?.GetVoices().ToList() ?? new List<string>();
             }
             catch
             {
+                return new List<string>();
             }
-
-            return voices;
         }
 
         public static void WarmUpAsync(string voiceName)
         {
-            if (!Enabled)
+            if (!Enabled || BackendMode == SpeechBackendMode.None)
             {
                 return;
             }
 
             EnsureStarted();
-            _requests?.Add(SpeechRequest.Single("", voiceName));
+            _requests?.Add(SpeechRequest.Single("", voiceName, BackendMode));
         }
 
         public static void SpeakAsync(string phrase, string voiceName)
         {
-            if (!Enabled)
+            if (!Enabled || BackendMode == SpeechBackendMode.None)
             {
                 return;
             }
 
             EnsureStarted();
-            _requests?.Add(SpeechRequest.Single(phrase, voiceName));
+            _requests?.Add(SpeechRequest.Single(phrase, voiceName, BackendMode));
         }
 
-        public static void SpeakCountdownAsync(string voiceName, Action? afterSpeech = null)
+        public static void SpeakCountdownAsync(
+            string voiceName,
+            Action<int> countdownStep,
+            Action? afterSpeech = null)
         {
-            if (!Enabled)
-            {
-                _ = CompleteSilentCountdownAsync(afterSpeech);
-                return;
-            }
-
             EnsureStarted();
+            SpeechBackendMode mode = Enabled ? BackendMode : SpeechBackendMode.None;
             _requests?.Add(new SpeechRequest(
-                new[] { "3 2 1 Let's go" },
+                new[] { "3", "2", "1 Let's go" },
                 voiceName,
-                TimeSpan.Zero,
-                Rate: -2,
+                mode,
+                TimeSpan.FromMilliseconds(500),
+                Rate: 3,
                 SilentCountdownDuration,
+                countdownStep,
                 afterSpeech));
-        }
-
-        private static async Task CompleteSilentCountdownAsync(Action? afterSpeech)
-        {
-            await Task.Delay(SilentCountdownDuration).ConfigureAwait(false);
-            try
-            {
-                afterSpeech?.Invoke();
-            }
-            catch
-            {
-            }
         }
 
         private static void EnsureStarted()
@@ -124,65 +98,73 @@ namespace YATSS
 
         private static void RunWorker(BlockingCollection<SpeechRequest> requests)
         {
-            dynamic? voice = null;
-            string activeVoiceName = "";
-            int? originalRate = null;
+            ISpeechBackend? backend = null;
+            SpeechBackendMode? activeMode = null;
 
             foreach (SpeechRequest request in requests.GetConsumingEnumerable())
             {
+                long requestStarted = Environment.TickCount64;
                 try
                 {
-                    if (!Enabled)
+                    if (activeMode != request.BackendMode || backend == null)
                     {
-                        Thread.Sleep(request.FallbackDelay);
-                        continue;
-                    }
-
-                    voice ??= CreateVoice();
-                    if (voice == null)
-                    {
-                        Thread.Sleep(request.FallbackDelay);
-                        continue;
-                    }
-
-                    if (!string.Equals(activeVoiceName, request.VoiceName, StringComparison.OrdinalIgnoreCase))
-                    {
-                        ApplyVoice(voice, request.VoiceName);
-                        activeVoiceName = request.VoiceName;
-                    }
-
-                    if (request.Rate.HasValue)
-                    {
-                        originalRate = voice.Rate;
-                        voice.Rate = Math.Clamp(request.Rate.Value, -10, 10);
+                        backend?.Dispose();
+                        backend = SpeechBackendFactory.Create(request.BackendMode);
+                        activeMode = request.BackendMode;
                     }
 
                     for (int i = 0; i < request.Phrases.Count; i++)
                     {
-                        string phrase = request.Phrases[i];
-                        if (!string.IsNullOrWhiteSpace(phrase))
+                        long phraseStarted = Environment.TickCount64;
+                        try
                         {
-                            voice.Speak(phrase);
+                            request.PhraseStarted?.Invoke(i + 1);
+                        }
+                        catch
+                        {
+                        }
+
+                        string phrase = request.Phrases[i];
+                        if (backend != null && !string.IsNullOrWhiteSpace(phrase))
+                        {
+                            try
+                            {
+                                backend.Speak(phrase, request.VoiceName, request.Rate);
+                            }
+                            catch
+                            {
+                                backend.Dispose();
+                                backend = null;
+                            }
                         }
 
                         if (i < request.Phrases.Count - 1 && request.DelayBetweenPhrases > TimeSpan.Zero)
                         {
-                            Thread.Sleep(request.DelayBetweenPhrases);
+                            long phraseElapsed = Environment.TickCount64 - phraseStarted;
+                            TimeSpan remainingInterval = request.DelayBetweenPhrases - TimeSpan.FromMilliseconds(phraseElapsed);
+                            if (remainingInterval > TimeSpan.Zero)
+                            {
+                                Thread.Sleep(remainingInterval);
+                            }
                         }
                     }
-
-                    RestoreRate(voice, ref originalRate);
                 }
                 catch
                 {
-                    // Voice announcements are helpful, but they should never affect race control.
+                    backend?.Dispose();
+                    backend = null;
                 }
                 finally
                 {
+                    long elapsedMilliseconds = Environment.TickCount64 - requestStarted;
+                    TimeSpan remainingDelay = request.FallbackDelay - TimeSpan.FromMilliseconds(elapsedMilliseconds);
+                    if (remainingDelay > TimeSpan.Zero)
+                    {
+                        Thread.Sleep(remainingDelay);
+                    }
+
                     try
                     {
-                        RestoreRate(voice, ref originalRate);
-
                         request.AfterSpeech?.Invoke();
                     }
                     catch
@@ -190,58 +172,33 @@ namespace YATSS
                     }
                 }
             }
-        }
 
-        private static dynamic? CreateVoice()
-        {
-            Type? voiceType = Type.GetTypeFromProgID("SAPI.SpVoice");
-            return voiceType == null ? null : Activator.CreateInstance(voiceType);
-        }
-
-        private static void RestoreRate(object? voice, ref int? originalRate)
-        {
-            if (voice == null || !originalRate.HasValue)
-            {
-                return;
-            }
-
-            int rate = originalRate.Value;
-            object nonNullVoiceObject = voice;
-            dynamic nonNullVoice = nonNullVoiceObject;
-            nonNullVoice.Rate = rate;
-            originalRate = null;
-        }
-
-        private static void ApplyVoice(dynamic voice, string voiceName)
-        {
-            if (string.IsNullOrWhiteSpace(voiceName))
-            {
-                return;
-            }
-
-            dynamic installedVoices = voice.GetVoices();
-            for (int i = 0; i < installedVoices.Count; i++)
-            {
-                dynamic candidate = installedVoices.Item(i);
-                string? description = candidate.GetDescription();
-                if (string.Equals(description, voiceName, StringComparison.OrdinalIgnoreCase))
-                {
-                    voice.Voice = candidate;
-                    break;
-                }
-            }
+            backend?.Dispose();
         }
 
         private sealed record SpeechRequest(
             IReadOnlyList<string> Phrases,
             string VoiceName,
+            SpeechBackendMode BackendMode,
             TimeSpan DelayBetweenPhrases,
             int? Rate,
             TimeSpan FallbackDelay,
+            Action<int>? PhraseStarted,
             Action? AfterSpeech)
         {
-            public static SpeechRequest Single(string phrase, string voiceName) =>
-                new(new[] { phrase }, voiceName, TimeSpan.Zero, null, TimeSpan.Zero, null);
+            public static SpeechRequest Single(
+                string phrase,
+                string voiceName,
+                SpeechBackendMode backendMode) =>
+                new(
+                    new[] { phrase },
+                    voiceName,
+                    backendMode,
+                    TimeSpan.Zero,
+                    null,
+                    TimeSpan.Zero,
+                    null,
+                    null);
         }
     }
 }

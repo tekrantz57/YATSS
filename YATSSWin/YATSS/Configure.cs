@@ -9,6 +9,7 @@ namespace YATSS
         public bool VoiceAnnouncementsEnabled { get; private set; }
         public string SelectedPort { get; private set; } = "";
         public string SelectedSpeechVoice { get; private set; } = "";
+        public SpeechBackendMode SelectedSpeechBackend { get; private set; }
         public int ActiveLaneCount { get; private set; }
         public double TrackLengthFeet { get; private set; }
         public int SensorDebounceMilliseconds { get; private set; }
@@ -28,6 +29,7 @@ namespace YATSS
             string selectedPort,
             bool voiceAnnouncementsEnabled,
             string selectedSpeechVoice,
+            SpeechBackendMode selectedSpeechBackend,
             int activeLaneCount,
             double trackLengthFeet,
             int sensorDebounceMilliseconds,
@@ -42,6 +44,7 @@ namespace YATSS
             VoiceAnnouncementsEnabled = voiceAnnouncementsEnabled;
             SelectedPort = selectedPort;
             SelectedSpeechVoice = selectedSpeechVoice;
+            SelectedSpeechBackend = selectedSpeechBackend;
             ActiveLaneCount = activeLaneCount;
             TrackLengthFeet = trackLengthFeet;
             SensorDebounceMilliseconds = sensorDebounceMilliseconds;
@@ -64,8 +67,30 @@ namespace YATSS
             BuildLaneColorEditor();
             nudActiveLaneCount.ValueChanged += (_, _) => ApplyActiveLaneEditors();
             LoadSerialPorts(selectedPort);
+            InitializeSpeechBackends(selectedSpeechBackend);
             InitializeSpeechVoices(selectedSpeechVoice);
             cbVoiceAnnouncements.CheckedChanged += (_, _) => ApplyVoiceAnnouncementState();
+            cbSpeechBackend.SelectedIndexChanged += (_, _) =>
+            {
+                LoadSpeechVoices(cbSpeechVoice.Text);
+                cbSpeechVoice.Enabled = cbVoiceAnnouncements.Checked &&
+                    GetSelectedSpeechBackend() != SpeechBackendMode.None;
+            };
+        }
+
+        private void InitializeSpeechBackends(SpeechBackendMode selectedBackend)
+        {
+            cbSpeechBackend.Items.Clear();
+            cbSpeechBackend.Items.AddRange(new object[]
+            {
+                new SpeechBackendOption(SpeechBackendMode.Automatic, "Automatic"),
+                new SpeechBackendOption(SpeechBackendMode.WindowsSapi, "Windows SAPI"),
+                new SpeechBackendOption(SpeechBackendMode.LinuxHelper, "Linux helper"),
+                new SpeechBackendOption(SpeechBackendMode.None, "None")
+            });
+            cbSpeechBackend.SelectedItem = cbSpeechBackend.Items
+                .Cast<SpeechBackendOption>()
+                .First(option => option.Mode == selectedBackend);
         }
 
         private void InitializeSpeechVoices(string selectedSpeechVoice)
@@ -82,8 +107,11 @@ namespace YATSS
 
         private void ApplyVoiceAnnouncementState()
         {
-            cbSpeechVoice.Enabled = cbVoiceAnnouncements.Checked;
-            if (cbVoiceAnnouncements.Checked && cbSpeechVoice.Items.Count <= 1)
+            cbSpeechBackend.Enabled = cbVoiceAnnouncements.Checked;
+            bool voiceSelectionEnabled = cbVoiceAnnouncements.Checked &&
+                GetSelectedSpeechBackend() != SpeechBackendMode.None;
+            cbSpeechVoice.Enabled = voiceSelectionEnabled;
+            if (voiceSelectionEnabled && cbSpeechVoice.Items.Count <= 1)
             {
                 LoadSpeechVoices(cbSpeechVoice.Text);
             }
@@ -95,6 +123,11 @@ namespace YATSS
             foreach (string portName in SerialPort.GetPortNames().OrderBy(p => p))
             {
                 cbSerialPort.Items.Add(portName);
+            }
+
+            if (PlatformEnvironment.IsWine)
+            {
+                cbSerialPort.Items.Add(ControllerEndpoint.UnoQ);
             }
 
             if (!string.IsNullOrWhiteSpace(selectedPort) && !cbSerialPort.Items.Contains(selectedPort))
@@ -109,7 +142,7 @@ namespace YATSS
         {
             cbSpeechVoice.Items.Clear();
             cbSpeechVoice.Items.Add("");
-            foreach (string voiceName in SpeechAnnouncer.GetInstalledVoices())
+            foreach (string voiceName in SpeechAnnouncer.GetInstalledVoices(GetSelectedSpeechBackend()))
             {
                 cbSpeechVoice.Items.Add(voiceName);
             }
@@ -124,6 +157,7 @@ namespace YATSS
             VoiceAnnouncementsEnabled = cbVoiceAnnouncements.Checked;
             SelectedPort = cbSerialPort.Text.Trim();
             SelectedSpeechVoice = cbSpeechVoice.Text.Trim();
+            SelectedSpeechBackend = GetSelectedSpeechBackend();
             ActiveLaneCount = (int)nudActiveLaneCount.Value;
             TrackLengthFeet = (double)nudTrackLengthFeet.Value;
             SensorDebounceMilliseconds = (int)nudSensorDebounceMilliseconds.Value;
@@ -137,6 +171,16 @@ namespace YATSS
                 .ToArray();
             DialogResult = DialogResult.OK;
             Close();
+        }
+
+        private SpeechBackendMode GetSelectedSpeechBackend() =>
+            cbSpeechBackend.SelectedItem is SpeechBackendOption option
+                ? option.Mode
+                : SpeechBackendMode.Automatic;
+
+        private sealed record SpeechBackendOption(SpeechBackendMode Mode, string DisplayName)
+        {
+            public override string ToString() => DisplayName;
         }
 
         private void BuildLaneColorEditor()

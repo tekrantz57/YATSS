@@ -19,7 +19,6 @@ namespace YATSS
             _logTextBox.ReadOnly = true;
             _logTextBox.ScrollBars = ScrollBars.Both;
             _logTextBox.WordWrap = false;
-            _logTextBox.Font = new Font(FontFamily.GenericMonospace, 9F);
             Controls.Add(_logTextBox);
 
             _refreshTimer.Interval = 1000;

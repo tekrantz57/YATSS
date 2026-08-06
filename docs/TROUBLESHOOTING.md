@@ -1,5 +1,22 @@
 # Troubleshooting
 
+## Race Report Preview Is Blank Under Wine
+
+Wine does not reliably implement the legacy MSHTML engine used by the WinForms
+embedded report preview. YATSS detects Wine and opens completed HTML race
+reports directly in the Linux default browser. Native Windows continues to use
+the in-app preview, with its Open in Browser command available as a fallback.
+
+## No Voices Appear Under Wine
+
+Wine can expose the SAPI COM interface without providing a usable Windows
+voice. Use the packaged native Linux helper instead of copying Windows voice
+registry entries. Install `espeak-ng`, start `Linux/yatss-speech-helper.py` on
+the Linux host, and select `Automatic` or `Linux helper` in Configure.
+
+See [Linux speech under Wine](LINUX_SPEECH.md) for setup, service installation,
+and diagnostics.
+
 ## ESP32-C5 UART Port Does Not Appear
 
 The Waveshare ESP32-C5-WIFI6-KIT-N16R8 uses a WCH CH343 USB-to-UART bridge.

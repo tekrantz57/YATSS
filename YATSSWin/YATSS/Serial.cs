@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO.Ports;
 using System.Media;
+using System.Net.Sockets;
 
 namespace YATSS
 {
@@ -21,7 +22,7 @@ namespace YATSS
         private TaskCompletionSource _reconnectNow = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private Task? _readerTask;
         private Task? _demoTask;
-        private SerialPort? _port;
+        private IControllerConnection? _port;
         private int _connectionGeneration;
         private CancellationTokenSource? _demoStop;
         private Stopwatch? _demoClock;
@@ -438,7 +439,14 @@ namespace YATSS
 
             if (restoreAfterCountdown)
             {
-                SpeechAnnouncer.SpeakCountdownAsync(_form.SpeechVoiceName, () => WriteLine(command));
+                SpeechAnnouncer.SpeakCountdownAsync(
+                    _form.SpeechVoiceName,
+                    _form.ShowStartCountdownStep,
+                    () =>
+                    {
+                        _form.HideStartCountdown();
+                        WriteLine(command);
+                    });
             }
             else
             {
@@ -691,7 +699,10 @@ namespace YATSS
             PublishHeatRaceStatus(resumePausedHeat ? "Resuming" : "Starting");
             _form.SetStatusMessage(resumePausedHeat ? "Heat restart countdown" : $"Heat {_heatRace.HeatNumber} countdown");
             _log.Info(resumePausedHeat ? "heat restart countdown queued" : $"heat {_heatRace.HeatNumber} start countdown queued");
-            SpeechAnnouncer.SpeakCountdownAsync(_form.SpeechVoiceName, () => CompleteStartCountdown(resumePausedHeat, manualStart, countdownVersion));
+            SpeechAnnouncer.SpeakCountdownAsync(
+                _form.SpeechVoiceName,
+                _form.ShowStartCountdownStep,
+                () => CompleteStartCountdown(resumePausedHeat, manualStart, countdownVersion));
         }
 
         private void QueueQualifyingCountdown(bool resumePausedQualifier)
@@ -718,6 +729,7 @@ namespace YATSS
                 : $"qualifier {_qualifying.CurrentNumber} start countdown queued");
             SpeechAnnouncer.SpeakCountdownAsync(
                 _form.SpeechVoiceName,
+                _form.ShowStartCountdownStep,
                 () => CompleteQualifyingCountdown(resumePausedQualifier, countdownVersion));
         }
 
@@ -755,6 +767,7 @@ namespace YATSS
             finally
             {
                 _startCountdownInProgress = false;
+                _form.HideStartCountdown();
             }
         }
 
@@ -790,6 +803,7 @@ namespace YATSS
             finally
             {
                 _startCountdownInProgress = false;
+                _form.HideStartCountdown();
             }
         }
 
@@ -797,6 +811,7 @@ namespace YATSS
         {
             _startCountdownVersion++;
             _startCountdownInProgress = false;
+            _form.HideStartCountdown();
         }
 
         public void Write(string value) => WriteLine(value);
@@ -811,7 +826,7 @@ namespace YATSS
 
         public void WriteLine(string value)
         {
-            SerialPort? port;
+            IControllerConnection? port;
             lock (_portGate)
             {
                 port = _port;
@@ -860,10 +875,8 @@ namespace YATSS
                 try
                 {
                     int connectionGeneration = Volatile.Read(ref _connectionGeneration);
-                    using SerialPort port = CreatePort(portName);
-                    port.Open();
-                    port.DiscardInBuffer();
-                    port.DiscardOutBuffer();
+                    using IControllerConnection port = OpenPort(portName);
+                    port.DiscardBuffers();
                     lock (_portGate)
                     {
                         _port = port;
@@ -916,7 +929,7 @@ namespace YATSS
                         HandleLine(line, isDemoLine: false);
                     }
                 }
-                catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is InvalidOperationException || ex is NullReferenceException)
+                catch (Exception ex) when (ex is IOException || ex is SocketException || ex is UnauthorizedAccessException || ex is InvalidOperationException || ex is NullReferenceException)
                 {
                     _log.Error(ex, $"serial disconnected from {portName}");
                     _form.SetStatusMessage($"Serial disconnected from {portName}");
@@ -931,16 +944,58 @@ namespace YATSS
             }
         }
 
-        private static SerialPort CreatePort(string portName) =>
-            new(portName, 115200)
+        private IControllerConnection OpenPort(string portName)
+        {
+            if (ControllerEndpoint.TryParseTcp(portName, out string host, out int tcpPort))
+            {
+                return new TcpControllerConnection(host, tcpPort, readTimeout: 1500, writeTimeout: 500);
+            }
+
+            SerialPort port = CreatePort(portName, enableControlLines: true);
+            try
+            {
+                port.Open();
+                return new SerialControllerConnection(port);
+            }
+            catch (IOException ex) when (PlatformEnvironment.IsWine)
+            {
+                port.Dispose();
+                _log.Warn(
+                    $"serial open with DTR/RTS failed on {portName}; " +
+                    $"retrying without modem control lines ({ex.Message})");
+            }
+
+            port = CreatePort(portName, enableControlLines: false);
+            try
+            {
+                port.Open();
+                return new SerialControllerConnection(port);
+            }
+            catch
+            {
+                port.Dispose();
+                throw;
+            }
+        }
+
+        private static SerialPort CreatePort(string portName, bool enableControlLines)
+        {
+            SerialPort port = new(portName, 115200)
             {
                 NewLine = "\n",
                 // Heartbeats arrive once per second; allow margin for USB scheduling jitter.
                 ReadTimeout = 1500,
-                WriteTimeout = 500,
-                DtrEnable = true,
-                RtsEnable = true
+                WriteTimeout = 500
             };
+
+            if (enableControlLines)
+            {
+                port.DtrEnable = true;
+                port.RtsEnable = true;
+            }
+
+            return port;
+        }
 
         private bool CheckControllerResponse(
             string portName,

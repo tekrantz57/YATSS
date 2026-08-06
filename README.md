@@ -66,7 +66,8 @@ the prerelease. Verify the GitHub source and checksum before running it.
 - In-app controller firmware installation for Waveshare ESP32-C5 N16R8,
   ESP32-C6 N4/N8, and Arduino Nano ESP32, with automatic flash-capacity
   selection.
-- Optional voice announcements and Logitech R500s Next-button race control.
+- Optional Windows SAPI or native Linux/Wine voice announcements and Logitech
+  R500s Next-button race control.
 - Controller watchdog that cuts all lanes when Windows communication stops.
 
 ## Architecture
@@ -74,6 +75,8 @@ the prerelease. Verify the GitHub source and checksum before running it.
 - `YATSSWin` is the .NET 10 Windows Forms race-control application.
 - `YATSSMC` is the shared ESP32-C5, ESP32-C6, and Arduino Nano ESP32 controller
   sketch.
+- `YATSSUnoQ` is an experimental Arduino App Lab controller that uses the UNO
+  Q's STM32U585 and presents it to Wine as a pseudo-serial port.
 
 The controller timestamps debounced sensor edges and reports them over serial.
 The Windows app owns lap counting, heat-race state, qualifying, reports,
@@ -87,6 +90,10 @@ complete eight-lane sensor, relay, watchdog, and production-harness validation
 is still pending. The Waveshare ESP32-C5-WIFI6-KIT-N16R8 profile compiles and
 has a packaged firmware image; its pin map, UART communication, flashing, and
 complete hardware behavior still require bench validation.
+
+The integrated UNO Q STM32U585 controller sketch compiles with Arduino Zephyr
+0.90.0 and RouterBridge 0.4.3. Its App Lab deployment, Bridge transport, and
+physical eight-lane I/O remain bench-test work.
 
 The communication watchdog cuts all lanes after five seconds without Windows
 acknowledgements, provided that the controller and relay-coil supply remain
@@ -105,7 +112,8 @@ where loss of control power must fail to track power off.
 
 Under Wine, map the Linux serial device to a Wine COM port and select that COM
 port in YATSS. Directly entering `/dev/ttyUSB0` in the Windows application is
-not sufficient.
+not sufficient. Native Linux speech is available through the packaged
+loopback helper; see [Linux speech under Wine](docs/LINUX_SPEECH.md).
 
 ## Repository Layout
 
@@ -121,8 +129,11 @@ YATSSMC/
   FirmwareVersion.h                controller firmware identity
   dist/                             packaged C5/N16R8, C6/N4, C6/N8, and Nano firmware
 
+YATSSUnoQ/                          UNO Q MCU sketch and Linux Bridge app
+
 tools/
   Build-ControllerFirmware.ps1     reproducible firmware package builder
+  yatss-speech-helper.py            loopback eSpeak NG bridge for Wine
 
 docs/                              protocol, hardware, release, and test guides
 
@@ -153,9 +164,11 @@ solution. The Windows application targets .NET 10 LTS.
 - [Windows application](YATSSWin/README.md)
 - [Controller sketch, pin maps, and wiring](YATSSMC/README.md)
 - [Controller firmware updates](docs/CONTROLLER_FIRMWARE_UPDATE.md)
+- [Arduino UNO Q integrated controller](docs/UNO_Q_CONTROLLER.md)
 - [Serial protocol](docs/SERIAL_PROTOCOL.md)
 - [Race reports and data exports](docs/RACE_DATA_EXPORT.md)
 - [Database backup and restore](docs/DATABASE_BACKUP.md)
+- [Linux speech under Wine](docs/LINUX_SPEECH.md)
 - [Windows publish smoke test](docs/PUBLISH_SMOKE_TEST.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 - [0.10 Beta 1 release notes](docs/RELEASE_0.10.0-beta.1.md)

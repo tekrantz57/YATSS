@@ -2,6 +2,9 @@ using YATSS;
 using System.Text.Json;
 using System.IO.Compression;
 using System.Security.Cryptography;
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
 using Microsoft.Data.Sqlite;
 
 static void Assert(bool condition, string message)
@@ -76,6 +79,45 @@ if (string.Equals(
             Directory.Delete(downloadTestDirectory, recursive: true);
         }
     }
+}
+
+using (TcpListener speechListener = new(IPAddress.Loopback, 0))
+{
+    speechListener.Start();
+    int speechPort = ((IPEndPoint)speechListener.LocalEndpoint).Port;
+    Task speechServer = Task.Run(async () =>
+    {
+        for (int requestNumber = 0; requestNumber < 2; requestNumber++)
+        {
+            using TcpClient connection = await speechListener.AcceptTcpClientAsync();
+            using NetworkStream stream = connection.GetStream();
+            using StreamReader reader = new(stream, Encoding.UTF8, leaveOpen: true);
+            using StreamWriter writer = new(stream, new UTF8Encoding(false), leaveOpen: true)
+            {
+                AutoFlush = true,
+                NewLine = "\n"
+            };
+            using JsonDocument request = JsonDocument.Parse((await reader.ReadLineAsync())!);
+            string command = request.RootElement.GetProperty("command").GetString()!;
+            if (command == "voices")
+            {
+                await writer.WriteLineAsync("{\"ok\":true,\"voices\":[\"en-us\",\"en-gb\"]}");
+            }
+            else
+            {
+                Assert(command == "speak", "Linux speech client should send a speak command");
+                Assert(request.RootElement.GetProperty("text").GetString() == "Green flag",
+                    "Linux speech client should preserve announcement text");
+                await writer.WriteLineAsync("{\"ok\":true}");
+            }
+        }
+    });
+
+    LinuxSpeechHelperClient speechClient = new(speechPort);
+    Assert(speechClient.GetVoices().SequenceEqual(new[] { "en-gb", "en-us" }),
+        "Linux speech client should discover and sort helper voices");
+    speechClient.Speak("Green flag", "en-us", 2);
+    await speechServer;
 }
 
 string firmwarePackageTestDirectory = Path.Combine(
@@ -794,6 +836,21 @@ try
         "automatic backup retention should remove older daily copies");
     Assert(maintenance.CreateAutomaticBackup(retainedBackupCount: 2) is null,
         "only one automatic backup should be created per day");
+
+    string todayAutomaticBackupPath = Path.Combine(
+        testAutomaticDirectory,
+        $"YATSS-auto-{DateTime.Now:yyyyMMdd}.db");
+    File.Delete(todayAutomaticBackupPath);
+    CreateTestDatabase(todayAutomaticBackupPath, schemaVersion: 0, "Older Daily Backup");
+    DatabaseBackupResult? migratedDailyBackup = maintenance.CreateAutomaticBackup(
+        retainedBackupCount: 4);
+    Assert(migratedDailyBackup is not null &&
+        migratedDailyBackup.Path.EndsWith("-v1.db", StringComparison.OrdinalIgnoreCase),
+        "a daily backup from an older schema should not block a current-schema backup");
+    Assert(ReadTestRacers(todayAutomaticBackupPath).SequenceEqual(new[] { "Older Daily Backup" }),
+        "creating a current-schema daily backup should preserve the older daily backup");
+    Assert(maintenance.CreateAutomaticBackup(retainedBackupCount: 4) is null,
+        "only one version-qualified automatic backup should be created per day");
 
     string legacyBackupPath = Path.Combine(databaseTestDirectory, "legacy-backup.db");
     CreateTestDatabase(legacyBackupPath, schemaVersion: 0, "Legacy Racer");

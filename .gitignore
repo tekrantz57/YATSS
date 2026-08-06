@@ -10,3 +10,5 @@ YATSSWin/**/obj/
 artifacts/
 .build/
 YATSSMC/build/
+__pycache__/
+*.pyc

@@ -51,9 +51,12 @@ Record each item as pass or fail:
 - [ ] The timing board and status-strip layout have consistent borders.
 - [ ] Configure opens without an error.
 - [ ] Voice announcements can be disabled and remain disabled after restarting.
-- [ ] With voice disabled, starting and resuming still wait through the silent
-  three-second countdown before restoring track power.
+- [ ] With voice disabled, starting and resuming still show synchronized start
+  lights and wait through the silent 1.5-second minimum countdown before
+  restoring track power.
 - [ ] Re-enabling voice makes the installed voice selector available again.
+- [ ] `Automatic`, `Windows SAPI`, `Linux helper`, and `None` are available in
+  the speech-engine selector; changing engines refreshes the voice list.
 - [ ] Heat length accepts values through 1,440 minutes.
 - [ ] A 24-hour heat displays `24:00:00` before it starts.
 - [ ] Closing YATSS leaves no YATSS process running.

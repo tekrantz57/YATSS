@@ -13,11 +13,12 @@ namespace YATSS
         bool SoundOnTooFastLap,
         bool VoiceAnnouncementsEnabled,
         string SpeechVoiceName,
+        SpeechBackendMode SpeechBackend,
         int ActiveLaneCount);
 
     internal static class AppDatabase
     {
-        private const int CurrentSchemaVersion = 2;
+        private const int CurrentSchemaVersion = 3;
         public const int DefaultSensorDebounceMilliseconds = 1800;
         public const int DefaultRawSensorLockoutMilliseconds = 0;
         private static readonly object SyncRoot = new();
@@ -135,7 +136,8 @@ namespace YATSS
             using SqliteCommand command = Connection.CreateCommand();
             command.CommandText = @"
                 SELECT min_lap_milliseconds, sound_on_too_fast_lap,
-                       voice_announcements_enabled, speech_voice_name, active_lane_count
+                       voice_announcements_enabled, speech_voice_name,
+                       speech_backend, active_lane_count
                 FROM app_settings
                 WHERE id = 1";
 
@@ -145,12 +147,20 @@ namespace YATSS
                 return defaults;
             }
 
+            SpeechBackendMode speechBackend =
+                !reader.IsDBNull(4) && Enum.TryParse(
+                    reader.GetString(4),
+                    ignoreCase: true,
+                    out SpeechBackendMode storedBackend)
+                    ? storedBackend
+                    : defaults.SpeechBackend;
             return new AppSettings(
                 reader.IsDBNull(0) ? defaults.MinLapMilliseconds : reader.GetInt32(0),
                 reader.IsDBNull(1) ? defaults.SoundOnTooFastLap : reader.GetBoolean(1),
                 reader.IsDBNull(2) ? defaults.VoiceAnnouncementsEnabled : reader.GetBoolean(2),
                 reader.IsDBNull(3) ? defaults.SpeechVoiceName : reader.GetString(3),
-                reader.IsDBNull(4) ? defaults.ActiveLaneCount : reader.GetInt32(4));
+                speechBackend,
+                reader.IsDBNull(5) ? defaults.ActiveLaneCount : reader.GetInt32(5));
         }
 
         public static void SaveAppSettings(AppSettings settings)
@@ -159,19 +169,23 @@ namespace YATSS
             command.CommandText = @"
                 INSERT INTO app_settings (
                     id, min_lap_milliseconds, sound_on_too_fast_lap,
-                    voice_announcements_enabled, speech_voice_name, active_lane_count)
+                    voice_announcements_enabled, speech_voice_name,
+                    speech_backend, active_lane_count)
                 VALUES (1, $minLapMilliseconds, $soundOnTooFastLap,
-                    $voiceAnnouncementsEnabled, $speechVoiceName, $activeLaneCount)
+                    $voiceAnnouncementsEnabled, $speechVoiceName,
+                    $speechBackend, $activeLaneCount)
                 ON CONFLICT(id) DO UPDATE SET
                     min_lap_milliseconds = excluded.min_lap_milliseconds,
                     sound_on_too_fast_lap = excluded.sound_on_too_fast_lap,
                     voice_announcements_enabled = excluded.voice_announcements_enabled,
                     speech_voice_name = excluded.speech_voice_name,
+                    speech_backend = excluded.speech_backend,
                     active_lane_count = excluded.active_lane_count";
             command.Parameters.AddWithValue("$minLapMilliseconds", settings.MinLapMilliseconds);
             command.Parameters.AddWithValue("$soundOnTooFastLap", settings.SoundOnTooFastLap);
             command.Parameters.AddWithValue("$voiceAnnouncementsEnabled", settings.VoiceAnnouncementsEnabled);
             command.Parameters.AddWithValue("$speechVoiceName", settings.SpeechVoiceName.Trim());
+            command.Parameters.AddWithValue("$speechBackend", settings.SpeechBackend.ToString());
             command.Parameters.AddWithValue("$activeLaneCount", settings.ActiveLaneCount);
             command.ExecuteNonQuery();
         }
@@ -489,6 +503,7 @@ namespace YATSS
                     sound_on_too_fast_lap INTEGER NOT NULL,
                     voice_announcements_enabled INTEGER NOT NULL DEFAULT 1,
                     speech_voice_name TEXT NOT NULL,
+                    speech_backend TEXT NOT NULL DEFAULT 'Automatic',
                     active_lane_count INTEGER NOT NULL
                 )");
             ExecuteNonQuery(@"
@@ -525,6 +540,7 @@ namespace YATSS
                     debounce_milliseconds INTEGER NOT NULL
                 )");
             EnsureAppVoiceAnnouncementsColumn();
+            EnsureAppSpeechBackendColumn();
             EnsureControllerRawSensorLockoutColumn();
             ExecuteNonQuery($"PRAGMA user_version = {CurrentSchemaVersion}");
         }
@@ -536,6 +552,15 @@ namespace YATSS
                 "voice_announcements_enabled",
                 "ALTER TABLE app_settings " +
                 "ADD COLUMN voice_announcements_enabled INTEGER NOT NULL DEFAULT 1");
+        }
+
+        private static void EnsureAppSpeechBackendColumn()
+        {
+            EnsureColumn(
+                "app_settings",
+                "speech_backend",
+                "ALTER TABLE app_settings " +
+                "ADD COLUMN speech_backend TEXT NOT NULL DEFAULT 'Automatic'");
         }
 
         private static void EnsureControllerRawSensorLockoutColumn()

@@ -42,6 +42,9 @@ namespace YATSS
             cbSerialPort = new ComboBox();
             groupBox5 = new GroupBox();
             cbVoiceAnnouncements = new CheckBox();
+            speechBackendLabel = new Label();
+            cbSpeechBackend = new ComboBox();
+            speechVoiceLabel = new Label();
             cbSpeechVoice = new ComboBox();
             groupBoxTrack = new GroupBox();
             activeLaneCountLabel = new Label();
@@ -169,10 +172,13 @@ namespace YATSS
             // groupBox5
             //
             groupBox5.Controls.Add(cbVoiceAnnouncements);
+            groupBox5.Controls.Add(speechBackendLabel);
+            groupBox5.Controls.Add(cbSpeechBackend);
+            groupBox5.Controls.Add(speechVoiceLabel);
             groupBox5.Controls.Add(cbSpeechVoice);
             groupBox5.Location = new Point(12, 230);
             groupBox5.Name = "groupBox5";
-            groupBox5.Size = new Size(399, 76);
+            groupBox5.Size = new Size(399, 105);
             groupBox5.TabIndex = 2;
             groupBox5.TabStop = false;
             groupBox5.Text = "Voice";
@@ -187,14 +193,41 @@ namespace YATSS
             cbVoiceAnnouncements.Text = "Enable voice announcements";
             cbVoiceAnnouncements.UseVisualStyleBackColor = true;
             //
+            // speechBackendLabel
+            //
+            speechBackendLabel.AutoSize = true;
+            speechBackendLabel.Location = new Point(205, 23);
+            speechBackendLabel.Name = "speechBackendLabel";
+            speechBackendLabel.Size = new Size(44, 15);
+            speechBackendLabel.TabIndex = 1;
+            speechBackendLabel.Text = "Engine";
+            //
+            // cbSpeechBackend
+            //
+            cbSpeechBackend.DropDownStyle = ComboBoxStyle.DropDownList;
+            cbSpeechBackend.FormattingEnabled = true;
+            cbSpeechBackend.Location = new Point(255, 19);
+            cbSpeechBackend.Name = "cbSpeechBackend";
+            cbSpeechBackend.Size = new Size(126, 23);
+            cbSpeechBackend.TabIndex = 2;
+            //
+            // speechVoiceLabel
+            //
+            speechVoiceLabel.AutoSize = true;
+            speechVoiceLabel.Location = new Point(11, 57);
+            speechVoiceLabel.Name = "speechVoiceLabel";
+            speechVoiceLabel.Size = new Size(35, 15);
+            speechVoiceLabel.TabIndex = 3;
+            speechVoiceLabel.Text = "Voice";
+            //
             // cbSpeechVoice
             //
             cbSpeechVoice.DropDownStyle = ComboBoxStyle.DropDownList;
             cbSpeechVoice.FormattingEnabled = true;
-            cbSpeechVoice.Location = new Point(11, 45);
+            cbSpeechVoice.Location = new Point(52, 53);
             cbSpeechVoice.Name = "cbSpeechVoice";
-            cbSpeechVoice.Size = new Size(370, 23);
-            cbSpeechVoice.TabIndex = 1;
+            cbSpeechVoice.Size = new Size(329, 23);
+            cbSpeechVoice.TabIndex = 4;
             //
             // groupBoxTrack
             //
@@ -202,7 +235,7 @@ namespace YATSS
             groupBoxTrack.Controls.Add(nudActiveLaneCount);
             groupBoxTrack.Controls.Add(trackLengthLabel);
             groupBoxTrack.Controls.Add(nudTrackLengthFeet);
-            groupBoxTrack.Location = new Point(12, 319);
+            groupBoxTrack.Location = new Point(12, 348);
             groupBoxTrack.Name = "groupBoxTrack";
             groupBoxTrack.Size = new Size(399, 53);
             groupBoxTrack.TabIndex = 3;
@@ -253,7 +286,7 @@ namespace YATSS
             //
             groupBoxRaceReports.Controls.Add(cbExportRaceJson);
             groupBoxRaceReports.Controls.Add(cbExportRaceCsv);
-            groupBoxRaceReports.Location = new Point(12, 385);
+            groupBoxRaceReports.Location = new Point(12, 414);
             groupBoxRaceReports.Name = "groupBoxRaceReports";
             groupBoxRaceReports.Size = new Size(399, 53);
             groupBoxRaceReports.TabIndex = 4;
@@ -282,7 +315,7 @@ namespace YATSS
             //
             // groupBoxLaneColors
             //
-            groupBoxLaneColors.Location = new Point(12, 451);
+            groupBoxLaneColors.Location = new Point(12, 480);
             groupBoxLaneColors.Name = "groupBoxLaneColors";
             groupBoxLaneColors.Size = new Size(399, 174);
             groupBoxLaneColors.TabIndex = 5;
@@ -291,7 +324,7 @@ namespace YATSS
             //
             // bOK
             //
-            bOK.Location = new Point(255, 643);
+            bOK.Location = new Point(255, 672);
             bOK.Name = "bOK";
             bOK.Size = new Size(75, 23);
             bOK.TabIndex = 6;
@@ -301,7 +334,7 @@ namespace YATSS
             //
             // bCancel
             //
-            bCancel.Location = new Point(336, 643);
+            bCancel.Location = new Point(336, 672);
             bCancel.Name = "bCancel";
             bCancel.Size = new Size(75, 23);
             bCancel.TabIndex = 7;
@@ -315,7 +348,7 @@ namespace YATSS
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             CancelButton = bCancel;
-            ClientSize = new Size(428, 682);
+            ClientSize = new Size(428, 711);
             Controls.Add(bCancel);
             Controls.Add(bOK);
             Controls.Add(groupBox5);
@@ -337,6 +370,7 @@ namespace YATSS
             ((System.ComponentModel.ISupportInitialize)nudMinLapMilliseconds).EndInit();
             groupBox4.ResumeLayout(false);
             groupBox5.ResumeLayout(false);
+            groupBox5.PerformLayout();
             groupBoxTrack.ResumeLayout(false);
             groupBoxTrack.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)nudActiveLaneCount).EndInit();
@@ -363,6 +397,9 @@ namespace YATSS
         private ComboBox cbSerialPort;
         private GroupBox groupBox5;
         private CheckBox cbVoiceAnnouncements;
+        private Label speechBackendLabel;
+        private ComboBox cbSpeechBackend;
+        private Label speechVoiceLabel;
         private ComboBox cbSpeechVoice;
         private GroupBox groupBoxTrack;
         private Label activeLaneCountLabel;

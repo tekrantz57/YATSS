@@ -41,8 +41,20 @@ namespace YATSS
                 $"YATSS-auto-{DateTime.Now:yyyyMMdd}.db");
             if (File.Exists(backupPath))
             {
-                _ = InspectDatabase(backupPath, backupPath, requireCurrentSchema: true);
-                return null;
+                _ = InspectDatabase(backupPath, backupPath, requireCurrentSchema: false);
+                if (GetSchemaVersion(backupPath) == _currentSchemaVersion)
+                {
+                    return null;
+                }
+
+                backupPath = Path.Combine(
+                    _automaticBackupDirectory,
+                    $"YATSS-auto-{DateTime.Now:yyyyMMdd}-v{_currentSchemaVersion}.db");
+                if (File.Exists(backupPath))
+                {
+                    _ = InspectDatabase(backupPath, backupPath, requireCurrentSchema: true);
+                    return null;
+                }
             }
 
             DatabaseBackupResult result = CreateBackup(backupPath);

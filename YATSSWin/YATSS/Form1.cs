@@ -23,6 +23,7 @@ namespace YATSS
         private Label _heatStatusLabel = null!;
         private Label _heatTimerLabel = null!;
         private Label _onDeckLabel = null!;
+        private StartLightsControl _startLights = null!;
         private readonly System.Windows.Forms.Timer _practiceClockTimer = new();
         private bool _practiceClockEnabled = true;
         private ControllerDiagnosticsForm? _controllerDiagnosticsForm;
@@ -41,6 +42,7 @@ namespace YATSS
         public bool SoundOnTooFastLap { get; private set; } = true;
         public bool VoiceAnnouncementsEnabled { get; private set; } = true;
         public string SpeechVoiceName { get; private set; } = "";
+        public SpeechBackendMode SpeechBackend { get; private set; } = SpeechBackendMode.Automatic;
         public int ActiveLaneCount { get; private set; } = LapProtocolParser.LaneCount;
         public double TrackLengthFeet { get; private set; } = LapRaceOptions.Default.TrackLengthFeet;
         public int SensorDebounceMilliseconds { get; private set; } = AppDatabase.DefaultSensorDebounceMilliseconds;
@@ -83,11 +85,13 @@ namespace YATSS
                 SoundOnTooFastLap,
                 VoiceAnnouncementsEnabled,
                 SpeechVoiceName,
+                SpeechBackend,
                 ActiveLaneCount));
             MinLapMilliseconds = Math.Clamp(settings.MinLapMilliseconds, 100, 60000);
             SoundOnTooFastLap = settings.SoundOnTooFastLap;
             VoiceAnnouncementsEnabled = settings.VoiceAnnouncementsEnabled;
             SpeechVoiceName = settings.SpeechVoiceName;
+            SpeechBackend = settings.SpeechBackend;
             ActiveLaneCount = Math.Clamp(settings.ActiveLaneCount, 2, LapProtocolParser.LaneCount);
             RaceReportSettings reportSettings = AppDatabase.LoadRaceReportSettings(
                 new RaceReportSettings(ExportJson: true, ExportCsv: true));
@@ -109,6 +113,7 @@ namespace YATSS
             ApplyLaneColors();
             ApplyActiveLaneLayout();
             SpeechAnnouncer.Enabled = VoiceAnnouncementsEnabled;
+            SpeechAnnouncer.BackendMode = SpeechBackend;
             SpeechAnnouncer.WarmUpAsync(SpeechVoiceName);
 
             KeepSystemAwake();
@@ -1254,23 +1259,32 @@ namespace YATSS
             TableLayoutPanel heatStatusPanel = new()
             {
                 BackColor = Color.FromArgb(32, 32, 32),
-                ColumnCount = 3,
+                ColumnCount = 4,
                 Dock = DockStyle.Fill,
                 Margin = new Padding(3),
                 Padding = new Padding(8, 0, 8, 0),
                 RowCount = 1
             };
-            heatStatusPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 48F));
+            heatStatusPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45F));
+            heatStatusPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 104F));
             heatStatusPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));
-            heatStatusPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 32F));
+            heatStatusPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 35F));
             heatStatusPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
             _heatStatusLabel = CreateHeatStatusLabel("Practice");
             _heatTimerLabel = CreateHeatStatusLabel("Timer --:--");
             _onDeckLabel = CreateHeatStatusLabel("On deck: ");
+            _startLights = new StartLightsControl
+            {
+                BackColor = heatStatusPanel.BackColor,
+                Dock = DockStyle.Fill,
+                Margin = Padding.Empty,
+                Visible = false
+            };
             heatStatusPanel.Controls.Add(_heatStatusLabel, 0, 0);
-            heatStatusPanel.Controls.Add(_heatTimerLabel, 1, 0);
-            heatStatusPanel.Controls.Add(_onDeckLabel, 2, 0);
+            heatStatusPanel.Controls.Add(_startLights, 1, 0);
+            heatStatusPanel.Controls.Add(_heatTimerLabel, 2, 0);
+            heatStatusPanel.Controls.Add(_onDeckLabel, 3, 0);
 
             mainLayoutPanel.SuspendLayout();
             mainLayoutPanel.Controls.Remove(titleLabel);
@@ -1494,10 +1508,43 @@ namespace YATSS
             RunOnUiThread(() => statusLabel.Text = message);
         }
 
+        public void ShowStartCountdownStep(int step)
+        {
+            if (IsDisposed)
+            {
+                return;
+            }
+
+            if (InvokeRequired)
+            {
+                Invoke(() => ShowStartCountdownStep(step));
+                return;
+            }
+
+            _startLights.ActiveLight = step;
+            _startLights.Visible = true;
+            _startLights.Refresh();
+        }
+
+        public void HideStartCountdown()
+        {
+            RunOnUiThread(() =>
+            {
+                _startLights.ActiveLight = 0;
+                _startLights.Visible = false;
+            });
+        }
+
         public void ShowHeatRaceReport(string path)
         {
             RunOnUiThread(() =>
             {
+                if (PlatformEnvironment.IsWine)
+                {
+                    HeatRaceReportWriter.Open(path);
+                    return;
+                }
+
                 HeatRaceReportForm reportForm = new(path);
                 reportForm.Show(this);
             });
@@ -1665,6 +1712,7 @@ namespace YATSS
                 port,
                 VoiceAnnouncementsEnabled,
                 SpeechVoiceName,
+                SpeechBackend,
                 ActiveLaneCount,
                 TrackLengthFeet,
                 SensorDebounceMilliseconds,
@@ -1678,6 +1726,7 @@ namespace YATSS
                 SoundOnTooFastLap = config.SoundOnTooFastLap;
                 VoiceAnnouncementsEnabled = config.VoiceAnnouncementsEnabled;
                 SpeechVoiceName = config.SelectedSpeechVoice;
+                SpeechBackend = config.SelectedSpeechBackend;
                 ActiveLaneCount = config.ActiveLaneCount;
                 TrackLengthFeet = config.TrackLengthFeet;
                 SensorDebounceMilliseconds = config.SensorDebounceMilliseconds;
@@ -1692,6 +1741,7 @@ namespace YATSS
                     SoundOnTooFastLap,
                     VoiceAnnouncementsEnabled,
                     SpeechVoiceName,
+                    SpeechBackend,
                     ActiveLaneCount));
                 AppDatabase.SaveRaceReportSettings(new RaceReportSettings(
                     ExportRaceJson,
@@ -1701,6 +1751,7 @@ namespace YATSS
                 AppDatabase.SaveSensorDebounceMilliseconds(SensorDebounceMilliseconds);
                 AppDatabase.SaveRawSensorLockoutMilliseconds(RawSensorLockoutMilliseconds);
                 SpeechAnnouncer.Enabled = VoiceAnnouncementsEnabled;
+                SpeechAnnouncer.BackendMode = SpeechBackend;
                 SpeechAnnouncer.WarmUpAsync(SpeechVoiceName);
                 s.ApplySettings();
                 s.SetPort(config.SelectedPort);
