@@ -173,6 +173,7 @@ solution. The Windows application targets .NET 10 LTS.
 - [Race reports and data exports](docs/RACE_DATA_EXPORT.md)
 - [Database backup and restore](docs/DATABASE_BACKUP.md)
 - [Linux speech under Wine](docs/LINUX_SPEECH.md)
+- [Building the ARM64 Wine and UNO Q packages on Linux](docs/LINUX_BUILD.md)
 - [Windows publish smoke test](docs/PUBLISH_SMOKE_TEST.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 - [0.10 Beta 1 release notes](docs/RELEASE_0.10.0-beta.1.md)

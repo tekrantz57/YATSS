@@ -304,6 +304,24 @@ finally
 LapProtocolMessage heartbeat = LapProtocolParser.Parse(LapProtocolParser.EncodeFrame("HEARTBEAT:12345"));
 Assert(heartbeat.Kind == LapProtocolMessageKind.Heartbeat, "HEARTBEAT should parse");
 Assert(heartbeat.ControllerTimestampMillis == 12345, "HEARTBEAT timestamp should parse");
+Assert(
+    Serial.ShouldAcknowledgePhysicalControllerHeartbeatDuringDemo(
+        isDemoLine: false,
+        demoActive: true,
+        heartbeat.Kind),
+    "demo input should acknowledge physical controller heartbeats");
+Assert(
+    !Serial.ShouldAcknowledgePhysicalControllerHeartbeatDuringDemo(
+        isDemoLine: true,
+        demoActive: true,
+        heartbeat.Kind),
+    "demo-generated heartbeats should not be sent back to the physical controller");
+Assert(
+    !Serial.ShouldAcknowledgePhysicalControllerHeartbeatDuringDemo(
+        isDemoLine: false,
+        demoActive: true,
+        edge.Kind),
+    "demo input should continue ignoring physical controller edges for scoring");
 
 LapProtocolMessage watchdog = LapProtocolParser.Parse(
     LapProtocolParser.EncodeFrame("ERR:WINDOWS_WATCHDOG:23456"));

@@ -180,11 +180,12 @@ live sensor hardware.
 `Demo Race` seeds a heat race with sample racers so the heat-race workflow can
 be tested quickly.
 
-`Simulated Lap Input` generates simulated controller heartbeats and lane edges. It
-uses the same lap-processing path as real serial input, but ignores real serial
-lines while the demo stream is active. This is useful for testing timing board
-updates, heat transitions, qualifying and race setup behavior, and report
-output.
+`Simulated Lap Input` generates simulated controller heartbeats and lane edges.
+It uses the same lap-processing path as real serial input and ignores physical
+sensor edges for scoring while the demo stream is active. Physical controller
+heartbeats are still acknowledged so its safety watchdog remains healthy. This
+is useful for testing timing board updates, heat transitions, qualifying and
+race setup behavior, and report output.
 
 In the Mode menu, Practice and Heat Race use mutually exclusive radio marks.
 Qualifying and Demo Race are setup commands and do not remain marked. Simulated

@@ -1027,14 +1027,27 @@ namespace YATSS
         {
             string trimmed = line.Trim();
             _log.Raw(trimmed);
+            LapProtocolMessage message = LapProtocolParser.Parse(trimmed);
+            bool demoActive = DemoLapStreamActive;
 
-            if (!isDemoLine && DemoLapStreamActive)
+            if (!isDemoLine && demoActive)
             {
-                _log.Info($"DEMO: ignored real serial line while demo stream is active: {trimmed}");
+                if (ShouldAcknowledgePhysicalControllerHeartbeatDuringDemo(
+                    isDemoLine,
+                    demoActive,
+                    message.Kind))
+                {
+                    // Demo timing uses its own clock, but the physical controller still
+                    // needs its keepalive so the safety watchdog does not cut power.
+                    WriteLine("KEEPALIVE");
+                }
+                else
+                {
+                    _log.Info($"DEMO: ignored real serial line while demo stream is active: {trimmed}");
+                }
                 return;
             }
 
-            LapProtocolMessage message = LapProtocolParser.Parse(trimmed);
             if (message.ControllerTimestampMillis.HasValue)
             {
                 UpdateLatestControllerTimestamp(message.ControllerTimestampMillis.Value);
@@ -1284,6 +1297,12 @@ namespace YATSS
                 }
             }
         }
+
+        internal static bool ShouldAcknowledgePhysicalControllerHeartbeatDuringDemo(
+            bool isDemoLine,
+            bool demoActive,
+            LapProtocolMessageKind messageKind) =>
+            !isDemoLine && demoActive && messageKind == LapProtocolMessageKind.Heartbeat;
 
         private void HandleControllerWatchdogTrip(uint? controllerTimestamp)
         {
