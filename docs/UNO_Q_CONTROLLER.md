@@ -31,6 +31,21 @@ power directly to an UNO Q pin.
 
 D0/D1 remain available for the hardware UART. A4/A5 remain available for I2C.
 
+## Onboard Status Matrix
+
+The UNO Q's blue-only 8x13 LED matrix provides a static controller-health
+indicator:
+
+- A plain `Y` means the controller firmware is running and waiting for YATSS.
+- A boxed `Y` means YATSS commands and keepalives are being received.
+- `!` means the Windows keepalive watchdog expired or the sensor-transition
+  queue overflowed.
+
+The display uses one-bit brightness and is redrawn only when its state changes.
+There are no animations or delays, and display calls never occur in a sensor
+interrupt. A new valid YATSS command clears a communication warning. A queue
+overflow remains latched until a controller reset so it cannot pass unnoticed.
+
 ## Install And Run
 
 Build an App Lab import archive on Windows with:
@@ -96,6 +111,12 @@ The STM32 sketch remains flashed after App Lab closes, but it cannot provide
 TCP port 45991 by itself. The Python container owns TCP while RouterBridge
 transports frames between Python and the STM32.
 
+The TCP listener accepts a new YATSS connection in place of an older one.
+Socket replacement is synchronized, and cleanup is tied to the specific failed
+socket so a stale heartbeat callback cannot accidentally close a newly
+accepted connection. Repeated stop/restart reconnect testing remains part of
+the UNO Q bench checklist.
+
 The current App Lab-generated container does not declare an automatic restart
 policy. After an UNO Q reboot, open App Lab and start the app again. A
 production standalone installation should eventually use a Linux `systemd`
@@ -125,6 +146,9 @@ The sketch compiles with Arduino Zephyr core 0.90.0 and Arduino_RouterBridge
 0.4.3 for `arduino:zephyr:unoq`. App Lab deployment and the Bridge/TCP transport
 have completed an overnight demo stream with approximately 9,500 to more than
 13,000 laps per lane and no disconnects, missed-frame growth, memory problems,
-or stalled counting. Before track installation, validate all eight physical
-inputs and outputs in Controller Diagnostics and bench-test the watchdog and
-relay polarity.
+or stalled counting. On August 7, 2026, the lane 1 active-low input on D2 was
+validated with a physical sensor through the complete ISR, RouterBridge/TCP,
+and YATSS lap-processing path. Before track installation, validate lanes 2-8
+and all outputs in Controller Diagnostics and bench-test the watchdog and relay
+polarity. Include high-speed sensor testing while the status matrix is enabled
+to confirm that its refresh interrupt does not affect edge capture.

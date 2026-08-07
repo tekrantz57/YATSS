@@ -1,4 +1,5 @@
 #include <Arduino_RouterBridge.h>
+#include <Arduino_LED_Matrix.h>
 
 const byte LaneCount = 8;
 const byte SensorQueueSize = 64;
@@ -47,6 +48,68 @@ volatile byte sensorQueueHead = 0;
 volatile byte sensorQueueTail = 0;
 volatile unsigned long droppedSensorTransitions = 0;
 volatile unsigned long totalDroppedSensorTransitions = 0;
+Arduino_LED_Matrix statusMatrix;
+bool communicationProblem = false;
+bool sensorQueueProblem = false;
+
+enum class MatrixStatus : byte {
+  Waiting,
+  Healthy,
+  Problem
+};
+
+MatrixStatus displayedMatrixStatus = (MatrixStatus)255;
+
+const uint8_t WaitingFrame[8][13] = {
+  { 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0 },
+  { 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0 },
+  { 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0 }
+};
+
+const uint8_t HealthyFrame[8][13] = {
+  { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 },
+  { 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1 },
+  { 1, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1 },
+  { 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1 },
+  { 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1 },
+  { 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1 },
+  { 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1 },
+  { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 }
+};
+
+const uint8_t ProblemFrame[8][13] = {
+  { 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0 },
+  { 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0 }
+};
+
+void refreshMatrixStatus() {
+  MatrixStatus status = sensorQueueProblem || communicationProblem
+    ? MatrixStatus::Problem
+    : (windowsWatchdogArmed ? MatrixStatus::Healthy : MatrixStatus::Waiting);
+  if (status == displayedMatrixStatus) {
+    return;
+  }
+
+  displayedMatrixStatus = status;
+  if (status == MatrixStatus::Problem) {
+    statusMatrix.draw(&ProblemFrame[0][0]);
+  } else if (status == MatrixStatus::Healthy) {
+    statusMatrix.draw(&HealthyFrame[0][0]);
+  } else {
+    statusMatrix.draw(&WaitingFrame[0][0]);
+  }
+}
 
 void enqueueSensorTransition(byte lane) {
   byte nextHead = (byte)((sensorQueueHead + 1) & SensorQueueMask);
@@ -232,17 +295,26 @@ void handleYatssCommand(String command) {
   }
   lastWindowsCommandMillis = millis();
   windowsWatchdogArmed = true;
+  communicationProblem = false;
+  refreshMatrixStatus();
 
   if (command == "RESET") {
     setTrackPowerMask(0);
     diagnosticMode = false;
     diagnosticRelayPulseActive = false;
     windowsWatchdogArmed = false;
+    communicationProblem = false;
+    sensorQueueProblem = false;
+    noInterrupts();
+    droppedSensorTransitions = 0;
+    totalDroppedSensorTransitions = 0;
+    interrupts();
     flushSensorQueue();
     for (byte lane = 0; lane < LaneCount; lane++) {
       laneSequences[lane] = 0;
       lastEdgeMillis[lane] = 0;
     }
+    refreshMatrixStatus();
     sendFrame(F("HELLO:RESETTING"));
     sendControllerHello();
   } else if (command == "TRACK_POWER:OFF") {
@@ -348,11 +420,16 @@ void publishDroppedSensorTransitions() {
   droppedSensorTransitions = 0;
   interrupts();
   if (dropped > 0) {
+    sensorQueueProblem = true;
+    refreshMatrixStatus();
     sendFrame(String(F("ERR:QUEUE_FULL:")) + dropped);
   }
 }
 
 void setup() {
+  statusMatrix.begin();
+  statusMatrix.setGrayscaleBits(1);
+  refreshMatrixStatus();
   for (byte lane = 0; lane < LaneCount; lane++) {
     digitalWrite(trackPowerCutPins[lane], TrackPowerCutActiveLevel);
     pinMode(trackPowerCutPins[lane], OUTPUT);
@@ -387,6 +464,8 @@ void loop() {
     bool powerWasEnabled = trackPowerEnabledMask != 0;
     setTrackPowerMask(0);
     windowsWatchdogArmed = false;
+    communicationProblem = true;
+    refreshMatrixStatus();
     if (powerWasEnabled) {
       sendFrame(String(F("ERR:WINDOWS_WATCHDOG:")) + now);
     }

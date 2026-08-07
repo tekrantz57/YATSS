@@ -37,7 +37,11 @@ The release publish directory includes the helper at
 
    ```bash
    espeak-ng "YATSS speech test"
+   espeak-ng -v en-us -s 220 "3 2 1 let's go"
    ```
+
+   eSpeak NG uses `-v` to select a voice and `-s` to set words per minute.
+   The unsupported `--voice` and `--speed` forms must not be used.
 
 3. From the extracted YATSS publish directory, start the helper as the same
    desktop user who runs Wine:
@@ -83,6 +87,10 @@ systemctl --user status yatss-speech-helper.service
 Speech requests are serialized by YATSS. Countdown lamps are painted before
 the corresponding `3`, `2`, and `1` utterances. The Linux helper response is
 blocking, matching the existing SAPI behavior.
+
+Native eSpeak NG announcements, voice selection, and the accelerated countdown
+have been exercised successfully with the ARM64 YATSS build under Wine on an
+Arduino UNO Q.
 
 If the selected engine or helper fails, YATSS continues silently. Start and
 restart countdowns retain a 1.5-second minimum and the visual lights still

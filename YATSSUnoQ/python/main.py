@@ -3,6 +3,7 @@ import os
 import pty
 import select
 import socket
+import threading
 import tty
 
 from arduino.app_utils import App, Bridge
@@ -18,16 +19,38 @@ slave_path = os.ttyname(slave_fd)
 pty_command_buffer = bytearray()
 tcp_command_buffer = bytearray()
 client_socket = None
+client_lock = threading.Lock()
 
 
-def close_client():
+def get_client():
+    with client_lock:
+        return client_socket
+
+
+def replace_client(new_client=None):
     global client_socket
-    if client_socket is not None:
+    with client_lock:
+        old_client = client_socket
+        client_socket = new_client
+    if old_client is not None and old_client is not new_client:
         try:
-            client_socket.close()
+            old_client.close()
         except OSError:
             pass
+
+
+def close_client(expected_client=None):
+    global client_socket
+    with client_lock:
+        if expected_client is not None and client_socket is not expected_client:
+            return
+        old_client = client_socket
         client_socket = None
+    if old_client is not None:
+        try:
+            old_client.close()
+        except OSError:
+            pass
 
 
 def remove_link():
@@ -60,11 +83,12 @@ def on_yatss_frame(frame: str):
     line = frame.rstrip("\r\n") + "\n"
     encoded = line.encode("ascii", errors="replace")
     os.write(master_fd, encoded)
-    if client_socket is not None:
+    client = get_client()
+    if client is not None:
         try:
-            client_socket.sendall(encoded)
+            client.sendall(encoded)
         except OSError:
-            close_client()
+            close_client(client)
 
 
 def relay_complete_commands(buffer: bytearray, data: bytes):
@@ -79,12 +103,16 @@ def relay_complete_commands(buffer: bytearray, data: bytes):
 
 
 def relay_commands():
-    global client_socket
+    client = get_client()
     sources = [master_fd, server_socket]
-    if client_socket is not None:
-        sources.append(client_socket)
+    if client is not None:
+        sources.append(client)
 
-    readable, _, _ = select.select(sources, [], [], 0.02)
+    try:
+        readable, _, _ = select.select(sources, [], [], 0.02)
+    except (OSError, ValueError):
+        close_client(client)
+        return
     if not readable:
         return
 
@@ -92,22 +120,21 @@ def relay_commands():
         if source is server_socket:
             new_client, _ = server_socket.accept()
             new_client.setblocking(False)
-            close_client()
-            client_socket = new_client
+            replace_client(new_client)
             tcp_command_buffer.clear()
         elif source == master_fd:
             data = os.read(master_fd, 1024)
             if data:
                 relay_complete_commands(pty_command_buffer, data)
-        elif source is client_socket:
+        elif source is client:
             try:
-                data = client_socket.recv(1024)
+                data = client.recv(1024)
             except OSError:
                 data = b""
             if data:
                 relay_complete_commands(tcp_command_buffer, data)
             else:
-                close_client()
+                close_client(client)
 
 
 Bridge.provide("yatss_frame", on_yatss_frame)

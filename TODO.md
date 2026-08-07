@@ -88,10 +88,14 @@
   App Lab app through `arduino-app-cli` after Linux and Docker are ready.
 - Verify automatic recovery of the STM32 RouterBridge and TCP port 45991 after
   a cold boot, orderly reboot, container failure, and interrupted startup.
+- Verify repeated YATSS stop/restart TCP reconnects without restarting the App
+  Lab controller application.
 - Ensure the service cannot start a stale or incompatible App Lab package and
   produces useful logs when startup fails.
-- Bench-test all eight sensor inputs, track-power outputs, watchdog behavior,
-  and relay polarity before using the UNO Q controller on a physical track.
+- Bench-test sensor inputs for lanes 2-8, track-power outputs, watchdog
+  behavior, relay polarity, and high-speed edge capture with the onboard status
+  matrix enabled before using the UNO Q controller on a physical track. Lane 1
+  D2 sensor input has passed an end-to-end physical test.
 
 ## Future Formula 1-style sector timing
 

@@ -46,10 +46,10 @@ class SpeechEngine:
 
         command = [self.executable]
         if voice:
-            command.extend(["--voice", voice])
+            command.extend(["-v", voice])
         if rate is not None:
             words_per_minute = max(80, min(320, 175 + (int(rate) * 15)))
-            command.extend(["--speed", str(words_per_minute)])
+            command.extend(["-s", str(words_per_minute)])
         command.append(text)
 
         with self.lock:

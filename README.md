@@ -93,8 +93,10 @@ complete hardware behavior still require bench validation.
 
 The integrated UNO Q STM32U585 controller sketch compiles with Arduino Zephyr
 0.90.0 and RouterBridge 0.4.3. App Lab deployment and localhost Bridge/TCP
-transport passed an overnight demo-lap soak test. Physical eight-lane sensor,
-relay, and watchdog validation remains bench-test work.
+transport passed an overnight demo-lap soak test. The active-low lane 1 sensor
+input on D2 has been validated end to end on UNO Q hardware. Lanes 2-8, relay
+outputs, watchdog behavior, and high-speed matrix-enabled sensing remain
+bench-test work.
 
 The communication watchdog cuts all lanes after five seconds without Windows
 acknowledgements, provided that the controller and relay-coil supply remain
