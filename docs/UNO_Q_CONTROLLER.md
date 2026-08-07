@@ -64,18 +64,67 @@ ENDPOINT=$(find /home/arduino/ArduinoApps -maxdepth 2 -name yatss-unoq -print -q
 timeout 10 cat "$ENDPOINT"
 ```
 
-Select `COM6` in YATSS. The serial log should identify the controller as
-`ARDUINO_UNO_Q_STM32U585` and then show one heartbeat per second.
+## App Lab Runtime Lifecycle
+
+App Lab is the editor and deployment control surface; its window is not the
+runtime. Clicking **Run** performs these operations:
+
+1. Compiles and flashes `sketch/sketch.ino` onto the STM32U585.
+2. Provisions `python/main.py` in a Docker container on the UNO Q Linux system.
+3. Starts that container in detached mode.
+4. Publishes container TCP port 45991 on the Linux host.
+5. Connects the Python process and STM32 sketch through Arduino RouterBridge.
+
+In the UNO Q configuration tested on August 7, 2026, closing the App Lab window
+caused TCP port 45991 to disappear even when **Stop** was not clicked. App Lab
+can own forwarding for application ports and closes its port tunnels during
+shutdown. Therefore, keep App Lab running whenever YATSS uses the UNO Q
+controller. A detached Python container alone is not sufficient evidence that
+the host-side TCP endpoint will remain available.
+
+The TCP interface remains available only while the App Lab Python container is
+running. It stops when any of the following occurs:
+
+- **Stop** is clicked in App Lab.
+- The App Lab window is closed.
+- Another App Lab app replaces the running app.
+- `python/main.py` or its container exits.
+- Docker is stopped.
+- The UNO Q is shut down, loses power, or reboots.
+
+The STM32 sketch remains flashed after App Lab closes, but it cannot provide
+TCP port 45991 by itself. The Python container owns TCP while RouterBridge
+transports frames between Python and the STM32.
+
+The current App Lab-generated container does not declare an automatic restart
+policy. After an UNO Q reboot, open App Lab and start the app again. A
+production standalone installation should eventually use a Linux `systemd`
+service to start the installed app with `arduino-app-cli` and expose TCP port
+45991 independently of the App Lab window after Linux and Docker are ready.
+Until that service is implemented and tested, App Lab must remain open and the
+controller TCP interface must not be expected to return automatically.
 
 ## Status
 
 This first hardware-test implementation preserves YATSS protocol v4, including
 lane edges, track-power masks, debounce configuration, diagnostics, keepalives,
-and the power-cut watchdog. Sensor edges are sampled and timestamped on the MCU;
-Bridge latency does not alter the recorded timestamp.
+and the power-cut watchdog. Each active-low sensor input uses a GPIO `CHANGE`
+interrupt. The interrupt callback records only the lane, level, and MCU
+timestamp in a fixed 64-entry queue. The normal MCU loop drains that queue,
+applies debounce and sequence handling, and sends frames through RouterBridge;
+no Bridge, string, or logging work occurs inside an interrupt callback. Bridge
+latency therefore does not alter the recorded edge timestamp.
+
+If the loop cannot drain transitions quickly enough, the controller reports
+`ERR:QUEUE_FULL:<count>` and includes its cumulative dropped-transition count
+in Controller Diagnostics. Entering or leaving diagnostics and resetting the
+controller flushes queued transitions so an event cannot cross operating-mode
+boundaries.
 
 The sketch compiles with Arduino Zephyr core 0.90.0 and Arduino_RouterBridge
-0.4.3 for `arduino:zephyr:unoq`. Before track installation, validate all eight
-inputs and outputs in Controller Diagnostics and perform a sustained demo test.
-The App Lab deployment, Bridge pseudo-serial transport, and physical MCU pins
-still require hardware validation on the UNO Q.
+0.4.3 for `arduino:zephyr:unoq`. App Lab deployment and the Bridge/TCP transport
+have completed an overnight demo stream with approximately 9,500 to more than
+13,000 laps per lane and no disconnects, missed-frame growth, memory problems,
+or stalled counting. Before track installation, validate all eight physical
+inputs and outputs in Controller Diagnostics and bench-test the watchdog and
+relay polarity.

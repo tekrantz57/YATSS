@@ -82,6 +82,17 @@
 - Document and bench-test restoring an erased Nano factory recovery partition
   with Arduino tooling; normal in-app DFU updates cannot recreate it.
 
+## Arduino UNO Q production startup
+
+- Add and document a Linux `systemd` service that starts the installed YATSS
+  App Lab app through `arduino-app-cli` after Linux and Docker are ready.
+- Verify automatic recovery of the STM32 RouterBridge and TCP port 45991 after
+  a cold boot, orderly reboot, container failure, and interrupted startup.
+- Ensure the service cannot start a stale or incompatible App Lab package and
+  produces useful logs when startup fails.
+- Bench-test all eight sensor inputs, track-power outputs, watchdog behavior,
+  and relay polarity before using the UNO Q controller on a physical track.
+
 ## Future Formula 1-style sector timing
 
 - Consider two optional intermediate sensors per lane, producing three sector

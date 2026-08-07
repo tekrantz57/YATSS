@@ -76,7 +76,7 @@ the prerelease. Verify the GitHub source and checksum before running it.
 - `YATSSMC` is the shared ESP32-C5, ESP32-C6, and Arduino Nano ESP32 controller
   sketch.
 - `YATSSUnoQ` is an experimental Arduino App Lab controller that uses the UNO
-  Q's STM32U585 and presents it to Wine as a pseudo-serial port.
+  Q's STM32U585 and presents it to YATSS over localhost TCP.
 
 The controller timestamps debounced sensor edges and reports them over serial.
 The Windows app owns lap counting, heat-race state, qualifying, reports,
@@ -92,8 +92,9 @@ has a packaged firmware image; its pin map, UART communication, flashing, and
 complete hardware behavior still require bench validation.
 
 The integrated UNO Q STM32U585 controller sketch compiles with Arduino Zephyr
-0.90.0 and RouterBridge 0.4.3. Its App Lab deployment, Bridge transport, and
-physical eight-lane I/O remain bench-test work.
+0.90.0 and RouterBridge 0.4.3. App Lab deployment and localhost Bridge/TCP
+transport passed an overnight demo-lap soak test. Physical eight-lane sensor,
+relay, and watchdog validation remains bench-test work.
 
 The communication watchdog cuts all lanes after five seconds without Windows
 acknowledgements, provided that the controller and relay-coil supply remain
@@ -109,6 +110,7 @@ where loss of control power must fail to track power off.
 | Windows x64 | Primary supported application environment |
 | Wine on x64 Linux | Experimental; app and mapped COM-port heartbeats verified |
 | Wine on ARM64 Linux | Experimental; ARM64 app, redirected UI, and mapped COM-port heartbeats exercised on Rock5B |
+| Wine on Arduino UNO Q | Experimental; App Lab STM32 controller and localhost TCP transport passed an overnight demo-lap soak test |
 
 Under Wine, map the Linux serial device to a Wine COM port and select that COM
 port in YATSS. Directly entering `/dev/ttyUSB0` in the Windows application is

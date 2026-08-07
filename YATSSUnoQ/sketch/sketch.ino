@@ -1,6 +1,8 @@
 #include <Arduino_RouterBridge.h>
 
 const byte LaneCount = 8;
+const byte SensorQueueSize = 64;
+const byte SensorQueueMask = SensorQueueSize - 1;
 const unsigned long HeartbeatIntervalMillis = 1000;
 const unsigned long WindowsKeepaliveTimeoutMillis = 5000;
 const unsigned long DiagnosticSessionTimeoutMillis = 5000;
@@ -11,6 +13,9 @@ const byte TrackPowerCutActiveLevel = HIGH;
 const char ControllerBoardProfile[] = "ARDUINO_UNO_Q_STM32U585";
 const char FirmwareVersion[] = "0.10.0-beta.1-dev";
 
+static_assert((SensorQueueSize & SensorQueueMask) == 0,
+              "SensorQueueSize must be a power of two");
+
 const byte sensorPins[LaneCount] = { D2, D3, D4, D5, D6, D7, D8, D9 };
 const byte trackPowerCutPins[LaneCount] = { D10, D11, D12, D13, A0, A1, A2, A3 };
 
@@ -19,7 +24,6 @@ unsigned long lastEdgeMillis[LaneCount] = {};
 unsigned long diagnosticTransitionCounts[LaneCount] = {};
 unsigned long diagnosticAcceptedEdgeCounts[LaneCount] = {};
 unsigned long diagnosticLastAcceptedMillis[LaneCount] = {};
-bool previousSensorActive[LaneCount] = {};
 unsigned long edgeDebounceMillis = DefaultEdgeDebounceMillis;
 unsigned long lastHeartbeatMillis = 0;
 unsigned long lastWindowsCommandMillis = 0;
@@ -31,6 +35,52 @@ bool diagnosticRelayPulseActive = false;
 byte diagnosticRelayPulseLane = 0;
 byte diagnosticRelayRestoreMask = 0;
 unsigned long diagnosticRelayPulseEndsMillis = 0;
+
+struct SensorTransition {
+  byte lane;
+  byte active;
+  unsigned long timestampMillis;
+};
+
+volatile SensorTransition sensorQueue[SensorQueueSize];
+volatile byte sensorQueueHead = 0;
+volatile byte sensorQueueTail = 0;
+volatile unsigned long droppedSensorTransitions = 0;
+volatile unsigned long totalDroppedSensorTransitions = 0;
+
+void enqueueSensorTransition(byte lane) {
+  byte nextHead = (byte)((sensorQueueHead + 1) & SensorQueueMask);
+  if (nextHead == sensorQueueTail) {
+    droppedSensorTransitions++;
+    totalDroppedSensorTransitions++;
+    return;
+  }
+
+  sensorQueue[sensorQueueHead].lane = lane;
+  sensorQueue[sensorQueueHead].active = digitalRead(sensorPins[lane]) == LOW ? 1 : 0;
+  sensorQueue[sensorQueueHead].timestampMillis = millis();
+  sensorQueueHead = nextHead;
+}
+
+void isrLane0() { enqueueSensorTransition(0); }
+void isrLane1() { enqueueSensorTransition(1); }
+void isrLane2() { enqueueSensorTransition(2); }
+void isrLane3() { enqueueSensorTransition(3); }
+void isrLane4() { enqueueSensorTransition(4); }
+void isrLane5() { enqueueSensorTransition(5); }
+void isrLane6() { enqueueSensorTransition(6); }
+void isrLane7() { enqueueSensorTransition(7); }
+
+void (*isrHandlers[LaneCount])() = {
+  isrLane0, isrLane1, isrLane2, isrLane3,
+  isrLane4, isrLane5, isrLane6, isrLane7
+};
+
+void flushSensorQueue() {
+  noInterrupts();
+  sensorQueueTail = sensorQueueHead;
+  interrupts();
+}
 
 byte calculateChecksum(const String &body) {
   byte checksum = 0;
@@ -107,9 +157,13 @@ void sendControllerHello() {
 }
 
 void sendDiagnosticStatus() {
+  unsigned long dropped;
+  noInterrupts();
+  dropped = totalDroppedSensorTransitions;
+  interrupts();
   sendFrame(String(F("DIAG:STATUS:")) + toHexByte(readActiveSensorMask()) + F(":") +
             toHexByte(trackPowerEnabledMask) + F(":") + edgeDebounceMillis +
-            F(":0:") + millis());
+            F(":") + dropped + F(":") + millis());
 }
 
 void stopDiagnosticSession(const char *reason) {
@@ -118,6 +172,7 @@ void stopDiagnosticSession(const char *reason) {
     diagnosticRelayPulseActive = false;
   }
   diagnosticMode = false;
+  flushSensorQueue();
   for (byte lane = 0; lane < LaneCount; lane++) {
     lastEdgeMillis[lane] = 0;
   }
@@ -125,6 +180,7 @@ void stopDiagnosticSession(const char *reason) {
 }
 
 void startDiagnosticSession() {
+  flushSensorQueue();
   diagnosticMode = true;
   for (byte lane = 0; lane < LaneCount; lane++) {
     diagnosticTransitionCounts[lane] = 0;
@@ -182,6 +238,7 @@ void handleYatssCommand(String command) {
     diagnosticMode = false;
     diagnosticRelayPulseActive = false;
     windowsWatchdogArmed = false;
+    flushSensorQueue();
     for (byte lane = 0; lane < LaneCount; lane++) {
       laneSequences[lane] = 0;
       lastEdgeMillis[lane] = 0;
@@ -247,14 +304,23 @@ void handleYatssCommand(String command) {
   }
 }
 
-void sampleSensors() {
-  unsigned long now = millis();
-  for (byte lane = 0; lane < LaneCount; lane++) {
-    bool active = digitalRead(sensorPins[lane]) == LOW;
-    if (active == previousSensorActive[lane]) {
-      continue;
+void publishQueuedSensorTransitions() {
+  while (true) {
+    SensorTransition transition;
+    noInterrupts();
+    if (sensorQueueTail == sensorQueueHead) {
+      interrupts();
+      return;
     }
-    previousSensorActive[lane] = active;
+    transition.lane = sensorQueue[sensorQueueTail].lane;
+    transition.active = sensorQueue[sensorQueueTail].active;
+    transition.timestampMillis = sensorQueue[sensorQueueTail].timestampMillis;
+    sensorQueueTail = (byte)((sensorQueueTail + 1) & SensorQueueMask);
+    interrupts();
+
+    byte lane = transition.lane;
+    bool active = transition.active != 0;
+    unsigned long now = transition.timestampMillis;
     if (diagnosticMode) {
       diagnosticTransitionCounts[lane]++;
       if (active && (diagnosticLastAcceptedMillis[lane] == 0 ||
@@ -275,20 +341,34 @@ void sampleSensors() {
   }
 }
 
+void publishDroppedSensorTransitions() {
+  unsigned long dropped;
+  noInterrupts();
+  dropped = droppedSensorTransitions;
+  droppedSensorTransitions = 0;
+  interrupts();
+  if (dropped > 0) {
+    sendFrame(String(F("ERR:QUEUE_FULL:")) + dropped);
+  }
+}
+
 void setup() {
   for (byte lane = 0; lane < LaneCount; lane++) {
     digitalWrite(trackPowerCutPins[lane], TrackPowerCutActiveLevel);
     pinMode(trackPowerCutPins[lane], OUTPUT);
     pinMode(sensorPins[lane], INPUT_PULLUP);
-    previousSensorActive[lane] = digitalRead(sensorPins[lane]) == LOW;
   }
   Bridge.begin();
   Bridge.provide_safe("yatss_command", handleYatssCommand);
+  for (byte lane = 0; lane < LaneCount; lane++) {
+    attachInterrupt(digitalPinToInterrupt(sensorPins[lane]), isrHandlers[lane], CHANGE);
+  }
   sendControllerHello();
 }
 
 void loop() {
-  sampleSensors();
+  publishQueuedSensorTransitions();
+  publishDroppedSensorTransitions();
   unsigned long now = millis();
   if (now - lastHeartbeatMillis >= HeartbeatIntervalMillis) {
     lastHeartbeatMillis = now;
