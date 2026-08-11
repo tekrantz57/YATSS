@@ -45,7 +45,7 @@ Record each item as pass or fail:
 - [ ] The bottom title panel uses Carolina Blue.
 - [ ] The complete version is visible at the lower right of the title panel at
   normal and maximized window sizes, including a long development identity such
-  as `v0.10.0-beta.1-3-g1a2b3c4-dirty`.
+  as `v0.20.0-beta.2-3-g1a2b3c4-dirty`.
 - [ ] Clean release, intermediate commit, and dirty build identities display
   without clipping at 100%, 125%, and 150% display scaling.
 - [ ] The timing board and status-strip layout have consistent borders.

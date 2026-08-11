@@ -71,17 +71,17 @@ Assert(boot.ControllerIdentity is { ProtocolVersion: 2, LaneCount: 8, HasBoardPr
     "legacy HELLO should retain protocol and lane count without claiming a board identity");
 
 LapProtocolMessage identifiedBoot = LapProtocolParser.Parse(LapProtocolParser.EncodeFrame(
-    "HELLO:YATSSMC:3:8:ESP32_C6_DEVKITC1:0.10.0-beta.1-dev"));
+    "HELLO:YATSSMC:3:8:ESP32_C6_DEVKITC1:0.20.0-beta.2"));
 Assert(identifiedBoot.ControllerIdentity is
     {
         ProtocolVersion: 3,
         LaneCount: 8,
         BoardProfile: "ESP32_C6_DEVKITC1",
-        FirmwareVersion: "0.10.0-beta.1-dev"
+        FirmwareVersion: "0.20.0-beta.2"
     }, "protocol-v3 HELLO should identify board and firmware");
 
 LapProtocolMessage capacityBoot = LapProtocolParser.Parse(LapProtocolParser.EncodeFrame(
-    "HELLO:YATSSMC:4:8:ESP32_C6_DEVKITC1:0.10.0-beta.1-dev:4194304"));
+    "HELLO:YATSSMC:4:8:ESP32_C6_DEVKITC1:0.20.0-beta.2:4194304"));
 Assert(capacityBoot.ControllerIdentity is
     {
         ProtocolVersion: 4,
@@ -89,7 +89,7 @@ Assert(capacityBoot.ControllerIdentity is
     }, "protocol-v4 HELLO should report runtime flash capacity");
 
 LapProtocolMessage c5Boot = LapProtocolParser.Parse(LapProtocolParser.EncodeFrame(
-    "HELLO:YATSSMC:4:8:ESP32_C5_WAVESHARE_WIFI6_N16R8:0.10.0-beta.1-dev:16777216"));
+    "HELLO:YATSSMC:4:8:ESP32_C5_WAVESHARE_WIFI6_N16R8:0.20.0-beta.2:16777216"));
 Assert(c5Boot.ControllerIdentity is
     {
         ProtocolVersion: 4,
@@ -1038,20 +1038,20 @@ Assert(slowQualifier.Laps[1].SessionElapsedMilliseconds == 6500, "qualifying lap
 Assert(slowQualifier.BestLapMilliseconds == 2500, "qualifying best lap should be derived from retained laps");
 
 Assert(
-    BuildIdentity.Normalize("v0.10.0-beta.1-0-gc2fb82c", "0.10.0-beta.1") == "v0.10.0-beta.1",
+    BuildIdentity.Normalize("v0.20.0-beta.2-0-gc2fb82c", "0.20.0-beta.2") == "v0.20.0-beta.2",
     "an exact clean release tag should display without commit metadata");
 Assert(
-    BuildIdentity.Normalize("v0.10.0-beta.1-3-g1a2b3c4", "0.10.0-beta.1") == "v0.10.0-beta.1-3-g1a2b3c4",
+    BuildIdentity.Normalize("v0.20.0-beta.2-3-g1a2b3c4", "0.20.0-beta.2") == "v0.20.0-beta.2-3-g1a2b3c4",
     "an intermediate clean build should display commit distance and hash");
 Assert(
-    BuildIdentity.Normalize("v0.10.0-beta.1-0-gc2fb82c-dirty", "0.10.0-beta.1") ==
-        "v0.10.0-beta.1-0-gc2fb82c-dirty",
+    BuildIdentity.Normalize("v0.20.0-beta.2-0-gc2fb82c-dirty", "0.20.0-beta.2") ==
+        "v0.20.0-beta.2-0-gc2fb82c-dirty",
     "an exact-tag dirty build should retain its hash and dirty marker");
 Assert(
-    BuildIdentity.Normalize("1a2b3c4-dirty", "0.10.0-beta.1") == "git-1a2b3c4-dirty",
+    BuildIdentity.Normalize("1a2b3c4-dirty", "0.20.0-beta.2") == "git-1a2b3c4-dirty",
     "an untagged dirty build should be identified as a Git build");
 Assert(
-    BuildIdentity.Normalize(null, "0.10.0-beta.1+metadata") == "v0.10.0-beta.1",
+    BuildIdentity.Normalize(null, "0.20.0-beta.2+metadata") == "v0.20.0-beta.2",
     "a source archive build should fall back to the project version");
 
 QualifyingController trackCallQualifying = new();

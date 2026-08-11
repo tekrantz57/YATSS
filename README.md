@@ -9,7 +9,7 @@ up to eight lane-power relays.
 
 [![YATSS running the second heat of a demo race](docs/images/yatss-demo-race-heat-2.png)](docs/images/yatss-demo-race-heat-2.png)
 
-> **Public beta:** `v0.10.0-beta.1` is intended for evaluation, demo races, and
+> **Public beta:** `v0.20.0-beta.2` is intended for evaluation, demo races, and
 > careful bench testing. YATSS has no production track installations yet.
 
 ## Download and Try It
@@ -17,12 +17,14 @@ up to eight lane-power relays.
 Download a Windows x64 ZIP from
 [GitHub Releases](https://github.com/tekrantz57/YATSS/releases):
 
-- `YATSS-win-x64-v0.10.0-beta.1.zip` is self-contained and does not require a
+- `YATSS-win-x64-v0.20.0-beta.2.zip` is self-contained and does not require a
   separately installed .NET runtime.
-- `YATSS-win-x64-requires-dotnet10-v0.10.0-beta.1.zip` is smaller and requires
+- `YATSS-win-x64-requires-dotnet10-v0.20.0-beta.2.zip` is smaller and requires
   the x64 .NET 10 Desktop Runtime.
-- `YATSS-win-arm64-v0.10.0-beta.1-experimental.zip` is a self-contained,
+- `YATSS-win-arm64-v0.20.0-beta.2-experimental.zip` is a self-contained,
   experimental Windows ARM64 build.
+- `YATSS-UNOQ-AppLab-v0.20.0-beta.2.zip` contains the experimental integrated
+  controller application for import into Arduino App Lab on an UNO Q.
 
 1. Verify the downloaded ZIP using its attached SHA-256 checksum.
 2. Extract the complete ZIP to a writable folder.
@@ -177,6 +179,7 @@ solution. The Windows application targets .NET 10 LTS.
 - [Building the ARM64 Wine and UNO Q packages on Linux](docs/LINUX_BUILD.md)
 - [Windows publish smoke test](docs/PUBLISH_SMOKE_TEST.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
+- [0.20 Beta 2 release notes](docs/RELEASE_0.20.0-beta.2.md)
 - [0.10 Beta 1 release notes](docs/RELEASE_0.10.0-beta.1.md)
 - [Project backlog](TODO.md)
 

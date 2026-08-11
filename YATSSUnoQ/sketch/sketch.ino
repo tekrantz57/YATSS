@@ -12,7 +12,7 @@ const unsigned long DefaultEdgeDebounceMillis = 1800;
 const unsigned long MaxEdgeDebounceMillis = 10000;
 const byte TrackPowerCutActiveLevel = HIGH;
 const char ControllerBoardProfile[] = "ARDUINO_UNO_Q_STM32U585";
-const char FirmwareVersion[] = "0.10.0-beta.1-dev";
+const char FirmwareVersion[] = "0.20.0-beta.2";
 
 static_assert((SensorQueueSize & SensorQueueMask) == 0,
               "SensorQueueSize must be a power of two");
