@@ -29,6 +29,8 @@ namespace YATSS
         private uint _demoStartTimestamp;
         private bool _demoClockActive;
         private System.Threading.Timer? _betweenHeatsTimer;
+        private System.Threading.Timer[] _betweenHeatsAnnouncementTimers = Array.Empty<System.Threading.Timer>();
+        private int _betweenHeatsVersion;
         private bool _betweenHeatsPaused;
         private DateTime? _nextHeatStartUtc;
         private DateTime? _lastControllerResponseUtc;
@@ -1687,6 +1689,7 @@ namespace YATSS
             CancelBetweenHeatsTimer();
             _betweenHeatsPaused = false;
             _nextHeatStartUtc = DateTime.UtcNow.AddSeconds(betweenHeatsSeconds);
+            int betweenHeatsVersion = Volatile.Read(ref _betweenHeatsVersion);
             PublishHeatRaceStatus("Intermission");
             _form.SetStatusMessage($"Heat {_heatRace.HeatNumber} complete. Next heat in {betweenHeatsSeconds} seconds. {StoppedAdjustmentHint}");
             _betweenHeatsTimer = new System.Threading.Timer(
@@ -1694,6 +1697,7 @@ namespace YATSS
                 null,
                 TimeSpan.FromSeconds(betweenHeatsSeconds),
                 Timeout.InfiniteTimeSpan);
+            ScheduleBetweenHeatsAnnouncements(betweenHeatsSeconds, betweenHeatsVersion);
         }
 
         private void StartNextHeatFromComplete(bool manualStart)
@@ -1719,10 +1723,70 @@ namespace YATSS
 
         private void CancelBetweenHeatsTimer()
         {
+            Interlocked.Increment(ref _betweenHeatsVersion);
             System.Threading.Timer? timer = Interlocked.Exchange(ref _betweenHeatsTimer, null);
             timer?.Dispose();
+            DisposeBetweenHeatsAnnouncementTimers();
             _nextHeatStartUtc = null;
             _betweenHeatsPaused = false;
+        }
+
+        internal static IReadOnlyList<(int RemainingSeconds, TimeSpan DueTime)> GetBetweenHeatsAnnouncements(
+            int betweenHeatsSeconds)
+        {
+            if (betweenHeatsSeconds < 60)
+            {
+                return Array.Empty<(int, TimeSpan)>();
+            }
+
+            return new[] { 60, 30, 15 }
+                .Select(remainingSeconds =>
+                    (remainingSeconds, TimeSpan.FromSeconds(betweenHeatsSeconds - remainingSeconds)))
+                .ToArray();
+        }
+
+        private void ScheduleBetweenHeatsAnnouncements(int betweenHeatsSeconds, int betweenHeatsVersion)
+        {
+            System.Threading.Timer[] timers = GetBetweenHeatsAnnouncements(betweenHeatsSeconds)
+                .Select(announcement => new System.Threading.Timer(
+                    _ => AnnounceBetweenHeatsTimeRemaining(
+                        announcement.RemainingSeconds,
+                        betweenHeatsVersion),
+                    null,
+                    announcement.DueTime,
+                    Timeout.InfiniteTimeSpan))
+                .ToArray();
+
+            System.Threading.Timer[] previous = Interlocked.Exchange(
+                ref _betweenHeatsAnnouncementTimers,
+                timers);
+            foreach (System.Threading.Timer timer in previous)
+            {
+                timer.Dispose();
+            }
+        }
+
+        private void AnnounceBetweenHeatsTimeRemaining(int remainingSeconds, int betweenHeatsVersion)
+        {
+            if (betweenHeatsVersion != Volatile.Read(ref _betweenHeatsVersion) ||
+                !_nextHeatStartUtc.HasValue)
+            {
+                return;
+            }
+
+            SpeechAnnouncer.SpeakAsync($"{remainingSeconds} seconds remaining", _form.SpeechVoiceName);
+            _log.Info($"intermission announcement: {remainingSeconds} seconds remaining");
+        }
+
+        private void DisposeBetweenHeatsAnnouncementTimers()
+        {
+            System.Threading.Timer[] timers = Interlocked.Exchange(
+                ref _betweenHeatsAnnouncementTimers,
+                Array.Empty<System.Threading.Timer>());
+            foreach (System.Threading.Timer timer in timers)
+            {
+                timer.Dispose();
+            }
         }
 
         private bool PauseBetweenHeats()
@@ -1733,7 +1797,9 @@ namespace YATSS
                 return false;
             }
 
+            Interlocked.Increment(ref _betweenHeatsVersion);
             timer.Dispose();
+            DisposeBetweenHeatsAnnouncementTimers();
             _nextHeatStartUtc = null;
             _betweenHeatsPaused = true;
             PublishHeatRaceStatus("Intermission paused");

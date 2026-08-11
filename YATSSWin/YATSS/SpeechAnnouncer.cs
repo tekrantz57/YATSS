@@ -61,19 +61,29 @@ namespace YATSS
         public static void SpeakCountdownAsync(
             string voiceName,
             Action<int> countdownStep,
-            Action? afterSpeech = null)
+            Action goStarted)
         {
             EnsureStarted();
             SpeechBackendMode mode = Enabled ? BackendMode : SpeechBackendMode.None;
             _requests?.Add(new SpeechRequest(
-                new[] { "3", "2", "1 Let's go" },
+                new[] { "3", "2", "1", "Let's go" },
                 voiceName,
                 mode,
                 TimeSpan.FromMilliseconds(500),
                 Rate: 3,
                 SilentCountdownDuration,
-                countdownStep,
-                afterSpeech));
+                phraseNumber =>
+                {
+                    if (phraseNumber <= 3)
+                    {
+                        countdownStep(phraseNumber);
+                    }
+                    else
+                    {
+                        goStarted();
+                    }
+                },
+                AfterSpeech: null));
         }
 
         private static void EnsureStarted()
@@ -125,11 +135,18 @@ namespace YATSS
                         }
 
                         string phrase = request.Phrases[i];
-                        if (backend != null && !string.IsNullOrWhiteSpace(phrase))
+                        if (backend != null)
                         {
                             try
                             {
-                                backend.Speak(phrase, request.VoiceName, request.Rate);
+                                if (string.IsNullOrWhiteSpace(phrase))
+                                {
+                                    backend.WarmUp(request.VoiceName);
+                                }
+                                else
+                                {
+                                    backend.Speak(phrase, request.VoiceName, request.Rate);
+                                }
                             }
                             catch
                             {

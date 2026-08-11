@@ -131,9 +131,13 @@ Heat race setup supports:
 
 Space starts a heat, pauses a running heat for a track call, and resumes a
 paused heat. Track power is cut immediately on track calls and restored after
-the synchronized start countdown. Voice announcements are enabled by default
+the synchronized start countdown. Track power and race timing start immediately
+before the separate "Let's go" announcement, so the audible start agrees with
+the physical start. Voice announcements are enabled by default
 and can be disabled in Configure; the same 1.5-second minimum countdown and
 visual start lights operate silently when speech is off or unavailable.
+Intermissions of at least one minute announce 60, 30, and 15 seconds remaining
+when voice announcements are enabled.
 The main status band shows a gold Space-bar prompt before the first heat and
 while paused, then changes to a countdown state after Space is pressed. During
 stoppage time, lap counts can be adjusted by lane.
@@ -202,9 +206,9 @@ Current persisted settings include:
 - Active lane count
 - Lane names and colors
 - Optional voice announcements, speech engine, and selected voice. Automatic
-  mode prefers Windows SAPI when it has voices, then tries the native Linux
-  helper when running under Wine. Disabled or unavailable speech retains the
-  visual 1.5-second minimum countdown.
+  mode prefers Windows SAPI when it has voices, then Piper, then the native
+  eSpeak NG helper. Disabled or unavailable speech retains the visual
+  1.5-second minimum countdown.
 - Sound on too-fast laps
 - Controller sensor debounce
 - Windows raw edge lockout
@@ -226,4 +230,5 @@ track power.
 
 See `..\docs\SERIAL_PROTOCOL.md` for the serial protocol and
 `..\docs\TROUBLESHOOTING.md` for Visual Studio and upload recovery notes. See
-`..\docs\LINUX_SPEECH.md` for native Linux speech setup under Wine.
+`..\docs\PIPER_SPEECH.md` for Piper setup and `..\docs\LINUX_SPEECH.md` for
+native Linux speech setup under Wine.

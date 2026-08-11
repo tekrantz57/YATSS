@@ -12,10 +12,24 @@ the in-app preview, with its Open in Browser command available as a fallback.
 Wine can expose the SAPI COM interface without providing a usable Windows
 voice. Use the packaged native Linux helper instead of copying Windows voice
 registry entries. Install `espeak-ng`, start `Linux/yatss-speech-helper.py` on
-the Linux host, and select `Automatic` or `Linux helper` in Configure.
+the Linux host, and select `Automatic` or `eSpeak NG helper` in Configure.
 
 See [Linux speech under Wine](LINUX_SPEECH.md) for setup, service installation,
 and diagnostics.
+
+## No Piper Voices Appear
+
+Installing `piper-tts` does not install a voice. Download both the `.onnx`
+model and `.onnx.json` configuration into YATSS's Piper voice directory. On
+native Windows, confirm that `python` starts the Python environment where Piper
+was installed. Under Wine, start the helper natively with `--engine piper
+--port 38592` before opening Configure.
+
+If Piper was installed with pipx, the system `python3` cannot import it. Run the
+helper with `$(pipx environment --value PIPX_LOCAL_VENVS)/piper-tts/bin/python`,
+or install Piper in a dedicated virtual environment as described in the guide.
+
+See [Piper speech](PIPER_SPEECH.md) for commands, directories, and overrides.
 
 ## ESP32-C5 UART Port Does Not Appear
 

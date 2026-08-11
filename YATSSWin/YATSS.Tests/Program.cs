@@ -15,6 +15,48 @@ static void Assert(bool condition, string message)
     }
 }
 
+bool originalSpeechEnabled = SpeechAnnouncer.Enabled;
+SpeechBackendMode originalSpeechBackend = SpeechAnnouncer.BackendMode;
+try
+{
+    List<int> countdownEvents = new();
+    using ManualResetEventSlim goStarted = new(false);
+    SpeechAnnouncer.Enabled = false;
+    SpeechAnnouncer.BackendMode = SpeechBackendMode.None;
+    SpeechAnnouncer.SpeakCountdownAsync(
+        "",
+        step => countdownEvents.Add(step),
+        () =>
+        {
+            countdownEvents.Add(4);
+            goStarted.Set();
+        });
+
+    Assert(goStarted.Wait(TimeSpan.FromSeconds(5)), "silent countdown should reach the start callback");
+    Assert(countdownEvents.SequenceEqual(new[] { 1, 2, 3, 4 }),
+        "countdown should show three lights before starting at Let's go");
+}
+finally
+{
+    SpeechAnnouncer.Enabled = originalSpeechEnabled;
+    SpeechAnnouncer.BackendMode = originalSpeechBackend;
+}
+
+Assert(Serial.GetBetweenHeatsAnnouncements(59).Count == 0,
+    "intermissions under one minute should not schedule time announcements");
+Assert(Serial.GetBetweenHeatsAnnouncements(60).SequenceEqual(new[]
+{
+    (60, TimeSpan.Zero),
+    (30, TimeSpan.FromSeconds(30)),
+    (15, TimeSpan.FromSeconds(45))
+}), "one-minute intermissions should announce at 60, 30, and 15 seconds remaining");
+Assert(Serial.GetBetweenHeatsAnnouncements(90).SequenceEqual(new[]
+{
+    (60, TimeSpan.FromSeconds(30)),
+    (30, TimeSpan.FromSeconds(60)),
+    (15, TimeSpan.FromSeconds(75))
+}), "longer intermissions should schedule announcements from their start time");
+
 string encodedEdge = LapProtocolParser.EncodeFrame("EDGE:3:42:12345");
 LapProtocolMessage edge = LapProtocolParser.Parse(encodedEdge);
 Assert(edge.Kind == LapProtocolMessageKind.Edge, "checksummed EDGE should parse");
@@ -87,7 +129,7 @@ using (TcpListener speechListener = new(IPAddress.Loopback, 0))
     int speechPort = ((IPEndPoint)speechListener.LocalEndpoint).Port;
     Task speechServer = Task.Run(async () =>
     {
-        for (int requestNumber = 0; requestNumber < 2; requestNumber++)
+        for (int requestNumber = 0; requestNumber < 4; requestNumber++)
         {
             using TcpClient connection = await speechListener.AcceptTcpClientAsync();
             using NetworkStream stream = connection.GetStream();
@@ -99,9 +141,19 @@ using (TcpListener speechListener = new(IPAddress.Loopback, 0))
             };
             using JsonDocument request = JsonDocument.Parse((await reader.ReadLineAsync())!);
             string command = request.RootElement.GetProperty("command").GetString()!;
-            if (command == "voices")
+            if (command == "ping")
+            {
+                await writer.WriteLineAsync("{\"ok\":true}");
+            }
+            else if (command == "voices")
             {
                 await writer.WriteLineAsync("{\"ok\":true,\"voices\":[\"en-us\",\"en-gb\"]}");
+            }
+            else if (command == "warmup")
+            {
+                Assert(request.RootElement.GetProperty("voice").GetString() == "en-us",
+                    "speech client should preserve the warm-up voice");
+                await writer.WriteLineAsync("{\"ok\":true}");
             }
             else
             {
@@ -113,11 +165,27 @@ using (TcpListener speechListener = new(IPAddress.Loopback, 0))
         }
     });
 
-    LinuxSpeechHelperClient speechClient = new(speechPort);
+    SpeechHelperClient speechClient = new(speechPort);
+    Assert(speechClient.Ping(), "speech client should ping a running helper");
     Assert(speechClient.GetVoices().SequenceEqual(new[] { "en-gb", "en-us" }),
         "Linux speech client should discover and sort helper voices");
+    speechClient.WarmUp("en-us");
     speechClient.Speak("Green flag", "en-us", 2);
     await speechServer;
+}
+
+if (string.Equals(
+        Environment.GetEnvironmentVariable("YATSS_TEST_PIPER"),
+        "1",
+        StringComparison.Ordinal))
+{
+    using PiperSpeechBackend piper = PiperSpeechBackend.TryCreate()
+        ?? throw new InvalidOperationException("Piper backend should start with an installed voice");
+    IReadOnlyList<string> voices = piper.GetVoices();
+    Assert(voices.Contains("en_US-lessac-medium", StringComparer.OrdinalIgnoreCase),
+        "Piper backend should discover the installed Lessac voice");
+    piper.WarmUp("en_US-lessac-medium");
+    piper.Speak("YATSS Piper integration test", "en_US-lessac-medium", null);
 }
 
 string firmwarePackageTestDirectory = Path.Combine(

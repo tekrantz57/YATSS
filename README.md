@@ -137,7 +137,7 @@ YATSSUnoQ/                          UNO Q MCU sketch and Linux Bridge app
 
 tools/
   Build-ControllerFirmware.ps1     reproducible firmware package builder
-  yatss-speech-helper.py            loopback eSpeak NG bridge for Wine
+  yatss-speech-helper.py            loopback eSpeak NG and Piper bridge
 
 docs/                              protocol, hardware, release, and test guides
 
@@ -172,6 +172,7 @@ solution. The Windows application targets .NET 10 LTS.
 - [Serial protocol](docs/SERIAL_PROTOCOL.md)
 - [Race reports and data exports](docs/RACE_DATA_EXPORT.md)
 - [Database backup and restore](docs/DATABASE_BACKUP.md)
+- [Piper speech on Windows and Linux](docs/PIPER_SPEECH.md)
 - [Linux speech under Wine](docs/LINUX_SPEECH.md)
 - [Building the ARM64 Wine and UNO Q packages on Linux](docs/LINUX_BUILD.md)
 - [Windows publish smoke test](docs/PUBLISH_SMOKE_TEST.md)

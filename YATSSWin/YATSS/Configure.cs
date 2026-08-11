@@ -85,7 +85,8 @@ namespace YATSS
             {
                 new SpeechBackendOption(SpeechBackendMode.Automatic, "Automatic"),
                 new SpeechBackendOption(SpeechBackendMode.WindowsSapi, "Windows SAPI"),
-                new SpeechBackendOption(SpeechBackendMode.LinuxHelper, "Linux helper"),
+                new SpeechBackendOption(SpeechBackendMode.Piper, "Piper"),
+                new SpeechBackendOption(SpeechBackendMode.LinuxHelper, "eSpeak NG helper"),
                 new SpeechBackendOption(SpeechBackendMode.None, "None")
             });
             cbSpeechBackend.SelectedItem = cbSpeechBackend.Items
@@ -142,12 +143,17 @@ namespace YATSS
         {
             cbSpeechVoice.Items.Clear();
             cbSpeechVoice.Items.Add("");
-            foreach (string voiceName in SpeechAnnouncer.GetInstalledVoices(GetSelectedSpeechBackend()))
+            IReadOnlyList<string> installedVoices =
+                SpeechAnnouncer.GetInstalledVoices(GetSelectedSpeechBackend());
+            foreach (string voiceName in installedVoices)
             {
                 cbSpeechVoice.Items.Add(voiceName);
             }
 
-            cbSpeechVoice.Text = selectedSpeechVoice;
+            cbSpeechVoice.Text = installedVoices.FirstOrDefault(voiceName =>
+                    string.Equals(voiceName, selectedSpeechVoice, StringComparison.OrdinalIgnoreCase))
+                ?? installedVoices.FirstOrDefault()
+                ?? "";
         }
 
         private void bOK_Click(object sender, EventArgs e)

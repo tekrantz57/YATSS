@@ -2,8 +2,8 @@
 
 YATSS can use native Linux text-to-speech while the unchanged Windows
 application runs under Wine. The Windows process connects to a small helper on
-TCP `127.0.0.1:38591`; the helper invokes `espeak-ng` and acknowledges each
-utterance after playback finishes.
+TCP `127.0.0.1:38591` for eSpeak NG or `127.0.0.1:38592` for Piper. The helper
+acknowledges each utterance after playback finishes.
 
 The helper listens only on the IPv4 loopback interface. It does not accept
 remote network connections, construct shell commands, or require root access.
@@ -13,9 +13,10 @@ remote network connections, construct shell commands, or require root access.
 Configure offers these engines:
 
 - `Automatic` uses Windows SAPI when at least one SAPI voice is installed. If
-  SAPI has no voices, it tries the Linux helper.
+  SAPI has no voices, it tries Piper and then the eSpeak NG helper.
 - `Windows SAPI` uses only the existing Windows COM speech implementation.
-- `Linux helper` uses only the loopback helper.
+- `Piper` uses only the Piper helper on port `38592`.
+- `eSpeak NG helper` uses only the loopback helper on port `38591`.
 - `None` disables speech. The visual start lights and protected countdown still
   operate.
 
@@ -51,7 +52,7 @@ The release publish directory includes the helper at
    ```
 
 4. Start YATSS under Wine. In Configure, leave the engine on `Automatic` or
-   select `Linux helper`. The voice list should contain eSpeak language codes
+   select `eSpeak NG helper`. The voice list should contain eSpeak language codes
    such as `en`, `en-gb`, and `en-us`.
 
 Keep the helper terminal open while YATSS is running. Stop it with `Ctrl+C`.
@@ -85,8 +86,9 @@ systemctl --user status yatss-speech-helper.service
 ## Operation And Failure Behavior
 
 Speech requests are serialized by YATSS. Countdown lamps are painted before
-the corresponding `3`, `2`, and `1` utterances. The Linux helper response is
-blocking, matching the existing SAPI behavior.
+the corresponding `3`, `2`, and `1` utterances. Track power is restored and
+race timing begins immediately before the separate `Let's go` announcement.
+The Linux helper response is blocking, matching the existing SAPI behavior.
 
 Native eSpeak NG announcements, voice selection, and the accelerated countdown
 have been exercised successfully with the ARM64 YATSS build under Wine on an
@@ -102,8 +104,11 @@ If no Linux voices appear:
 1. Verify that the helper terminal says it is listening on
    `127.0.0.1:38591`.
 2. Run `espeak-ng --voices` and confirm that it returns voices.
-3. Change the Configure engine away from `Linux helper` and back to refresh
+3. Change the Configure engine away from `eSpeak NG helper` and back to refresh
    discovery.
 4. Check the helper terminal for an error from eSpeak or the audio system.
 
 Only one helper may listen on port `38591` at a time.
+
+See [Piper speech](PIPER_SPEECH.md) for higher-quality native speech on Linux
+or Windows. Piper uses a separate port and can run alongside eSpeak NG.
