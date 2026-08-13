@@ -45,7 +45,7 @@ persisted locally. Serial traffic is logged under:
 App settings, lane configuration, and racer names are stored in:
 
 ```text
-%LOCALAPPDATA%\YATSS\laps.db
+%LOCALAPPDATA%\YATSS\YATSS.db
 ```
 
 The `Data` menu creates verified manual backups, restores verified backups with

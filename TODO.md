@@ -109,3 +109,20 @@
 - Evaluate input-expansion hardware before assigning pins. Eight lanes with
   three sensors per lane plus eight track-power outputs cannot all connect
   directly to the current ESP32-C6 GPIOs.
+
+## New lane-best lap sound
+
+- Add an optional, very brief sound effect when a racer improves the best valid
+  lap recorded in their current lane during the current heat.
+- Let the first completed timed lap establish the lane benchmark silently, then
+  play the sound only for subsequent improvements.
+- Reset each lane benchmark when racers rotate for the next heat. In Practice,
+  retain lane benchmarks until Practice is reset; in qualifying, reset the
+  benchmark for each racer's attempt.
+- Keep sound-effect playback independent from speech announcements and race
+  timing. Do not queue repeated effects when several lane-best laps arrive
+  together.
+- Add a separate `New lane-best sound` setting rather than tying the effect to
+  voice announcements or the existing too-fast-lap warning.
+- Select or create a short, unobtrusive sound asset before implementation. A
+  suitable WAV file has not yet been chosen.

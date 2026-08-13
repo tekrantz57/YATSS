@@ -8,8 +8,7 @@ separate ESP32.
 The Arduino Router remains enabled. The MCU sketch exchanges protocol messages
 with the Python side through Arduino Bridge RPC. Python publishes the YATSS
 controller protocol on TCP port 45991. This avoids asking Wine to treat a Linux
-pseudo-terminal as a physical serial device. A `yatss-unoq` pseudo-terminal is
-also created in the App Lab app directory for command-line diagnostics.
+device as a Windows serial port and requires no Wine COM-port mapping.
 
 ## Pin Map
 
@@ -71,13 +70,15 @@ No Wine COM-port mapping is needed. The serial log should report that the TCP
 controller connection opened and then show the controller identity and
 heartbeats.
 
-For a Linux-side diagnostic independent of YATSS, locate and read the optional
-pseudo-terminal:
+For a Linux-side diagnostic independent of YATSS, stop YATSS and connect
+directly to the controller TCP port:
 
 ```bash
-ENDPOINT=$(find /home/arduino/ArduinoApps -maxdepth 2 -name yatss-unoq -print -quit)
-timeout 10 cat "$ENDPOINT"
+timeout 10 nc 127.0.0.1 45991
 ```
+
+The command should display one heartbeat per second. The listener supports one
+client, so running this check replaces an existing YATSS connection.
 
 ## App Lab Runtime Lifecycle
 
@@ -152,3 +153,14 @@ and YATSS lap-processing path. Before track installation, validate lanes 2-8
 and all outputs in Controller Diagnostics and bench-test the watchdog and relay
 polarity. Include high-speed sensor testing while the status matrix is enabled
 to confirm that its refresh interrupt does not affect edge capture.
+
+The Linux bridge catches and reports transient RouterBridge, accept, and client
+socket errors so one failed operation cannot stop the App Lab forwarding loop.
+YATSS also recognizes Wine's `0x274c` wrapping of a normal TCP read timeout and
+uses its ping/reconnect health check instead of reopening the connection after
+every quiet interval.
+
+An earlier compatibility PTY was removed after its unread output buffer filled
+with heartbeats and blocked the RouterBridge callback after approximately 1,024
+seconds. The TCP listener remained visible but inert. The TCP-only bridge passed
+a subsequent soak test of more than one hour without recurrence.

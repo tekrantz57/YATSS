@@ -3,13 +3,16 @@
 YATSS stores local configuration and racer names in:
 
 ```text
-%LOCALAPPDATA%\YATSS\laps.db
+%LOCALAPPDATA%\YATSS\YATSS.db
 ```
 
 Race reports and JSON/CSV race archives are separate files under Documents and
-are not contained in this database. Backing up `laps.db` preserves settings,
+are not contained in this database. Backing up `YATSS.db` preserves settings,
 lane configuration, controller configuration, racer names, and saved setup
 values.
+
+If an earlier beta created `laps.db`, YATSS renames it to `YATSS.db` on the
+next startup without changing its contents.
 
 ## Data Menu
 

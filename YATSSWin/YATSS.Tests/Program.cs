@@ -874,6 +874,8 @@ string databaseTestDirectory = Path.Combine(
     Path.GetTempPath(),
     "YATSS.Tests",
     Guid.NewGuid().ToString("N"));
+string legacyDatabasePath = Path.Combine(databaseTestDirectory, "laps.db");
+string renamedDatabasePath = Path.Combine(databaseTestDirectory, "YATSS.db");
 string testDatabasePath = Path.Combine(databaseTestDirectory, "active.db");
 string testBackupPath = Path.Combine(databaseTestDirectory, "manual-backup.db");
 string testSafetyPath = Path.Combine(databaseTestDirectory, "before-restore.db");
@@ -881,6 +883,28 @@ string testAutomaticDirectory = Path.Combine(databaseTestDirectory, "Automatic")
 try
 {
     Directory.CreateDirectory(databaseTestDirectory);
+    File.WriteAllText(legacyDatabasePath, "legacy database");
+    File.WriteAllText(legacyDatabasePath + "-wal", "legacy write-ahead log");
+    File.WriteAllText(legacyDatabasePath + "-shm", "legacy shared memory");
+    Assert(
+        DatabaseFileMigration.MoveLegacyDatabase(legacyDatabasePath, renamedDatabasePath) ==
+            Path.GetFullPath(renamedDatabasePath),
+        "legacy database migration should return the YATSS database path");
+    Assert(
+        File.ReadAllText(renamedDatabasePath) == "legacy database" &&
+        File.ReadAllText(renamedDatabasePath + "-wal") == "legacy write-ahead log" &&
+        File.ReadAllText(renamedDatabasePath + "-shm") == "legacy shared memory" &&
+        !File.Exists(legacyDatabasePath),
+        "legacy database migration should rename the database and its SQLite sidecars");
+
+    File.WriteAllText(legacyDatabasePath, "second legacy database");
+    Assert(
+        DatabaseFileMigration.MoveLegacyDatabase(legacyDatabasePath, renamedDatabasePath) ==
+            Path.GetFullPath(renamedDatabasePath) &&
+        File.ReadAllText(renamedDatabasePath) == "legacy database" &&
+        File.ReadAllText(legacyDatabasePath) == "second legacy database",
+        "legacy database migration should never replace an existing YATSS database");
+
     DatabaseMaintenance maintenance = new(
         testDatabasePath,
         testAutomaticDirectory,
@@ -1053,6 +1077,18 @@ Assert(
 Assert(
     BuildIdentity.Normalize(null, "0.20.0-beta.2+metadata") == "v0.20.0-beta.2",
     "a source archive build should fall back to the project version");
+Assert(
+    TcpControllerConnection.IsReadTimeout(
+        new IOException("wrapped timeout", new SocketException(10060))),
+    "TCP connection should recognize a wrapped WSAETIMEDOUT socket error");
+Assert(
+    TcpControllerConnection.IsReadTimeout(
+        new IOException("Unable to read data: Unknown error (0x274c).")),
+    "TCP connection should recognize Wine's text-only WSAETIMEDOUT error");
+Assert(
+    !TcpControllerConnection.IsReadTimeout(
+        new IOException("connection reset", new SocketException(10054))),
+    "TCP connection should not classify a reset connection as a timeout");
 
 QualifyingController trackCallQualifying = new();
 trackCallQualifying.Configure(new[] { "Track Call" }, laneIndex: 0, durationSeconds: 30);

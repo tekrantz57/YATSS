@@ -65,7 +65,7 @@ Record each item as pass or fail:
 On first launch, YATSS should create:
 
 ```text
-%LOCALAPPDATA%\YATSS\laps.db
+%LOCALAPPDATA%\YATSS\YATSS.db
 %LOCALAPPDATA%\YATSS\logs\
 ```
 

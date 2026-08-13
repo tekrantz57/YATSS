@@ -26,6 +26,7 @@ namespace YATSS
             Shown += (_, _) =>
             {
                 RefreshLog(force: true);
+                BeginInvoke(ScrollToEnd);
                 _refreshTimer.Start();
             };
             FormClosed += (_, _) => _refreshTimer.Stop();
@@ -70,9 +71,20 @@ namespace YATSS
             }
 
             _logTextBox.Text = text;
-            _logTextBox.SelectionStart = _logTextBox.TextLength;
-            _logTextBox.ScrollToCaret();
+            ScrollToEnd();
             Text = "Serial Log Tail";
+        }
+
+        private void ScrollToEnd()
+        {
+            if (IsDisposed || _logTextBox.IsDisposed)
+            {
+                return;
+            }
+
+            _logTextBox.SelectionStart = _logTextBox.TextLength;
+            _logTextBox.SelectionLength = 0;
+            _logTextBox.ScrollToCaret();
         }
 
         private bool IsScrolledToEnd()
@@ -82,13 +94,22 @@ namespace YATSS
                 return true;
             }
 
-            int firstVisibleLine = SendMessage(_logTextBox.Handle, EmGetFirstVisibleLine, 0, 0);
+            int firstVisibleLine = unchecked((int)SendMessage(
+                _logTextBox.Handle,
+                EmGetFirstVisibleLine,
+                IntPtr.Zero,
+                IntPtr.Zero));
+            if (firstVisibleLine < 0)
+            {
+                return true;
+            }
+
             int visibleLines = Math.Max(1, _logTextBox.ClientSize.Height / _logTextBox.Font.Height);
             int lastLine = _logTextBox.GetLineFromCharIndex(_logTextBox.TextLength);
-            return firstVisibleLine + visibleLines >= lastLine;
+            return firstVisibleLine + visibleLines + 1 >= lastLine;
         }
 
         [System.Runtime.InteropServices.DllImport("user32.dll")]
-        private static extern int SendMessage(IntPtr hWnd, int msg, int wParam, int lParam);
+        private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
     }
 }

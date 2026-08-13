@@ -1247,6 +1247,10 @@ namespace YATSS
             }
 
             SetFontSizeToFit(titleLabel, titleLabel.Height * 0.4f);
+            if (PlatformEnvironment.IsWine)
+            {
+                SetFontSize(titleLabel, titleLabel.Font.Size - 2f);
+            }
         }
 
         private void ConfigureHeatStatusLayout()

@@ -22,10 +22,12 @@ namespace YATSS
         public const int DefaultSensorDebounceMilliseconds = 1800;
         public const int DefaultRawSensorLockoutMilliseconds = 0;
         private static readonly object SyncRoot = new();
-        public static string DatabasePath { get; } = Path.Combine(
+        private static readonly string DatabaseDirectory = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "YATSS",
-            "laps.db");
+            "YATSS");
+        public static string DatabasePath { get; } = DatabaseFileMigration.MoveLegacyDatabase(
+            Path.Combine(DatabaseDirectory, "laps.db"),
+            Path.Combine(DatabaseDirectory, "YATSS.db"));
         private static readonly string AutomaticBackupDirectory = Path.Combine(
             GetDefaultBackupDirectory(),
             "Automatic");

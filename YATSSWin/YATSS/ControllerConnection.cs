@@ -65,8 +65,33 @@ namespace YATSS
 
         public bool IsOpen => !_closed && _client.Connected;
 
-        public string ReadLine() =>
-            _reader.ReadLine() ?? throw new IOException("Controller TCP connection closed.");
+        public string ReadLine()
+        {
+            try
+            {
+                return _reader.ReadLine() ?? throw new IOException("Controller TCP connection closed.");
+            }
+            catch (IOException ex) when (IsReadTimeout(ex))
+            {
+                throw new TimeoutException("Controller TCP read timed out.", ex);
+            }
+        }
+
+        internal static bool IsReadTimeout(Exception exception)
+        {
+            for (Exception? current = exception; current != null; current = current.InnerException)
+            {
+                if (current is SocketException socketException &&
+                    (socketException.SocketErrorCode == SocketError.TimedOut ||
+                     socketException.NativeErrorCode == 10060))
+                {
+                    return true;
+                }
+            }
+
+            // Wine may discard the nested SocketException while retaining WSAETIMEDOUT.
+            return exception.Message.Contains("0x274c", StringComparison.OrdinalIgnoreCase);
+        }
 
         public void WriteLine(string value) => _writer.WriteLine(value);
         public void DiscardBuffers() { }
