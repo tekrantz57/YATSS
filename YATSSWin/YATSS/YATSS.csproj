@@ -40,6 +40,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Assets\Sounds\lane-best.wav" LogicalName="YATSS.Assets.Sounds.lane-best.wav" />
+    <EmbeddedResource Include="Assets\Sounds\heat-best.wav" LogicalName="YATSS.Assets.Sounds.heat-best.wav" />
     <Content Include="..\..\YATSSMC\dist\*.yatssfw">
       <Link>Firmware\%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

@@ -40,6 +40,7 @@ namespace YATSS
         public string port = "";
         public int MinLapMilliseconds { get; private set; } = LapRaceOptions.Default.MinLapMilliseconds;
         public bool SoundOnTooFastLap { get; private set; } = true;
+        public bool LapBestSoundsEnabled { get; private set; } = true;
         public bool VoiceAnnouncementsEnabled { get; private set; } = true;
         public string SpeechVoiceName { get; private set; } = "";
         public SpeechBackendMode SpeechBackend { get; private set; } = SpeechBackendMode.Automatic;
@@ -83,12 +84,14 @@ namespace YATSS
             AppSettings settings = AppDatabase.LoadAppSettings(new AppSettings(
                 MinLapMilliseconds,
                 SoundOnTooFastLap,
+                LapBestSoundsEnabled,
                 VoiceAnnouncementsEnabled,
                 SpeechVoiceName,
                 SpeechBackend,
                 ActiveLaneCount));
             MinLapMilliseconds = Math.Clamp(settings.MinLapMilliseconds, 100, 60000);
             SoundOnTooFastLap = settings.SoundOnTooFastLap;
+            LapBestSoundsEnabled = settings.LapBestSoundsEnabled;
             VoiceAnnouncementsEnabled = settings.VoiceAnnouncementsEnabled;
             SpeechVoiceName = settings.SpeechVoiceName;
             SpeechBackend = settings.SpeechBackend;
@@ -1713,6 +1716,7 @@ namespace YATSS
             using Configure config = new Configure(
                 MinLapMilliseconds,
                 SoundOnTooFastLap,
+                LapBestSoundsEnabled,
                 port,
                 VoiceAnnouncementsEnabled,
                 SpeechVoiceName,
@@ -1728,6 +1732,7 @@ namespace YATSS
             {
                 MinLapMilliseconds = config.MinLapMilliseconds;
                 SoundOnTooFastLap = config.SoundOnTooFastLap;
+                LapBestSoundsEnabled = config.LapBestSoundsEnabled;
                 VoiceAnnouncementsEnabled = config.VoiceAnnouncementsEnabled;
                 SpeechVoiceName = config.SelectedSpeechVoice;
                 SpeechBackend = config.SelectedSpeechBackend;
@@ -1743,6 +1748,7 @@ namespace YATSS
                 AppDatabase.SaveAppSettings(new AppSettings(
                     MinLapMilliseconds,
                     SoundOnTooFastLap,
+                    LapBestSoundsEnabled,
                     VoiceAnnouncementsEnabled,
                     SpeechVoiceName,
                     SpeechBackend,

@@ -50,6 +50,7 @@ Record each item as pass or fail:
   without clipping at 100%, 125%, and 150% display scaling.
 - [ ] The timing board and status-strip layout have consistent borders.
 - [ ] Configure opens without an error.
+- [ ] Lap-best sounds can be disabled and remain disabled after restarting.
 - [ ] Voice announcements can be disabled and remain disabled after restarting.
 - [ ] With voice disabled, starting and resuming still show synchronized start
   lights and wait through the silent 1.5-second minimum countdown before
@@ -90,6 +91,8 @@ Then:
 Verify:
 
 - [ ] Lap counts, last lap, best lap, median, and speed update normally.
+- [ ] The first eligible timed lap of a heat plays two pips, later overall
+  heat-best laps also play two pips, and other lane-best improvements play one.
 - [ ] Ordinary accepted laps do not replace the bottom status message.
 - [ ] Demo lanes do not produce false missed-frame warnings.
 - [ ] Practice and Heat Race never show radio marks at the same time.

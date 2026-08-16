@@ -512,6 +512,37 @@ Assert(counted.Kind == LapUpdateKind.Counted, "valid edge should count lap");
 Assert(counted.LapMilliseconds == 2500, "lap duration should be computed from last accepted edge");
 Assert(race.GetLane(0).getCount() == 1, "lane should have one counted lap");
 
+LapRace bestSoundRace = new(new LapRaceOptions(1000, 600000, 155.0));
+bestSoundRace.Process(new LapEdge(0, 1, 1000));
+LapUpdate firstBest = bestSoundRace.Process(new LapEdge(0, 2, 3500));
+Assert(firstBest.FastestLapEligible, "first timed lap should establish a fastest-lap benchmark");
+Assert(!firstBest.ImprovedLaneBest, "first timed lap should establish its benchmark silently");
+LapUpdate improvedBest = bestSoundRace.Process(new LapEdge(0, 3, 5800));
+Assert(improvedBest.ImprovedLaneBest, "a strictly faster eligible lap should improve the lane benchmark");
+Assert(
+    LapBestSoundDecision.Select(true, firstBest, heatRunning: false, null) == LapBestSoundKind.None,
+    "the first practice benchmark should be silent");
+Assert(
+    LapBestSoundDecision.Select(true, firstBest, heatRunning: true, null) == LapBestSoundKind.Heat,
+    "the first eligible heat lap should establish the overall best with two pips");
+Assert(
+    LapBestSoundDecision.Select(true, improvedBest, heatRunning: false, null) == LapBestSoundKind.Lane,
+    "a practice lane improvement should select the single pip");
+Assert(
+    LapBestSoundDecision.Select(true, firstBest, heatRunning: true, 2600) == LapBestSoundKind.Heat,
+    "a lane's first lap should select the heat sound when it improves an established heat best");
+Assert(
+    LapBestSoundDecision.Select(true, improvedBest, heatRunning: true, 2400) == LapBestSoundKind.Heat,
+    "an overall heat improvement should take precedence over the lane sound");
+Assert(
+    LapBestSoundDecision.Select(false, improvedBest, heatRunning: true, 2400) == LapBestSoundKind.None,
+    "disabled lap-best sounds should remain silent");
+string[] embeddedResources = typeof(LapBestSoundPlayer).Assembly.GetManifestResourceNames();
+Assert(
+    embeddedResources.Contains("YATSS.Assets.Sounds.lane-best.wav") &&
+    embeddedResources.Contains("YATSS.Assets.Sounds.heat-best.wav"),
+    "lap-best WAV files should be embedded in the application");
+
 LapRace rawLockoutRace = new(new LapRaceOptions(1000, 600000, 155.0, RawSensorLockoutMilliseconds: 500));
 Assert(rawLockoutRace.Process(new LapEdge(0, 1, 1000)).Kind == LapUpdateKind.Started, "raw lockout race should start");
 LapUpdate rawIgnored = rawLockoutRace.Process(new LapEdge(0, 2, 1300));

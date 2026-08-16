@@ -29,6 +29,7 @@ namespace YATSS
         private void InitializeComponent()
         {
             groupBox3 = new GroupBox();
+            cbLapBestSounds = new CheckBox();
             cbSoundOnTooFastLap = new CheckBox();
             sensorDebounceLabel = new Label();
             nudSensorDebounceMilliseconds = new NumericUpDown();
@@ -70,6 +71,7 @@ namespace YATSS
             //
             // groupBox3
             //
+            groupBox3.Controls.Add(cbLapBestSounds);
             groupBox3.Controls.Add(cbSoundOnTooFastLap);
             groupBox3.Controls.Add(sensorDebounceLabel);
             groupBox3.Controls.Add(nudSensorDebounceMilliseconds);
@@ -79,10 +81,20 @@ namespace YATSS
             groupBox3.Controls.Add(nudMinLapMilliseconds);
             groupBox3.Location = new Point(12, 12);
             groupBox3.Name = "groupBox3";
-            groupBox3.Size = new Size(399, 139);
+            groupBox3.Size = new Size(399, 161);
             groupBox3.TabIndex = 0;
             groupBox3.TabStop = false;
             groupBox3.Text = "Lap Timing";
+            //
+            // cbLapBestSounds
+            //
+            cbLapBestSounds.AutoSize = true;
+            cbLapBestSounds.Location = new Point(11, 133);
+            cbLapBestSounds.Name = "cbLapBestSounds";
+            cbLapBestSounds.Size = new Size(188, 19);
+            cbLapBestSounds.TabIndex = 8;
+            cbLapBestSounds.Text = "Play lane and heat-best sounds";
+            cbLapBestSounds.UseVisualStyleBackColor = true;
             //
             // cbSoundOnTooFastLap
             //
@@ -154,7 +166,7 @@ namespace YATSS
             // groupBox4
             //
             groupBox4.Controls.Add(cbSerialPort);
-            groupBox4.Location = new Point(12, 164);
+            groupBox4.Location = new Point(12, 186);
             groupBox4.Name = "groupBox4";
             groupBox4.Size = new Size(399, 53);
             groupBox4.TabIndex = 1;
@@ -176,7 +188,7 @@ namespace YATSS
             groupBox5.Controls.Add(cbSpeechBackend);
             groupBox5.Controls.Add(speechVoiceLabel);
             groupBox5.Controls.Add(cbSpeechVoice);
-            groupBox5.Location = new Point(12, 230);
+            groupBox5.Location = new Point(12, 252);
             groupBox5.Name = "groupBox5";
             groupBox5.Size = new Size(399, 105);
             groupBox5.TabIndex = 2;
@@ -235,7 +247,7 @@ namespace YATSS
             groupBoxTrack.Controls.Add(nudActiveLaneCount);
             groupBoxTrack.Controls.Add(trackLengthLabel);
             groupBoxTrack.Controls.Add(nudTrackLengthFeet);
-            groupBoxTrack.Location = new Point(12, 348);
+            groupBoxTrack.Location = new Point(12, 370);
             groupBoxTrack.Name = "groupBoxTrack";
             groupBoxTrack.Size = new Size(399, 53);
             groupBoxTrack.TabIndex = 3;
@@ -286,7 +298,7 @@ namespace YATSS
             //
             groupBoxRaceReports.Controls.Add(cbExportRaceJson);
             groupBoxRaceReports.Controls.Add(cbExportRaceCsv);
-            groupBoxRaceReports.Location = new Point(12, 414);
+            groupBoxRaceReports.Location = new Point(12, 436);
             groupBoxRaceReports.Name = "groupBoxRaceReports";
             groupBoxRaceReports.Size = new Size(399, 53);
             groupBoxRaceReports.TabIndex = 4;
@@ -315,7 +327,7 @@ namespace YATSS
             //
             // groupBoxLaneColors
             //
-            groupBoxLaneColors.Location = new Point(12, 480);
+            groupBoxLaneColors.Location = new Point(12, 502);
             groupBoxLaneColors.Name = "groupBoxLaneColors";
             groupBoxLaneColors.Size = new Size(399, 174);
             groupBoxLaneColors.TabIndex = 5;
@@ -324,7 +336,7 @@ namespace YATSS
             //
             // bOK
             //
-            bOK.Location = new Point(255, 672);
+            bOK.Location = new Point(255, 694);
             bOK.Name = "bOK";
             bOK.Size = new Size(75, 23);
             bOK.TabIndex = 6;
@@ -334,7 +346,7 @@ namespace YATSS
             //
             // bCancel
             //
-            bCancel.Location = new Point(336, 672);
+            bCancel.Location = new Point(336, 694);
             bCancel.Name = "bCancel";
             bCancel.Size = new Size(75, 23);
             bCancel.TabIndex = 7;
@@ -348,7 +360,7 @@ namespace YATSS
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             CancelButton = bCancel;
-            ClientSize = new Size(428, 711);
+            ClientSize = new Size(428, 733);
             Controls.Add(bCancel);
             Controls.Add(bOK);
             Controls.Add(groupBox5);
@@ -384,6 +396,7 @@ namespace YATSS
         #endregion
 
         private GroupBox groupBox3;
+        private CheckBox cbLapBestSounds;
         private CheckBox cbSoundOnTooFastLap;
         private Label sensorDebounceLabel;
         private NumericUpDown nudSensorDebounceMilliseconds;

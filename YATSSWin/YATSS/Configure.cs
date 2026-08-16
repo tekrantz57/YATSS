@@ -6,6 +6,7 @@ namespace YATSS
     {
         public int MinLapMilliseconds { get; private set; }
         public bool SoundOnTooFastLap { get; private set; }
+        public bool LapBestSoundsEnabled { get; private set; }
         public bool VoiceAnnouncementsEnabled { get; private set; }
         public string SelectedPort { get; private set; } = "";
         public string SelectedSpeechVoice { get; private set; } = "";
@@ -26,6 +27,7 @@ namespace YATSS
         public Configure(
             int minLapMilliseconds,
             bool soundOnTooFastLap,
+            bool lapBestSoundsEnabled,
             string selectedPort,
             bool voiceAnnouncementsEnabled,
             string selectedSpeechVoice,
@@ -41,6 +43,7 @@ namespace YATSS
             InitializeComponent();
             MinLapMilliseconds = minLapMilliseconds;
             SoundOnTooFastLap = soundOnTooFastLap;
+            LapBestSoundsEnabled = lapBestSoundsEnabled;
             VoiceAnnouncementsEnabled = voiceAnnouncementsEnabled;
             SelectedPort = selectedPort;
             SelectedSpeechVoice = selectedSpeechVoice;
@@ -56,6 +59,7 @@ namespace YATSS
             nudSensorDebounceMilliseconds.Value = Math.Clamp(sensorDebounceMilliseconds, (int)nudSensorDebounceMilliseconds.Minimum, (int)nudSensorDebounceMilliseconds.Maximum);
             nudRawSensorLockoutMilliseconds.Value = Math.Clamp(rawSensorLockoutMilliseconds, (int)nudRawSensorLockoutMilliseconds.Minimum, (int)nudRawSensorLockoutMilliseconds.Maximum);
             cbSoundOnTooFastLap.Checked = soundOnTooFastLap;
+            cbLapBestSounds.Checked = lapBestSoundsEnabled;
             cbVoiceAnnouncements.Checked = voiceAnnouncementsEnabled;
             cbExportRaceJson.Checked = exportRaceJson;
             cbExportRaceCsv.Checked = exportRaceCsv;
@@ -160,6 +164,7 @@ namespace YATSS
         {
             MinLapMilliseconds = (int)nudMinLapMilliseconds.Value;
             SoundOnTooFastLap = cbSoundOnTooFastLap.Checked;
+            LapBestSoundsEnabled = cbLapBestSounds.Checked;
             VoiceAnnouncementsEnabled = cbVoiceAnnouncements.Checked;
             SelectedPort = cbSerialPort.Text.Trim();
             SelectedSpeechVoice = cbSpeechVoice.Text.Trim();

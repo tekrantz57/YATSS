@@ -14,6 +14,7 @@ namespace YATSS
         private readonly QualifyingController _qualifying = new();
         private readonly SerialLog _log = new();
         private readonly DemoLapTiming _demoLapTiming = new();
+        private readonly LapBestSoundPlayer? _lapBestSoundPlayer = LapBestSoundPlayer.TryCreate();
         private readonly RaceReportService _raceReports;
         private readonly CancellationTokenSource _stop = new();
         private readonly object _portGate = new();
@@ -98,7 +99,8 @@ namespace YATSS
                 $"track length set to {_form.TrackLengthFeet:0.##} ft; " +
                 $"controller debounce set to {_form.SensorDebounceMilliseconds} ms; " +
                 $"Windows raw edge lockout set to {_form.RawSensorLockoutMilliseconds} ms; " +
-                $"sound on too-fast laps is {_form.SoundOnTooFastLap}");
+                $"sound on too-fast laps is {_form.SoundOnTooFastLap}; " +
+                $"lap-best sounds are {_form.LapBestSoundsEnabled}");
             if (_heatRace.State == HeatRaceState.Practice && IsPortOpen())
             {
                 WriteLine(GetSensorDebounceCommand());
@@ -1400,6 +1402,7 @@ namespace YATSS
             }
 
             LapUpdate update;
+            int? previousHeatBest = null;
             if (_heatRace.State == HeatRaceState.Practice)
             {
                 update = _race.Process(edge);
@@ -1413,6 +1416,8 @@ namespace YATSS
                     return;
                 }
 
+                previousHeatBest = GetCurrentBestLapMilliseconds();
+
                 update = _race.Process(
                     heatDecision.Edge,
                     heatDecision.CountFirstEdgeAsLap,
@@ -1420,7 +1425,7 @@ namespace YATSS
                     heatDecision.FirstLapMilliseconds);
             }
 
-            PublishLapUpdate(edge, update);
+            PublishLapUpdate(edge, update, previousHeatBest);
         }
 
         private void HandleQualifyingEdge(LapEdge edge)
@@ -1440,7 +1445,10 @@ namespace YATSS
             PublishLapUpdate(edge, _race.Process(_qualifying.AdjustEdgeTimestamp(edge)));
         }
 
-        private void PublishLapUpdate(LapEdge edge, LapUpdate update)
+        private void PublishLapUpdate(
+            LapEdge edge,
+            LapUpdate update,
+            int? previousHeatBestMilliseconds = null)
         {
             if (update.Kind == LapUpdateKind.RawIgnored)
             {
@@ -1491,11 +1499,24 @@ namespace YATSS
             string medianSeconds = FormatOptionalSeconds(lane.getMedian());
             _form.UpdateLaneDisplay(laneIndex, lane.getCount(), lapSeconds, bestSeconds, medianSeconds);
 
+            LapBestSoundKind lapBestSound = LapBestSoundDecision.Select(
+                _form.LapBestSoundsEnabled,
+                update,
+                _heatRace.State == HeatRaceState.Running,
+                previousHeatBestMilliseconds);
+            _lapBestSoundPlayer?.Play(lapBestSound);
+
             _log.Info($"lane {laneIndex}: lap {lapSeconds}s, count {lane.getCount()}, {update.Detail}");
             if (update.Kind == LapUpdateKind.MissedFrame)
             {
                 _form.SetStatusMessage($"Lane {laneIndex + 1}: {update.Detail}");
             }
+        }
+
+        private int? GetCurrentBestLapMilliseconds()
+        {
+            int?[] bestLaps = _race.GetBestLapMilliseconds();
+            return bestLaps.Where(value => value.HasValue).Min();
         }
 
         private uint GetControllerTimestamp()
@@ -2020,6 +2041,7 @@ namespace YATSS
 
             CloseActivePort();
 
+            _lapBestSoundPlayer?.Dispose();
             _stop.Dispose();
         }
 

@@ -25,7 +25,9 @@ namespace YATSS
         int LaneIndex,
         int? LapMilliseconds,
         int MissedFrames,
-        string Detail);
+        string Detail,
+        bool FastestLapEligible = false,
+        bool ImprovedLaneBest = false);
 
     public sealed record LapRaceLaneSnapshot(
         int LaneIndex,
@@ -223,6 +225,7 @@ namespace YATSS
 
                 int lapMilliseconds = (int)elapsed;
                 lane.LastAcceptedTimestamp = edge.TimestampMillis;
+                int previousBest = lane.Stats.best_time;
                 lane.Stats.AddLap(lapMilliseconds, fastestLapEligible, edge.TimestampMillis);
 
                 return new LapUpdate(
@@ -230,7 +233,11 @@ namespace YATSS
                     edge.LaneIndex,
                     lapMilliseconds,
                     lane.MissedFrames,
-                    GetCountedDetail(missedFrames, fastestLapEligible));
+                    GetCountedDetail(missedFrames, fastestLapEligible),
+                    fastestLapEligible,
+                    fastestLapEligible &&
+                        previousBest != int.MaxValue &&
+                        lapMilliseconds < previousBest);
             }
         }
 

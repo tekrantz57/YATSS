@@ -117,6 +117,16 @@ The first edge on a lane establishes the baseline. The board shows `0` laps
 after the baseline and keeps timing fields blank until a real counted lap is
 available.
 
+Lap-best sounds are enabled by default and are independent of voice
+announcements and the ignored-lap warning. A lane's first eligible timed lap
+establishes its lane benchmark silently. A later strict lane improvement plays
+one pip. During a running heat, the first eligible timed lap establishes the
+overall heat best with two pips; every later lap that beats it also plays the
+two-pip signal instead of the lane signal. Heat benchmarks reset when racers
+rotate, Practice benchmarks remain until Practice or the lane is reset, and
+qualifying benchmarks reset for each racer. Closely spaced signals are
+coalesced rather than queued; a heat-best signal takes priority.
+
 ## Heat Race Mode
 
 Heat race setup supports:
@@ -210,6 +220,7 @@ Current persisted settings include:
   eSpeak NG helper. Disabled or unavailable speech retains the visual
   1.5-second minimum countdown.
 - Sound on too-fast laps
+- Lane-best and overall heat-best lap sounds
 - Controller sensor debounce
 - Windows raw edge lockout
 
