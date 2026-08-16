@@ -15,6 +15,27 @@ namespace YATSS
         private readonly string _databasePath;
         private readonly string _automaticBackupDirectory;
         private readonly int _currentSchemaVersion;
+        private static readonly DatabaseTableRequirement LegacyUserTable =
+            new("users", ["name"]);
+        private static readonly DatabaseTableRequirement[] SchemaOneRequirements =
+        [
+            LegacyUserTable,
+            new("comports", ["name"]),
+            new("heat_race_settings", ["id", "heat_length_minutes", "between_heats_seconds"]),
+            new("app_settings", [
+                "id",
+                "min_lap_milliseconds",
+                "sound_on_too_fast_lap",
+                "speech_voice_name",
+                "active_lane_count"
+            ]),
+            new("lane_settings", ["lane_index", "display_name", "color_argb"]),
+            new("race_report_settings", ["id", "export_json", "export_csv"]),
+            new("heat_race_identity", ["id", "race_name"]),
+            new("track_configuration", ["id", "track_length_feet"]),
+            new("qualifying_settings", ["id", "lane_index", "duration_seconds"]),
+            new("controller_settings", ["id", "debounce_milliseconds"])
+        ];
 
         public DatabaseMaintenance(
             string databasePath,
@@ -227,10 +248,11 @@ namespace YATSS
                 }
             }
 
+            int version;
             using (SqliteCommand versionCommand = connection.CreateCommand())
             {
                 versionCommand.CommandText = "PRAGMA user_version;";
-                int version = Convert.ToInt32(
+                version = Convert.ToInt32(
                     versionCommand.ExecuteScalar(),
                     CultureInfo.InvariantCulture);
                 if (version > _currentSchemaVersion ||
@@ -241,6 +263,8 @@ namespace YATSS
                         $"YATSS requires version {_currentSchemaVersion}.");
                 }
             }
+
+            ValidateRequiredSchema(connection, version);
 
             using (SqliteCommand foreignKeyCommand = connection.CreateCommand())
             {
@@ -271,6 +295,90 @@ namespace YATSS
 
             return new DatabaseBackupResult(reportedPath, racerCount);
         }
+
+        private static void ValidateRequiredSchema(SqliteConnection connection, int schemaVersion)
+        {
+            foreach (DatabaseTableRequirement requirement in GetRequiredSchema(schemaVersion))
+            {
+                HashSet<string>? columns = GetTableColumns(connection, requirement.TableName);
+                if (columns is null)
+                {
+                    throw new InvalidDataException(
+                        $"The database is missing required table '{requirement.TableName}'.");
+                }
+
+                string[] missingColumns = requirement.Columns
+                    .Where(column => !columns.Contains(column))
+                    .ToArray();
+                if (missingColumns.Length > 0)
+                {
+                    throw new InvalidDataException(
+                        $"The database table '{requirement.TableName}' is missing required " +
+                        $"column{(missingColumns.Length == 1 ? "" : "s")} " +
+                        $"{string.Join(", ", missingColumns.Select(column => $"'{column}'"))}.");
+                }
+            }
+        }
+
+        private static IReadOnlyList<DatabaseTableRequirement> GetRequiredSchema(int schemaVersion)
+        {
+            if (schemaVersion <= 0)
+            {
+                return [LegacyUserTable];
+            }
+
+            List<DatabaseTableRequirement> requirements = SchemaOneRequirements
+                .Select(requirement => requirement with { Columns = requirement.Columns.ToArray() })
+                .ToList();
+            if (schemaVersion >= 2)
+            {
+                AddRequiredColumn(requirements, "app_settings", "voice_announcements_enabled");
+            }
+            if (schemaVersion >= 3)
+            {
+                AddRequiredColumn(requirements, "app_settings", "speech_backend");
+                AddRequiredColumn(requirements, "controller_settings", "raw_sensor_lockout_milliseconds");
+            }
+            if (schemaVersion >= 4)
+            {
+                AddRequiredColumn(requirements, "app_settings", "lap_best_sounds_enabled");
+            }
+            return requirements;
+        }
+
+        private static void AddRequiredColumn(
+            List<DatabaseTableRequirement> requirements,
+            string tableName,
+            string columnName)
+        {
+            int index = requirements.FindIndex(requirement =>
+                string.Equals(requirement.TableName, tableName, StringComparison.OrdinalIgnoreCase));
+            if (index < 0 || requirements[index].Columns.Contains(columnName, StringComparer.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            requirements[index] = requirements[index] with
+            {
+                Columns = [.. requirements[index].Columns, columnName]
+            };
+        }
+
+        private static HashSet<string>? GetTableColumns(SqliteConnection connection, string tableName)
+        {
+            using SqliteCommand command = connection.CreateCommand();
+            command.CommandText = $"PRAGMA table_info({QuoteIdentifier(tableName)});";
+            using SqliteDataReader reader = command.ExecuteReader();
+            HashSet<string> columns = new(StringComparer.OrdinalIgnoreCase);
+            while (reader.Read())
+            {
+                columns.Add(reader.GetString(1));
+            }
+            return columns.Count == 0 ? null : columns;
+        }
+
+        private static string QuoteIdentifier(string identifier) =>
+            "\"" + identifier.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
 
         private static void VerifyIntegrityOnly(string databasePath)
         {
@@ -361,5 +469,7 @@ namespace YATSS
             File.Delete(databasePath + "-shm");
             File.Delete(databasePath + "-wal");
         }
+
+        private sealed record DatabaseTableRequirement(string TableName, string[] Columns);
     }
 }

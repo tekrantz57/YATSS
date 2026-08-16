@@ -1,0 +1,111 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build: app debug",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "YATSSWin/YATSS.sln",
+        "-c",
+        "Debug"
+      ],
+      "group": "build",
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "build: app release",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "YATSSWin/YATSS.sln",
+        "-c",
+        "Release"
+      ],
+      "group": "build",
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "test: protocol and lap race",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "run",
+        "--project",
+        "YATSSWin/YATSS.Tests/YATSS.Tests.csproj",
+        "-c",
+        "Release"
+      ],
+      "group": "test",
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "publish: app folder",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "publish",
+        "YATSSWin/YATSS/YATSS.csproj",
+        "-c",
+        "Release",
+        "/p:PublishProfile=FolderProfile"
+      ],
+      "group": "build",
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "firmware: nano esp32",
+      "type": "process",
+      "command": "arduino-cli",
+      "args": [
+        "compile",
+        "--fqbn",
+        "arduino:esp32:nano_nora",
+        "YATSSMC"
+      ],
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "firmware: esp32-c5 waveshare n16r8",
+      "type": "process",
+      "command": "arduino-cli",
+      "args": [
+        "compile",
+        "--fqbn",
+        "esp32:esp32:esp32c5:CDCOnBoot=default,CPUFreq=240,FlashFreq=80,FlashMode=qio,FlashSize=16M,PartitionScheme=fatflash,PSRAM=enabled",
+        "YATSSMC"
+      ],
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "firmware: esp32-c6 n4",
+      "type": "process",
+      "command": "arduino-cli",
+      "args": [
+        "compile",
+        "--fqbn",
+        "esp32:esp32:esp32c6:CDCOnBoot=default,FlashSize=4M,PartitionScheme=default",
+        "YATSSMC"
+      ],
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "firmware: esp32-c6 n8",
+      "type": "process",
+      "command": "arduino-cli",
+      "args": [
+        "compile",
+        "--fqbn",
+        "esp32:esp32:esp32c6:CDCOnBoot=default,FlashSize=8M,PartitionScheme=default_8MB",
+        "YATSSMC"
+      ],
+      "group": "build",
+      "problemMatcher": []
+    }
+  ]
+}

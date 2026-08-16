@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  dotnet:
+    name: .NET build and tests
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build Windows solution
+        run: dotnet build YATSSWin\YATSS.sln -c Release
+
+      - name: Run protocol and lap-race tests
+        run: dotnet run --project YATSSWin\YATSS.Tests\YATSS.Tests.csproj -c Release

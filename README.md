@@ -165,6 +165,26 @@ arduino-cli compile --fqbn "esp32:esp32:esp32c6:CDCOnBoot=default,FlashSize=8M,P
 Visual Studio Community and VS Code with C# Dev Kit can both build the Windows
 solution. The Windows application targets .NET 10 LTS.
 
+## VS Code
+
+Open the repository root in VS Code, not the `YATSSWin` subfolder, and install
+the recommended extensions when prompted. The checked-in tasks cover the common
+local workflow:
+
+- `build: app debug`
+- `build: app release`
+- `test: protocol and lap race`
+- `publish: app folder`
+- `firmware: nano esp32`
+- `firmware: esp32-c5 waveshare n16r8`
+- `firmware: esp32-c6 n4`
+- `firmware: esp32-c6 n8`
+
+The `Launch YATSSWin` debug configuration builds the Debug solution and starts
+the Windows Forms app. Visual Studio remains the preferred tool for WinForms
+designer work. The firmware tasks assume `arduino-cli` and the matching Arduino
+board cores are already installed.
+
 ## Documentation
 
 - [Windows application](YATSSWin/README.md)

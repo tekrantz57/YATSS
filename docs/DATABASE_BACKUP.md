@@ -32,7 +32,8 @@ Manual backups default to:
 YATSS uses SQLite's online backup operation rather than copying an open
 database file directly. The backup is first written to a temporary file,
 checked with SQLite integrity and foreign-key checks, checked for a supported
-YATSS schema, and only then moved to the requested destination.
+YATSS schema, verified for required YATSS tables and columns, and only then
+moved to the requested destination.
 
 ## Automatic Backups
 
@@ -67,7 +68,8 @@ countdown, or demo lap stream active. After confirmation, YATSS:
 3. Creates a verified `YATSS-before-restore-YYYYMMDD-HHMMSS.db` copy of the
    current database.
 4. Replaces the active database and applies any supported schema upgrade.
-5. Verifies the restored active database.
+5. Verifies the restored active database, including required YATSS tables and
+   columns for its schema version.
 6. Restarts so all restored settings are loaded consistently.
 
 If replacement, migration, or verification fails, YATSS automatically restores

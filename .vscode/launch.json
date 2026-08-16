@@ -1,0 +1,15 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Launch YATSSWin",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build: app debug",
+      "program": "${workspaceFolder}/YATSSWin/YATSS/bin/Debug/net10.0-windows7.0/YATSSWin.dll",
+      "cwd": "${workspaceFolder}/YATSSWin/YATSS",
+      "console": "internalConsole",
+      "stopAtEntry": false
+    }
+  ]
+}

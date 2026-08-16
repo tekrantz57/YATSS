@@ -1000,7 +1000,7 @@ try
         legacyBackupPath,
         testSafetyPath,
         closeActiveDatabase: () => { },
-        initializeActiveDatabase: () => SetTestSchemaVersion(testDatabasePath, 1));
+        initializeActiveDatabase: () => UpgradeTestDatabaseSchema(testDatabasePath, 1));
     Assert(ReadTestRacers(testDatabasePath).SequenceEqual(new[] { "Legacy Racer" }),
         "restore should allow an older YATSS schema and migrate it");
 
@@ -1047,6 +1047,41 @@ try
         newerBackupRejected = true;
     }
     Assert(newerBackupRejected, "restore should reject a database from a newer schema");
+
+    string partialBackupPath = Path.Combine(databaseTestDirectory, "partial-backup.db");
+    CreatePartialTestDatabase(partialBackupPath, schemaVersion: 1, "Partial Racer");
+    bool partialBackupRejected = false;
+    try
+    {
+        _ = maintenance.RestoreBackup(
+            partialBackupPath,
+            testSafetyPath,
+            closeActiveDatabase: () => { },
+            initializeActiveDatabase: () => { });
+    }
+    catch (InvalidDataException)
+    {
+        partialBackupRejected = true;
+    }
+    Assert(partialBackupRejected, "restore should reject a partial current-schema database");
+
+    string missingColumnBackupPath = Path.Combine(databaseTestDirectory, "missing-column-backup.db");
+    CreateTestDatabase(missingColumnBackupPath, schemaVersion: 1, "Missing Column Racer");
+    ExecuteTestDatabaseCommand(missingColumnBackupPath, "ALTER TABLE app_settings DROP COLUMN active_lane_count;");
+    bool missingColumnBackupRejected = false;
+    try
+    {
+        _ = maintenance.RestoreBackup(
+            missingColumnBackupPath,
+            testSafetyPath,
+            closeActiveDatabase: () => { },
+            initializeActiveDatabase: () => { });
+    }
+    catch (InvalidDataException)
+    {
+        missingColumnBackupRejected = true;
+    }
+    Assert(missingColumnBackupRejected, "restore should reject a database missing a required column");
 }
 finally
 {
@@ -1163,6 +1198,79 @@ Console.WriteLine("Protocol, lap race, export, and database tests passed.");
 
 static void CreateTestDatabase(string path, int schemaVersion, params string[] racers)
 {
+    CreatePartialTestDatabase(path, schemaVersion, racers);
+    UpgradeTestDatabaseSchema(path, schemaVersion);
+}
+
+static void UpgradeTestDatabaseSchema(string path, int schemaVersion)
+{
+    if (schemaVersion >= 1)
+    {
+        ExecuteTestDatabaseCommand(path, @"
+            CREATE TABLE IF NOT EXISTS comports (
+                name TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS heat_race_settings (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                heat_length_minutes INTEGER NOT NULL,
+                between_heats_seconds INTEGER NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS app_settings (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                min_lap_milliseconds INTEGER NOT NULL,
+                sound_on_too_fast_lap INTEGER NOT NULL,
+                speech_voice_name TEXT NOT NULL,
+                active_lane_count INTEGER NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS lane_settings (
+                lane_index INTEGER PRIMARY KEY CHECK (lane_index BETWEEN 0 AND 7),
+                display_name TEXT NOT NULL,
+                color_argb INTEGER NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS race_report_settings (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                export_json INTEGER NOT NULL,
+                export_csv INTEGER NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS heat_race_identity (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                race_name TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS track_configuration (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                track_length_feet REAL NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS qualifying_settings (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                lane_index INTEGER NOT NULL,
+                duration_seconds INTEGER NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS controller_settings (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                debounce_milliseconds INTEGER NOT NULL
+            );");
+    }
+    if (schemaVersion >= 2)
+    {
+        ExecuteTestDatabaseCommand(path,
+            "ALTER TABLE app_settings ADD COLUMN voice_announcements_enabled INTEGER NOT NULL DEFAULT 1;");
+    }
+    if (schemaVersion >= 3)
+    {
+        ExecuteTestDatabaseCommand(path, @"
+            ALTER TABLE app_settings ADD COLUMN speech_backend TEXT NOT NULL DEFAULT 'Automatic';
+            ALTER TABLE controller_settings ADD COLUMN raw_sensor_lockout_milliseconds INTEGER;");
+    }
+    if (schemaVersion >= 4)
+    {
+        ExecuteTestDatabaseCommand(path,
+            "ALTER TABLE app_settings ADD COLUMN lap_best_sounds_enabled INTEGER NOT NULL DEFAULT 1;");
+    }
+    SetTestSchemaVersion(path, schemaVersion);
+}
+
+static void CreatePartialTestDatabase(string path, int schemaVersion, params string[] racers)
+{
     File.Delete(path);
     File.Delete(path + "-shm");
     File.Delete(path + "-wal");
@@ -1184,6 +1292,19 @@ static void CreateTestDatabase(string path, int schemaVersion, params string[] r
     }
     command.CommandText = $"PRAGMA user_version = {schemaVersion};";
     command.Parameters.Clear();
+    command.ExecuteNonQuery();
+}
+
+static void ExecuteTestDatabaseCommand(string path, string commandText)
+{
+    using SqliteConnection connection = new(new SqliteConnectionStringBuilder
+    {
+        DataSource = path,
+        Pooling = false
+    }.ToString());
+    connection.Open();
+    using SqliteCommand command = connection.CreateCommand();
+    command.CommandText = commandText;
     command.ExecuteNonQuery();
 }
 

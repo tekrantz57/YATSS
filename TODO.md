@@ -11,14 +11,6 @@
 - Exercise recovery after forced app termination, Windows restart, controller
   reset, and power loss before relying on YATSS for long endurance races.
 
-## Complete backup schema validation
-
-- Extend database restore validation beyond SQLite integrity, foreign keys,
-  schema version, and the `users` table. Verify every required YATSS table and
-  column before accepting a backup.
-- Add tests proving that partial or falsely versioned databases are rejected
-  without replacing the active database.
-
 ## Track-power fail-safe behavior
 
 - Implemented policy: controller boot/reset and loss of Windows communication
@@ -32,20 +24,14 @@
 
 ## Continuous integration
 
-- Add a GitHub Actions workflow that builds the Windows solution and runs the
-  protocol and lap-race tests.
-- Compile `YATSSMC` for `arduino:esp32:nano_nora` in CI so firmware regressions
-  are caught on each push. Also compile the ESP32-C5 and ESP32-C6 profiles with
-  `esp32:esp32:esp32c5` and `esp32:esp32:esp32c6`.
-
-## Optional VS Code support
-
-- Verified July 24, 2026: the Windows solution builds successfully in VS Code
-  with the C# Dev Kit extension on the new development computer.
-- Add checked-in `.vscode` recommendations and tasks for building, testing, and
-  running the Windows app, plus compiling the controller firmware.
-- Document VS Code with C# Dev Kit as a lightweight development option while
-  retaining full Visual Studio for WinForms visual-designer work.
+- Implemented first-pass GitHub Actions workflow for the Windows solution and
+  protocol/lap-race test runner.
+- Add firmware compile jobs for `YATSSMC` after the .NET workflow is proven on
+  GitHub. Start with `arduino:esp32:nano_nora`, then add the ESP32-C5 and
+  ESP32-C6 profiles with pinned board-package versions so firmware regressions
+  are caught on each push.
+- Consider caching NuGet and Arduino board packages if workflow time becomes
+  noticeable.
 
 ## ESP32-C6 controller validation
 
