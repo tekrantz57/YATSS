@@ -1,0 +1,30 @@
+title: "[General]: "
+labels:
+  - discussion
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for project conversation that is not a reproducible bug, a scoped feature request, or a hardware validation report. Remove private racer names, local paths, credentials, databases, reports, and unnecessary serial-log detail.
+  - type: input
+    id: topic
+    attributes:
+      label: Topic
+      description: Short summary of what you want to discuss.
+      placeholder: Demo race workflow, release packaging, track setup, documentation...
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Share the background needed for a useful conversation.
+    validations:
+      required: true
+  - type: textarea
+    id: references
+    attributes:
+      label: Related links, files, or prior threads
+      description: Optional links to docs, issues, commits, or sanitized logs.
+    validations:
+      required: false

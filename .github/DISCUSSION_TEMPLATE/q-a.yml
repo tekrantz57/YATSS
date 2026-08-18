@@ -1,0 +1,38 @@
+title: "[Q&A]: "
+labels:
+  - question
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for setup, build, hardware, Wine, controller, or race-operation questions. Remove private racer names, local paths, credentials, databases, reports, and unnecessary serial-log detail.
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What are you trying to understand or accomplish?
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Include Windows or Wine version and CPU architecture, if relevant.
+      placeholder: Windows 11 x64, Wine 11 x64, Wine ARM64, UNO Q Debian
+    validations:
+      required: false
+  - type: input
+    id: controller
+    attributes:
+      label: Controller hardware and firmware
+      description: Board profile, firmware version, or "not hardware-related".
+      placeholder: ESP32-C6 N4, Arduino Nano ESP32, UNO Q, demo only
+    validations:
+      required: false
+  - type: textarea
+    id: tried
+    attributes:
+      label: What you have tried
+      description: Commands, settings, docs, or diagnostics already checked.
+    validations:
+      required: false

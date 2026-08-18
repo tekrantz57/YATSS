@@ -1,0 +1,43 @@
+title: "[Idea]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for early ideas that need discussion before becoming scoped work. Bugs with reproduction steps should use the bug report issue form instead.
+  - type: textarea
+    id: idea
+    attributes:
+      label: Idea
+      description: What should YATSS do differently or better?
+    validations:
+      required: true
+  - type: textarea
+    id: use_case
+    attributes:
+      label: Use case
+      description: Who benefits, and when would this matter at the track or bench?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Project area
+      options:
+        - Windows app
+        - Controller firmware
+        - UNO Q
+        - Reports and exports
+        - Documentation
+        - Hardware or wiring
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: considerations
+    attributes:
+      label: Safety, compatibility, or migration notes
+      description: Include any track-power, controller, database, or release concerns.
+    validations:
+      required: false
