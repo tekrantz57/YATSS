@@ -1,0 +1,17 @@
+[Unit]
+Description=YATSS UNO Q App Lab controller supervisor
+Documentation=https://github.com/tekrantz57/YATSS/blob/master/docs/UNO_Q_CONTROLLER.md
+After=default.target
+
+[Service]
+Type=simple
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=YATSS_UNOQ_APP=%h/ArduinoApps/YATSSUnoQ
+Environment=YATSS_UNOQ_HOST=127.0.0.1
+Environment=YATSS_UNOQ_PORT=45991
+ExecStart=%h/.local/bin/yatss-unoq-controller-supervisor.sh
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

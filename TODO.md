@@ -70,14 +70,14 @@
 
 ## Arduino UNO Q production startup
 
-- Add and document a Linux `systemd` service that starts the installed YATSS
-  App Lab app through `arduino-app-cli` after Linux and Docker are ready.
+- Added and documented a Linux `systemd` user service and foreground
+  supervisor that starts the YATSS App Lab app through `arduino-app-cli`,
+  checks TCP port 45991, and restarts the app if the endpoint disappears.
 - Verify automatic recovery of the STM32 RouterBridge and TCP port 45991 after
   a cold boot, orderly reboot, container failure, and interrupted startup.
 - Verify repeated YATSS stop/restart TCP reconnects without restarting the App
   Lab controller application.
-- Ensure the service cannot start a stale or incompatible App Lab package and
-  produces useful logs when startup fails.
+- Bench-test the source-directory stale-app checks and journal output on UNO Q.
 - Bench-test sensor inputs for lanes 2-8, track-power outputs, watchdog
   behavior, relay polarity, and high-speed edge capture with the onboard status
   matrix enabled before using the UNO Q controller on a physical track. Lane 1

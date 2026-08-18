@@ -1,0 +1,55 @@
+name: Hardware validation
+description: Record bench-test or track-test observations for controller hardware.
+title: "[Hardware]: "
+labels:
+  - hardware
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for validation observations, not urgent safety reports. For unsafe track-power behavior, disconnect live race hardware first.
+  - type: input
+    id: board
+    attributes:
+      label: Controller board and profile
+      placeholder: ESP32-C6-DevKitC-1 N4, Waveshare ESP32-C5-WIFI6-KIT-N16R8, Arduino Nano ESP32, UNO Q
+    validations:
+      required: true
+  - type: input
+    id: firmware
+    attributes:
+      label: Firmware version or commit
+      placeholder: YATSSMC 0.20.0-beta.2
+    validations:
+      required: true
+  - type: textarea
+    id: setup
+    attributes:
+      label: Test setup
+      description: Sensors, relays, power supply, operating system, and serial/TCP path.
+    validations:
+      required: true
+  - type: textarea
+    id: checks
+    attributes:
+      label: Checks performed
+      placeholder: |
+        - Sensor inputs tested:
+        - Track-power outputs tested:
+        - Watchdog/reset behavior tested:
+        - Firmware update path tested:
+    validations:
+      required: true
+  - type: textarea
+    id: results
+    attributes:
+      label: Results and observations
+    validations:
+      required: true
+  - type: textarea
+    id: risks
+    attributes:
+      label: Safety notes or follow-up work
+      description: Include relay polarity, fail-safe behavior, or wiring concerns.
+    validations:
+      required: false

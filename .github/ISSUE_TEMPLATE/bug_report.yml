@@ -1,0 +1,65 @@
+name: Bug report
+description: Report a reproducible YATSS application, controller, or workflow bug.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before posting, remove racer names, local paths, credentials, databases, generated reports, and unnecessary serial-log detail.
+  - type: input
+    id: version
+    attributes:
+      label: YATSS version or commit
+      description: Use the app version label, release tag, or Git commit.
+      placeholder: v0.20.0-beta.2 or bd2a528
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Include Windows or Wine version and CPU architecture.
+      placeholder: Windows 11 x64, Wine 11 x64, Wine ARM64
+    validations:
+      required: true
+  - type: input
+    id: controller
+    attributes:
+      label: Controller hardware and firmware
+      description: Board profile, firmware version, or "demo only".
+      placeholder: Arduino Nano ESP32, YATSSMC 0.20.0-beta.2
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: List the exact actions that trigger the issue.
+      placeholder: |
+        1. Start YATSSWin.
+        2. Select ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized logs or screenshots
+      description: Include only the smallest useful excerpt after removing private data.
+      render: text
+    validations:
+      required: false

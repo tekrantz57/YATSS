@@ -80,6 +80,73 @@ timeout 10 nc 127.0.0.1 45991
 The command should display one heartbeat per second. The listener supports one
 client, so running this check replaces an existing YATSS connection.
 
+## Production Startup Service
+
+The repository includes a Linux-side systemd user-service template for UNO Q
+standalone startup:
+
+- `tools/unoq-systemd/yatss-unoq-controller-supervisor.sh`
+- `tools/unoq-systemd/yatss-unoq-controller.service`
+
+The supervisor starts the App Lab app with `arduino-app-cli app start`, waits
+for TCP port 45991, and keeps running in the foreground so systemd has a real
+process to monitor. If the TCP endpoint disappears after startup, the
+supervisor logs the app output it can retrieve, stops the app, and starts it
+again. On service stop, it also stops the App Lab app.
+
+The documented default assumes the YATSS app source is installed on the UNO Q
+at:
+
+```text
+~/ArduinoApps/YATSSUnoQ
+```
+
+Before launching a directory-based app, the supervisor verifies that:
+
+- `app.yaml` identifies `YATSS UNO Q Controller`.
+- `app.yaml` exposes port 45991.
+- `python/main.py` publishes TCP port 45991.
+- `sketch/sketch.ino` is present.
+
+This avoids starting an obviously stale or incompatible directory. If you need
+to start an App Lab reference such as `user:<name>` instead of a source
+directory, override `YATSS_UNOQ_APP`; source-directory validation will not be
+available in that mode.
+
+On the UNO Q Linux side, install the service files as the normal `arduino`
+user:
+
+```bash
+mkdir -p ~/ArduinoApps ~/.local/bin ~/.config/systemd/user
+rm -rf ~/ArduinoApps/YATSSUnoQ
+cp -a /path/to/YATSSUnoQ ~/ArduinoApps/YATSSUnoQ
+cp /path/to/tools/unoq-systemd/yatss-unoq-controller-supervisor.sh ~/.local/bin/
+cp /path/to/tools/unoq-systemd/yatss-unoq-controller.service ~/.config/systemd/user/
+chmod +x ~/.local/bin/yatss-unoq-controller-supervisor.sh
+systemctl --user daemon-reload
+systemctl --user enable --now yatss-unoq-controller.service
+```
+
+For boot without an interactive login, enable user-service lingering once:
+
+```bash
+sudo loginctl enable-linger arduino
+```
+
+Useful diagnostics:
+
+```bash
+systemctl --user status yatss-unoq-controller.service
+journalctl --user -u yatss-unoq-controller.service -f
+arduino-app-cli app list
+timeout 10 nc 127.0.0.1 45991
+```
+
+The service intentionally depends on retries rather than a hard Docker unit
+dependency because App Lab and `arduino-app-cli` own the container lifecycle.
+If Linux, Docker, or RouterBridge is not ready yet, startup should fail with a
+useful journal message and retry after the configured backoff.
+
 ## App Lab Runtime Lifecycle
 
 App Lab is the editor and deployment control surface; its window is not the
@@ -118,13 +185,11 @@ socket so a stale heartbeat callback cannot accidentally close a newly
 accepted connection. Repeated stop/restart reconnect testing remains part of
 the UNO Q bench checklist.
 
-The current App Lab-generated container does not declare an automatic restart
-policy. After an UNO Q reboot, open App Lab and start the app again. A
-production standalone installation should eventually use a Linux `systemd`
-service to start the installed app with `arduino-app-cli` and expose TCP port
-45991 independently of the App Lab window after Linux and Docker are ready.
-Until that service is implemented and tested, App Lab must remain open and the
-controller TCP interface must not be expected to return automatically.
+The App Lab-generated container may not declare an automatic restart policy.
+For unattended production startup, use the systemd supervisor above so the app
+is started with `arduino-app-cli` after Linux boot and restarted if TCP port
+45991 disappears. This still requires UNO Q bench validation before relying on
+automatic recovery for a physical track.
 
 ## Status
 
