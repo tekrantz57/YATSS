@@ -47,25 +47,14 @@ validate_app_directory() {
   fi
 }
 
-tcp_ready() {
-  python3 - "$host" "$port" <<'PY'
-import socket
-import sys
-
-host = sys.argv[1]
-port = int(sys.argv[2])
-try:
-    with socket.create_connection((host, port), timeout=2.0):
-        pass
-except OSError:
-    sys.exit(1)
-PY
+tcp_listener_ready() {
+  [[ -n "$(ss -H -ltn "sport = :$port")" ]]
 }
 
 wait_for_tcp() {
   local deadline=$((SECONDS + start_timeout_seconds))
   while (( SECONDS < deadline )); do
-    if tcp_ready; then
+    if tcp_listener_ready; then
       return 0
     fi
     sleep 2
@@ -107,7 +96,7 @@ stop_service() {
 }
 
 require_command "$app_cli"
-require_command python3
+require_command ss
 require_command timeout
 trap cleanup EXIT
 trap stop_service INT TERM
@@ -119,7 +108,7 @@ while true; do
     continue
   fi
 
-  while tcp_ready; do
+  while tcp_listener_ready; do
     sleep "$check_interval_seconds"
   done
 

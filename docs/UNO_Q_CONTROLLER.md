@@ -92,7 +92,9 @@ The supervisor starts the App Lab app with `arduino-app-cli app start`, waits
 for TCP port 45991, and keeps running in the foreground so systemd has a real
 process to monitor. If the TCP endpoint disappears after startup, the
 supervisor logs the app output it can retrieve, stops the app, and starts it
-again. On service stop, it also stops the App Lab app.
+again. Its health check uses `ss` to inspect the listening socket without
+opening a client connection, so it cannot replace a connected YATSS session.
+On service stop, it also stops the App Lab app.
 
 The documented default assumes the YATSS app source is installed on the UNO Q
 at:

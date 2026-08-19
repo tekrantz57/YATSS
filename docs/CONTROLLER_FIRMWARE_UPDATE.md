@@ -4,6 +4,11 @@ YATSS can provision a blank Waveshare ESP32-C5-WIFI6-KIT-N16R8 or
 ESP32-C6-DevKitC-1 N4/N8 and update those boards or an Arduino Nano ESP32 from
 `File > Update Controller Firmware...`.
 
+The Arduino UNO Q is not updated by this command. When its endpoint or
+controller identity is selected, YATSS directs the operator to import and run
+the bundled YATSS UNO Q package through Arduino App Lab, which flashes the
+STM32 sketch and deploys the Linux bridge.
+
 ## Operator Procedure
 
 1. Connect a C5 or C6 through its UART USB-C socket, or connect the Nano through

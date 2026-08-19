@@ -78,6 +78,10 @@
 - Verify repeated YATSS stop/restart TCP reconnects without restarting the App
   Lab controller application.
 - Bench-test the source-directory stale-app checks and journal output on UNO Q.
+- Add an UNO Q firmware-update path initiated by YATSS through a Linux-side
+  `arduino-app-cli` helper. It must stop and restart the App Lab runtime safely,
+  flash the STM32 sketch, redeploy the bridge, and verify the controller
+  identity; the existing controller TCP connection is not a flashing transport.
 - Bench-test sensor inputs for lanes 2-8, track-power outputs, watchdog
   behavior, relay polarity, and high-speed edge capture with the onboard status
   matrix enabled before using the UNO Q controller on a physical track. Lane 1

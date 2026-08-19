@@ -88,6 +88,18 @@ Assert(capacityBoot.ControllerIdentity is
         FlashCapacityBytes: 4194304
     }, "protocol-v4 HELLO should report runtime flash capacity");
 
+ControllerIdentity unoQIdentity = LapProtocolParser.Parse(LapProtocolParser.EncodeFrame(
+    "HELLO:YATSSMC:4:8:ARDUINO_UNO_Q_STM32U585:0.20.0-beta.2:2097152")).ControllerIdentity!;
+Assert(
+    ControllerFirmwareUpdatePolicy.RequiresUnoQAppLab(ControllerEndpoint.UnoQ, null),
+    "the configured UNO Q endpoint should require App Lab even before identification");
+Assert(
+    ControllerFirmwareUpdatePolicy.RequiresUnoQAppLab("TCP:localhost:45991", unoQIdentity),
+    "an identified UNO Q should require App Lab regardless of endpoint spelling");
+Assert(
+    !ControllerFirmwareUpdatePolicy.RequiresUnoQAppLab("COM9", capacityBoot.ControllerIdentity),
+    "supported USB controllers should continue through the in-app firmware updater");
+
 LapProtocolMessage c5Boot = LapProtocolParser.Parse(LapProtocolParser.EncodeFrame(
     "HELLO:YATSSMC:4:8:ESP32_C5_WAVESHARE_WIFI6_N16R8:0.20.0-beta.2:16777216"));
 Assert(c5Boot.ControllerIdentity is

@@ -190,4 +190,19 @@ namespace YATSS
             }
         }
     }
+
+    internal static class ControllerFirmwareUpdatePolicy
+    {
+        public const string ArduinoUnoQBoardProfile = "ARDUINO_UNO_Q_STM32U585";
+
+        public static bool RequiresUnoQAppLab(
+            string? controllerEndpoint,
+            ControllerIdentity? identity) =>
+            string.Equals(controllerEndpoint, ControllerEndpoint.UnoQ, StringComparison.OrdinalIgnoreCase) ||
+            (identity?.HasBoardProfile == true &&
+             string.Equals(
+                 identity.BoardProfile,
+                 ArduinoUnoQBoardProfile,
+                 StringComparison.OrdinalIgnoreCase));
+    }
 }

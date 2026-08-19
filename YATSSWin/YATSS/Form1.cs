@@ -173,6 +173,23 @@ namespace YATSS
 
             ControllerFirmwarePackage? package;
             ControllerIdentity? identity = s.CurrentControllerIdentity;
+            if (ControllerFirmwareUpdatePolicy.RequiresUnoQAppLab(port, identity))
+            {
+                const string unoQMessage =
+                    "Arduino UNO Q controller firmware is currently installed through Arduino App Lab, " +
+                    "not through YATSS. Import and run the bundled YATSS UNO Q App Lab package to compile " +
+                    "and flash the STM32 controller and deploy its Linux bridge. In-app UNO Q updating is " +
+                    "planned but is not yet implemented.";
+                SetStatusMessage("UNO Q firmware updates require Arduino App Lab");
+                MessageBox.Show(
+                    this,
+                    unoQMessage,
+                    "Arduino UNO Q Firmware",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+                return;
+            }
+
             try
             {
                 IReadOnlyList<ControllerFirmwarePackage> packages =
