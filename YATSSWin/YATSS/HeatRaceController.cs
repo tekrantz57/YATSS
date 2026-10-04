@@ -535,7 +535,7 @@ namespace YATSS
 
                     racers.Add(new HeatRaceRacerReport(
                         racerName,
-                        results.Max(result => result.TotalLaps),
+                        results.OrderBy(result => result.HeatNumber).Last().TotalLaps,
                         heatLaps,
                         bestByLane));
                 }

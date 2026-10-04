@@ -71,6 +71,8 @@ the prerelease. Verify the GitHub source and checksum before running it.
 - Optional Windows SAPI or native Linux/Wine voice announcements and Logitech
   R500s Next-button race control.
 - Controller watchdog that cuts all lanes when Windows communication stops.
+- Controller-loss pauses and verified, operator-initiated recovery with power
+  held off during reconnection.
 
 ## Architecture
 
@@ -130,15 +132,22 @@ YATSSWin/
     Properties/PublishProfiles/     x64 and ARM64 publish definitions
   YATSS.Tests/                      lightweight integration test runner
 
+Controller/                         canonical cross-platform controller core and version
+tests/controller/                   native shared-controller behavior tests
+
 YATSSMC/
-  YATSSMC.ino                       shared ESP32 controller sketch
-  FirmwareVersion.h                controller firmware identity
+  YATSSMC.ino                       ESP32 pin/ISR/serial adapter
+  src/YatssController/              generated self-contained shared core
+  FirmwareVersion.h                generated controller firmware identity
   dist/                             packaged C5/N16R8, C6/N4, C6/N8, and Nano firmware
 
-YATSSUnoQ/                          UNO Q MCU sketch and Linux Bridge app
+YATSSUnoQ/                          UNO Q MCU adapter and Linux Bridge app
+  sketch/src/YatssController/       generated self-contained shared core
 
 tools/
   Build-ControllerFirmware.ps1     reproducible firmware package builder
+  Sync-ControllerCore.ps1           shared-core synchronization and drift check
+  Test-ControllerCore.ps1           common firmware behavior tests
   yatss-speech-helper.py            loopback eSpeak NG and Piper bridge
 
 docs/                              protocol, hardware, release, and test guides
@@ -189,6 +198,7 @@ board cores are already installed.
 
 - [Windows application](YATSSWin/README.md)
 - [Controller sketch, pin maps, and wiring](YATSSMC/README.md)
+- [Shared controller core and maintenance](docs/SHARED_CONTROLLER.md)
 - [Controller firmware updates](docs/CONTROLLER_FIRMWARE_UPDATE.md)
 - [Arduino UNO Q integrated controller](docs/UNO_Q_CONTROLLER.md)
 - [Serial protocol](docs/SERIAL_PROTOCOL.md)
@@ -199,6 +209,7 @@ board cores are already installed.
 - [Building the ARM64 Wine and UNO Q packages on Linux](docs/LINUX_BUILD.md)
 - [Windows publish smoke test](docs/PUBLISH_SMOKE_TEST.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
+- [Controller connection loss and recovery](docs/CONTROLLER_RECOVERY.md)
 - [0.20 Beta 2 release notes](docs/RELEASE_0.20.0-beta.2.md)
 - [0.10 Beta 1 release notes](docs/RELEASE_0.10.0-beta.1.md)
 - [Project backlog](TODO.md)

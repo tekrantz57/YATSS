@@ -62,6 +62,21 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
+    <Content Include="..\..\docs\CONTROLLER_RECOVERY.md">
+      <Link>Documentation\CONTROLLER_RECOVERY.md</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="..\..\docs\SERIAL_LOGGING.md">
+      <Link>Documentation\SERIAL_LOGGING.md</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="..\..\docs\SHARED_CONTROLLER.md">
+      <Link>Documentation\SHARED_CONTROLLER.md</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
     <Content Include="..\..\tools\*-linux.sh">
       <Link>Linux\Build\%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -92,12 +107,29 @@
     </ItemGroup>
   </Target>
 
+  <Target Name="CheckSharedControllerSources" BeforeTargets="BeforeBuild;Publish">
+    <GetFileHash Files="..\..\Controller\YatssController.h;..\..\YATSSMC\src\YatssController\YatssController.h;..\..\YATSSUnoQ\sketch\src\YatssController\YatssController.h">
+      <Output TaskParameter="Items" ItemName="_ControllerCoreHashes" />
+    </GetFileHash>
+    <GetFileHash Files="..\..\Controller\FirmwareVersion.h;..\..\YATSSMC\FirmwareVersion.h;..\..\YATSSMC\src\YatssController\FirmwareVersion.h;..\..\YATSSUnoQ\sketch\src\YatssController\FirmwareVersion.h">
+      <Output TaskParameter="Items" ItemName="_ControllerVersionHashes" />
+    </GetFileHash>
+    <Error Condition="'@(_ControllerCoreHashes->Metadata('FileHash')->Distinct()->Count())' != '1'"
+           Text="Shared controller copies are stale. Run tools/Sync-ControllerCore.ps1 or tools/sync-controller-core-linux.sh." />
+    <Error Condition="'@(_ControllerVersionHashes->Metadata('FileHash')->Distinct()->Count())' != '1'"
+           Text="Shared firmware versions are stale. Run tools/Sync-ControllerCore.ps1 or tools/sync-controller-core-linux.sh." />
+  </Target>
+
   <Target Name="RequireControllerFirmwarePackage" BeforeTargets="Publish">
+    <PropertyGroup>
+      <_ControllerVersionText>$([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)/../../Controller/FirmwareVersion.h'))</_ControllerVersionText>
+      <_ControllerPackageVersion>$([System.Text.RegularExpressions.Regex]::Match('$(_ControllerVersionText)', '&quot;([^&quot;]+)&quot;').Groups[1].Value)</_ControllerPackageVersion>
+    </PropertyGroup>
     <ItemGroup>
-      <_C6N4FirmwarePackage Include="..\..\YATSSMC\dist\YATSSMC-esp32-c6-devkitc1-n4-*.yatssfw" />
-      <_C6N8FirmwarePackage Include="..\..\YATSSMC\dist\YATSSMC-esp32-c6-devkitc1-n8-*.yatssfw" />
-      <_C5N16R8FirmwarePackage Include="..\..\YATSSMC\dist\YATSSMC-esp32-c5-waveshare-wifi6-n16r8-*.yatssfw" />
-      <_NanoFirmwarePackage Include="..\..\YATSSMC\dist\YATSSMC-arduino-nano-esp32-*.yatssfw" />
+      <_C6N4FirmwarePackage Include="..\..\YATSSMC\dist\YATSSMC-esp32-c6-devkitc1-n4-$(_ControllerPackageVersion).yatssfw" Condition="Exists('..\..\YATSSMC\dist\YATSSMC-esp32-c6-devkitc1-n4-$(_ControllerPackageVersion).yatssfw')" />
+      <_C6N8FirmwarePackage Include="..\..\YATSSMC\dist\YATSSMC-esp32-c6-devkitc1-n8-$(_ControllerPackageVersion).yatssfw" Condition="Exists('..\..\YATSSMC\dist\YATSSMC-esp32-c6-devkitc1-n8-$(_ControllerPackageVersion).yatssfw')" />
+      <_C5N16R8FirmwarePackage Include="..\..\YATSSMC\dist\YATSSMC-esp32-c5-waveshare-wifi6-n16r8-$(_ControllerPackageVersion).yatssfw" Condition="Exists('..\..\YATSSMC\dist\YATSSMC-esp32-c5-waveshare-wifi6-n16r8-$(_ControllerPackageVersion).yatssfw')" />
+      <_NanoFirmwarePackage Include="..\..\YATSSMC\dist\YATSSMC-arduino-nano-esp32-$(_ControllerPackageVersion).yatssfw" Condition="Exists('..\..\YATSSMC\dist\YATSSMC-arduino-nano-esp32-$(_ControllerPackageVersion).yatssfw')" />
     </ItemGroup>
     <Error
       Condition="'@(_C6N4FirmwarePackage)' == ''"

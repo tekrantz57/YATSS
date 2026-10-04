@@ -61,7 +61,8 @@ namespace YATSS
         public static void SpeakCountdownAsync(
             string voiceName,
             Action<int> countdownStep,
-            Action goStarted)
+            Action goStarted,
+            Func<bool>? shouldContinue = null)
         {
             EnsureStarted();
             SpeechBackendMode mode = Enabled ? BackendMode : SpeechBackendMode.None;
@@ -83,7 +84,8 @@ namespace YATSS
                         goStarted();
                     }
                 },
-                AfterSpeech: null));
+                AfterSpeech: null,
+                ShouldContinue: shouldContinue));
         }
 
         private static void EnsureStarted()
@@ -116,6 +118,10 @@ namespace YATSS
                 long requestStarted = Environment.TickCount64;
                 try
                 {
+                    if (request.ShouldContinue?.Invoke() == false)
+                    {
+                        continue;
+                    }
                     if (activeMode != request.BackendMode || backend == null)
                     {
                         backend?.Dispose();
@@ -125,6 +131,10 @@ namespace YATSS
 
                     for (int i = 0; i < request.Phrases.Count; i++)
                     {
+                        if (request.ShouldContinue?.Invoke() == false)
+                        {
+                            break;
+                        }
                         long phraseStarted = Environment.TickCount64;
                         try
                         {
@@ -174,7 +184,9 @@ namespace YATSS
                 finally
                 {
                     long elapsedMilliseconds = Environment.TickCount64 - requestStarted;
-                    TimeSpan remainingDelay = request.FallbackDelay - TimeSpan.FromMilliseconds(elapsedMilliseconds);
+                    TimeSpan remainingDelay = request.ShouldContinue?.Invoke() == false
+                        ? TimeSpan.Zero
+                        : request.FallbackDelay - TimeSpan.FromMilliseconds(elapsedMilliseconds);
                     if (remainingDelay > TimeSpan.Zero)
                     {
                         Thread.Sleep(remainingDelay);
@@ -201,7 +213,8 @@ namespace YATSS
             int? Rate,
             TimeSpan FallbackDelay,
             Action<int>? PhraseStarted,
-            Action? AfterSpeech)
+            Action? AfterSpeech,
+            Func<bool>? ShouldContinue)
         {
             public static SpeechRequest Single(
                 string phrase,
@@ -214,6 +227,7 @@ namespace YATSS
                     TimeSpan.Zero,
                     null,
                     TimeSpan.Zero,
+                    null,
                     null,
                     null);
         }

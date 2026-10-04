@@ -1,5 +1,28 @@
 # Troubleshooting
 
+## Controller Ready But Track Power Remains Off
+
+This is the recovery/startup policy. YATSS verifies controller identity,
+heartbeat, and acknowledgement of power off before showing `CONTROLLER READY`.
+Press Space to start through the countdown. A reconnect never resumes a
+physical race automatically. Review lap counts after an outage; interrupted
+qualifying attempts must be rerun.
+
+If the ready prompt never appears, check the serial log for a supported
+`HELLO:YATSSMC` identity, `HEARTBEAT` frames, and
+`HELLO:TRACK_POWER:MASK:00`. An open TCP port or unrelated incoming traffic alone
+does not prove that the MCU is ready. See
+[Controller recovery](CONTROLLER_RECOVERY.md).
+
+## Serial Log Is Unavailable Or Has Missing Entries
+
+Check the log-window warning and dropped-entry count. A full disk, denied access,
+or slow writer can lose diagnostic entries, but logging failures do not stop lap
+counting. Fix the storage problem; the worker retries after 30 seconds when a
+new entry arrives. Logs switch to the current local day's file at midnight and
+retain 30 calendar days. These files are not an active-race recovery journal.
+See [Serial logging](SERIAL_LOGGING.md) for limits and retention details.
+
 ## Race Report Preview Is Blank Under Wine
 
 Wine does not reliably implement the legacy MSHTML engine used by the WinForms

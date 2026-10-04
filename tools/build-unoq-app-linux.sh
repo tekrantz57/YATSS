@@ -36,6 +36,7 @@ command -v "$arduino_cli" >/dev/null || {
 command -v zip >/dev/null || { echo "The zip command is required." >&2; exit 1; }
 
 repository_root="$(find_repository "${1:-}")"
+bash "$repository_root/tools/sync-controller-core-linux.sh" "$repository_root" check
 app_root="$repository_root/YATSSUnoQ"
 artifact_root="$repository_root/artifacts"
 zip_path="$artifact_root/YATSS-UNOQ-AppLab.zip"

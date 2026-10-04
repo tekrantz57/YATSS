@@ -255,6 +255,20 @@ Restart YATSS:
 - [ ] YATSS reconnects to the configured controller.
 - [ ] Controller status and diagnostics work after reconnection.
 - [ ] Track power follows the new application's explicit command.
+- [ ] Startup/reconnect acknowledges power off, receives controller identity and
+  heartbeat, and leaves power off until Space starts its countdown.
+
+Interrupt the connection while YATSS remains open, including during a heat,
+qualifying, countdown, and intermission:
+
+- [ ] A heat pauses at confirmed controller time and retains its lap totals.
+- [ ] An interrupted qualifier is ready to rerun; earlier results remain.
+- [ ] Cancelled countdowns and intermission timers cannot later start a heat.
+- [ ] Reconnect shows the controller-ready prompt without restoring power.
+- [ ] Space resumes through the countdown; the first post-outage crossing does
+  not set a fastest lap, and the following complete lap is timed normally.
+- [ ] An MCU reset establishes fresh timing/sequence baselines while preserving
+  heat totals and remaining time. Normal timestamp wrap does not cause a fault.
 
 Reset the controller while Windows is not commanding track power:
 

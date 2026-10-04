@@ -20,6 +20,11 @@ namespace YATSS
         private readonly object _portGate = new();
         private readonly object _reconnectGate = new();
         private readonly object _demoGate = new();
+        private readonly object _controlGate = new();
+        private readonly ControllerSession _controllerSession = new();
+        private bool _controllerFaultActive;
+        private bool _controllerClockResetPending;
+        private string _controllerRecoveryReason = "Waiting for controller";
         private TaskCompletionSource _reconnectNow = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private Task? _readerTask;
         private Task? _demoTask;
@@ -35,10 +40,9 @@ namespace YATSS
         private bool _betweenHeatsPaused;
         private DateTime? _nextHeatStartUtc;
         private DateTime? _lastControllerResponseUtc;
-        private DateTime? _latestControllerTimestampUtc;
         private uint _latestControllerTimestamp;
         private bool _hasControllerTimestamp;
-        private bool _trackPowerEnabled = true;
+        private bool _trackPowerEnabled;
         private bool _diagnosticsActive;
         private volatile bool _firmwareUpdateActive;
         private ControllerIdentity? _controllerIdentity;
@@ -60,6 +64,7 @@ namespace YATSS
         public Serial(YATSS form)
         {
             _form = form;
+            _log.Warning += message => _form.SetStatusMessage(message);
             _raceReports = new RaceReportService(form, _log);
             Init();
             ApplySettings();
@@ -67,6 +72,8 @@ namespace YATSS
         }
 
         public bool QualifyingActive => _qualifying.State != QualifyingState.Inactive;
+
+        public SerialLog Log => _log;
 
         public event Action<ControllerDiagnostic>? DiagnosticReceived;
 
@@ -112,8 +119,28 @@ namespace YATSS
 
         public void RefreshActiveStatus()
         {
+            lock (_controlGate)
+            {
+                RefreshActiveStatusCore();
+            }
+        }
+
+        private void RefreshActiveStatusCore()
+        {
+            if (!DemoLapStreamActive && _controllerSession.HeartbeatExpired)
+            {
+                HandleControllerFault("Controller heartbeats stopped");
+                RequestReconnect();
+            }
+            if (!DemoLapStreamActive && _controllerSession.NeedsResume)
+            {
+                PublishControllerRecoveryStatus();
+                return;
+            }
             uint controllerTimestamp = GetCurrentControllerTimestamp();
-            if (CheckQualifyingExpired(controllerTimestamp))
+            uint confirmedTimestamp = DemoLapStreamActive
+                ? controllerTimestamp : _controllerSession.LastConfirmedTimestamp;
+            if (CheckQualifyingExpired(confirmedTimestamp))
             {
                 return;
             }
@@ -129,13 +156,21 @@ namespace YATSS
                 return;
             }
 
-            if (!CheckHeatExpired(controllerTimestamp))
+            if (!CheckHeatExpired(confirmedTimestamp))
             {
                 PublishHeatRaceStatus(GetCurrentHeatStatusName());
             }
         }
 
         public void SetPort(string portName)
+        {
+            lock (_controlGate)
+            {
+                SetPortCore(portName);
+            }
+        }
+
+        private void SetPortCore(string portName)
         {
             portName = portName.Trim();
             if (string.Equals(_form.port, portName, StringComparison.OrdinalIgnoreCase))
@@ -144,6 +179,7 @@ namespace YATSS
             }
 
             _form.port = portName;
+            HandleControllerFault("Controller connection changed");
             Volatile.Write(ref _controllerIdentity, null);
             SavePort(portName);
             _log.Info(string.IsNullOrWhiteSpace(portName) ? "serial port cleared" : $"serial port set to {portName}");
@@ -152,6 +188,14 @@ namespace YATSS
         }
 
         public void Init()
+        {
+            lock (_controlGate)
+            {
+                InitCore();
+            }
+        }
+
+        private void InitCore()
         {
             StopControllerDiagnostics();
             StopDemoLapStream();
@@ -173,12 +217,21 @@ namespace YATSS
             Init();
             if (resetArduino)
             {
+                HandleControllerFault("Controller reset requested");
                 WriteLine("RESET");
                 RequestReconnect("Waiting for controller after reset");
             }
         }
 
         public void ResetLane(int laneIndex)
+        {
+            lock (_controlGate)
+            {
+                ResetLaneCore(laneIndex);
+            }
+        }
+
+        private void ResetLaneCore(int laneIndex)
         {
             if (laneIndex < 0 || laneIndex >= LapProtocolParser.LaneCount)
             {
@@ -205,6 +258,17 @@ namespace YATSS
             int activeLaneCount,
             IReadOnlyList<LaneConfiguration> laneConfigurations,
             double trackLengthFeet)
+        {
+            lock (_controlGate)
+            {
+                ConfigureHeatRaceCore(raceName, heatLengthMinutes, betweenHeatsSeconds,
+                    racers, activeLaneCount, laneConfigurations, trackLengthFeet);
+            }
+        }
+
+        private void ConfigureHeatRaceCore(string raceName, int heatLengthMinutes, int betweenHeatsSeconds,
+            IReadOnlyList<string> racers, int activeLaneCount,
+            IReadOnlyList<LaneConfiguration> laneConfigurations, double trackLengthFeet)
         {
             StopControllerDiagnostics();
             CancelStartCountdown();
@@ -239,6 +303,14 @@ namespace YATSS
         }
 
         public void SetPracticeMode()
+        {
+            lock (_controlGate)
+            {
+                SetPracticeModeCore();
+            }
+        }
+
+        private void SetPracticeModeCore()
         {
             StopControllerDiagnostics();
             CancelStartCountdown();
@@ -297,11 +369,26 @@ namespace YATSS
 
         public void HandleSpaceBar()
         {
+            lock (_controlGate)
+            {
+                HandleSpaceBarCore();
+            }
+        }
+
+        private void HandleSpaceBarCore()
+        {
             if (_diagnosticsActive)
             {
                 _form.SetStatusMessage("Close Controller Diagnostics before using race controls");
                 return;
             }
+
+            if (!DemoLapStreamActive && !_controllerSession.AuthorizeResume())
+            {
+                PublishControllerRecoveryStatus();
+                return;
+            }
+            _controllerFaultActive = false;
 
             uint controllerTimestamp = GetCurrentControllerTimestamp();
             switch (_qualifying.State)
@@ -355,6 +442,14 @@ namespace YATSS
 
         public void ConfigureQualifying(int laneIndex, int durationSeconds)
         {
+            lock (_controlGate)
+            {
+                ConfigureQualifyingCore(laneIndex, durationSeconds);
+            }
+        }
+
+        private void ConfigureQualifyingCore(int laneIndex, int durationSeconds)
+        {
             StopControllerDiagnostics();
             if (_heatRace.State != HeatRaceState.Ready || _configuredRacers.Count == 0)
             {
@@ -375,6 +470,14 @@ namespace YATSS
         }
 
         public void CancelQualifying()
+        {
+            lock (_controlGate)
+            {
+                CancelQualifyingCore();
+            }
+        }
+
+        private void CancelQualifyingCore()
         {
             if (_qualifying.State == QualifyingState.Inactive)
             {
@@ -407,6 +510,14 @@ namespace YATSS
 
         public bool AdjustStoppedHeatLap(int laneIndex, int delta)
         {
+            lock (_controlGate)
+            {
+                return AdjustStoppedHeatLapCore(laneIndex, delta);
+            }
+        }
+
+        private bool AdjustStoppedHeatLapCore(int laneIndex, int delta)
+        {
             if (laneIndex < 0 || laneIndex >= _form.ActiveLaneCount)
             {
                 _form.SetStatusMessage($"Lane {laneIndex + 1} is not configured");
@@ -436,25 +547,56 @@ namespace YATSS
 
         private void SetTrackPowerEnabled(bool enabled, string? speech, string statusMessage)
         {
-            _trackPowerEnabled = enabled;
-            string command = GetTrackPowerCommand();
+            lock (_controlGate)
+            {
+                SetTrackPowerEnabledCore(enabled, speech, statusMessage);
+            }
+        }
+
+        private void SetTrackPowerEnabledCore(bool enabled, string? speech, string statusMessage)
+        {
+            if (enabled && !CanRunController())
+            {
+                PublishControllerRecoveryStatus();
+                return;
+            }
             bool restoreAfterCountdown = enabled &&
                 string.Equals(speech, "Let's go", StringComparison.OrdinalIgnoreCase);
 
             if (restoreAfterCountdown)
             {
+                if (_startCountdownInProgress)
+                {
+                    return;
+                }
+                _startCountdownInProgress = true;
+                int countdownVersion = ++_startCountdownVersion;
                 SpeechAnnouncer.SpeakCountdownAsync(
                     _form.SpeechVoiceName,
-                    _form.ShowStartCountdownStep,
+                    step => ShowCountdownStep(step, countdownVersion),
                     () =>
                     {
-                        _form.HideStartCountdown();
-                        WriteLine(command);
-                    });
+                        lock (_controlGate)
+                        {
+                            if (countdownVersion != _startCountdownVersion || !CanRunController())
+                            {
+                                return;
+                            }
+                            _trackPowerEnabled = true;
+                            TryWriteLine(GetTrackPowerCommand());
+                            if (_controllerSession.PowerAllowed || DemoLapStreamActive)
+                            {
+                                _form.ClearHeatRaceStatus();
+                            }
+                            FinishStartCountdown(countdownVersion);
+                        }
+                    },
+                    () => IsCountdownCurrent(countdownVersion));
             }
             else
             {
-                WriteLine(command);
+                _trackPowerEnabled = enabled;
+                WriteLine(GetTrackPowerCommand());
                 if (!string.IsNullOrWhiteSpace(speech))
                 {
                     SpeechAnnouncer.SpeakAsync(speech, _form.SpeechVoiceName);
@@ -485,7 +627,7 @@ namespace YATSS
                 return false;
             }
 
-            if (!IsPortOpen())
+            if (!IsPortOpen() || !_controllerSession.PowerAllowed)
             {
                 reason = "Connect the controller before opening diagnostics";
                 return false;
@@ -691,22 +833,22 @@ namespace YATSS
 
         private void QueueStartCountdown(bool resumePausedHeat, bool manualStart)
         {
-            if (_startCountdownInProgress)
+            if (_startCountdownInProgress || !CanRunController())
             {
                 return;
             }
 
             _startCountdownInProgress = true;
             int countdownVersion = ++_startCountdownVersion;
-            _trackPowerEnabled = true;
             _form.SetQualifyingAvailable(false);
             PublishHeatRaceStatus(resumePausedHeat ? "Resuming" : "Starting");
             _form.SetStatusMessage(resumePausedHeat ? "Heat restart countdown" : $"Heat {_heatRace.HeatNumber} countdown");
             _log.Info(resumePausedHeat ? "heat restart countdown queued" : $"heat {_heatRace.HeatNumber} start countdown queued");
             SpeechAnnouncer.SpeakCountdownAsync(
                 _form.SpeechVoiceName,
-                _form.ShowStartCountdownStep,
-                () => CompleteStartCountdown(resumePausedHeat, manualStart, countdownVersion));
+                step => ShowCountdownStep(step, countdownVersion),
+                () => CompleteStartCountdown(resumePausedHeat, manualStart, countdownVersion),
+                () => IsCountdownCurrent(countdownVersion));
         }
 
         private void QueueQualifyingCountdown(bool resumePausedQualifier)
@@ -714,14 +856,13 @@ namespace YATSS
             QualifyingState expectedState = resumePausedQualifier
                 ? QualifyingState.Paused
                 : QualifyingState.Ready;
-            if (_startCountdownInProgress || _qualifying.State != expectedState)
+            if (_startCountdownInProgress || _qualifying.State != expectedState || !CanRunController())
             {
                 return;
             }
 
             _startCountdownInProgress = true;
             int countdownVersion = ++_startCountdownVersion;
-            _trackPowerEnabled = true;
             _form.SetQualifyingAvailable(false);
             PublishQualifyingStatus(resumePausedQualifier ? "Resuming" : "Starting");
             _form.SetStatusMessage(
@@ -733,11 +874,20 @@ namespace YATSS
                 : $"qualifier {_qualifying.CurrentNumber} start countdown queued");
             SpeechAnnouncer.SpeakCountdownAsync(
                 _form.SpeechVoiceName,
-                _form.ShowStartCountdownStep,
-                () => CompleteQualifyingCountdown(resumePausedQualifier, countdownVersion));
+                step => ShowCountdownStep(step, countdownVersion),
+                () => CompleteQualifyingCountdown(resumePausedQualifier, countdownVersion),
+                () => IsCountdownCurrent(countdownVersion));
         }
 
         private void CompleteQualifyingCountdown(bool resumePausedQualifier, int countdownVersion)
+        {
+            lock (_controlGate)
+            {
+                CompleteQualifyingCountdownCore(resumePausedQualifier, countdownVersion);
+            }
+        }
+
+        private void CompleteQualifyingCountdownCore(bool resumePausedQualifier, int countdownVersion)
         {
             try
             {
@@ -745,13 +895,17 @@ namespace YATSS
                     ? QualifyingState.Paused
                     : QualifyingState.Ready;
                 if (countdownVersion != _startCountdownVersion ||
-                    _qualifying.State != expectedState)
+                    _qualifying.State != expectedState || !CanRunController())
                 {
                     return;
                 }
 
-                WriteLine(GetTrackPowerCommand());
-                uint controllerTimestamp = GetControllerTimestamp();
+                _trackPowerEnabled = true;
+                if (!TryWriteLine(GetTrackPowerCommand()) && !DemoLapStreamActive)
+                {
+                    return;
+                }
+                uint controllerTimestamp = GetCurrentControllerTimestamp();
                 bool started = resumePausedQualifier
                     ? _qualifying.Resume(controllerTimestamp)
                     : _qualifying.Start(controllerTimestamp);
@@ -770,21 +924,32 @@ namespace YATSS
             }
             finally
             {
-                _startCountdownInProgress = false;
-                _form.HideStartCountdown();
+                FinishStartCountdown(countdownVersion);
             }
         }
 
         private void CompleteStartCountdown(bool resumePausedHeat, bool manualStart, int countdownVersion)
         {
+            lock (_controlGate)
+            {
+                CompleteStartCountdownCore(resumePausedHeat, manualStart, countdownVersion);
+            }
+        }
+
+        private void CompleteStartCountdownCore(bool resumePausedHeat, bool manualStart, int countdownVersion)
+        {
             try
             {
-                if (countdownVersion != _startCountdownVersion)
+                if (countdownVersion != _startCountdownVersion || !CanRunController())
                 {
                     return;
                 }
 
-                WriteLine(GetTrackPowerCommand());
+                _trackPowerEnabled = true;
+                if (!TryWriteLine(GetTrackPowerCommand()) && !DemoLapStreamActive)
+                {
+                    return;
+                }
                 uint controllerTimestamp = GetCurrentControllerTimestamp();
                 bool started = resumePausedHeat
                     ? _heatRace.Resume(controllerTimestamp)
@@ -806,8 +971,7 @@ namespace YATSS
             }
             finally
             {
-                _startCountdownInProgress = false;
-                _form.HideStartCountdown();
+                FinishStartCountdown(countdownVersion);
             }
         }
 
@@ -816,6 +980,36 @@ namespace YATSS
             _startCountdownVersion++;
             _startCountdownInProgress = false;
             _form.HideStartCountdown();
+        }
+
+        private bool CanRunController() => DemoLapStreamActive || _controllerSession.PowerAllowed;
+
+        private bool IsCountdownCurrent(int countdownVersion)
+        {
+            lock (_controlGate)
+            {
+                return countdownVersion == _startCountdownVersion && CanRunController();
+            }
+        }
+
+        private void ShowCountdownStep(int step, int countdownVersion)
+        {
+            _form.ShowStartCountdownStep(step, () =>
+            {
+                lock (_controlGate)
+                {
+                    return countdownVersion == _startCountdownVersion && CanRunController();
+                }
+            });
+        }
+
+        private void FinishStartCountdown(int countdownVersion)
+        {
+            if (countdownVersion == _startCountdownVersion)
+            {
+                _startCountdownInProgress = false;
+                _form.HideStartCountdown();
+            }
         }
 
         public void Write(string value) => WriteLine(value);
@@ -828,8 +1022,27 @@ namespace YATSS
             }
         }
 
-        public void WriteLine(string value)
+        public void WriteLine(string value) => TryWriteLine(value);
+
+        private bool TryWriteLine(string value)
         {
+            lock (_controlGate)
+            {
+                return TryWriteLineCore(value);
+            }
+        }
+
+        private bool TryWriteLineCore(string value)
+        {
+            string commandBody = value.Split('*')[0];
+            if (!_controllerSession.PowerAllowed &&
+                (commandBody == "TRACK_POWER:ON" ||
+                 (commandBody.StartsWith("TRACK_POWER:MASK:", StringComparison.Ordinal) &&
+                  commandBody != "TRACK_POWER:MASK:00")))
+            {
+                _log.Warn("power-enable command blocked until controller recovery is confirmed");
+                return false;
+            }
             IControllerConnection? port;
             lock (_portGate)
             {
@@ -840,7 +1053,8 @@ namespace YATSS
             {
                 _log.Warn($"serial write skipped because port is closed: {value}");
                 _form.SetStatusMessage("Serial port disconnected");
-                return;
+                HandleControllerFault("Controller port is closed", requestPowerCut: false);
+                return false;
             }
 
             try
@@ -848,12 +1062,15 @@ namespace YATSS
                 string frame = value.Contains('*') ? value : LapProtocolParser.EncodeFrame(value);
                 port.WriteLine(frame);
                 _log.Info($"TX {frame}");
+                return true;
             }
             catch (Exception ex) when (ex is IOException || ex is InvalidOperationException || ex is TimeoutException)
             {
                 _log.Error(ex, "serial write failed");
                 _form.SetStatusMessage("Serial write failed");
+                HandleControllerFault("Controller write failed", requestPowerCut: false);
                 RequestReconnect();
+                return false;
             }
         }
 
@@ -881,15 +1098,20 @@ namespace YATSS
                     int connectionGeneration = Volatile.Read(ref _connectionGeneration);
                     using IControllerConnection port = OpenPort(portName);
                     port.DiscardBuffers();
-                    lock (_portGate)
-                    {
-                        _port = port;
-                    }
-
                     _log.Info($"serial port open on {portName}");
-                    _form.SetStatusMessage($"Serial open on {portName}; waiting for controller");
-                    WriteLine(GetSensorDebounceCommand());
-                    WriteLine(GetTrackPowerCommand());
+                    lock (_controlGate)
+                    {
+                        lock (_portGate)
+                        {
+                            _port = port;
+                        }
+                        _controllerSession.BeginConnection();
+                        _trackPowerEnabled = false;
+                        _form.SetStatusMessage($"Serial open on {portName}; verifying controller with power off");
+                        WriteLine("TRACK_POWER:MASK:00");
+                        WriteLine(GetSensorDebounceCommand());
+                        WriteLine("PING");
+                    }
                     if (_diagnosticsActive)
                     {
                         WriteLine("DIAG:START");
@@ -931,16 +1153,33 @@ namespace YATSS
                         _lastControllerResponseUtc = lastLineReceived;
                         waitingForPingReply = false;
                         HandleLine(line, isDemoLine: false);
+                        lock (_controlGate)
+                        {
+                            if (_controllerSession.HeartbeatExpired)
+                            {
+                                HandleControllerFault("Controller heartbeats stopped");
+                                RequestReconnect();
+                                break;
+                            }
+                        }
                     }
                 }
-                catch (Exception ex) when (ex is IOException || ex is SocketException || ex is UnauthorizedAccessException || ex is InvalidOperationException || ex is NullReferenceException)
+                catch (Exception ex) when (ex is IOException || ex is SocketException || ex is UnauthorizedAccessException || ex is InvalidOperationException || ex is NullReferenceException || ex is TimeoutException)
                 {
                     _log.Error(ex, $"serial disconnected from {portName}");
                     _form.SetStatusMessage($"Serial disconnected from {portName}");
                 }
                 finally
                 {
+                    if (!_stop.IsCancellationRequested && !_firmwareUpdateActive)
+                    {
+                        HandleControllerFault("Controller connection lost", requestPowerCut: false);
+                    }
                     CloseActivePort();
+                    lock (_controlGate)
+                    {
+                        _controllerSession.EndConnection();
+                    }
                     Volatile.Write(ref _controllerIdentity, null);
                 }
 
@@ -1008,6 +1247,13 @@ namespace YATSS
             ref bool waitingForPingReply)
         {
             DateTime now = DateTime.UtcNow;
+            lock (_controlGate)
+            {
+                if (_controllerSession.HeartbeatExpired)
+                {
+                    HandleControllerFault("Controller heartbeats stopped");
+                }
+            }
             if (waitingForPingReply && now - lastPingSent >= ControllerPingTimeout)
             {
                 _log.Warn($"no controller response on {portName}");
@@ -1029,10 +1275,57 @@ namespace YATSS
 
         private void HandleLine(string line, bool isDemoLine)
         {
+            lock (_controlGate)
+            {
+                HandleLineCore(line, isDemoLine);
+            }
+        }
+
+        private void HandleLineCore(string line, bool isDemoLine)
+        {
             string trimmed = line.Trim();
             _log.Raw(trimmed);
             LapProtocolMessage message = LapProtocolParser.Parse(trimmed);
             bool demoActive = DemoLapStreamActive;
+
+            if (!isDemoLine)
+            {
+                if (message.Detail is "HELLO:TRACK_POWER:MASK:00" or "HELLO:TRACK_POWER:OFF")
+                {
+                    _controllerSession.ObservePowerOff();
+                }
+                if (message.Detail == "HELLO:RESETTING")
+                {
+                    HandleControllerFault("Controller reset detected");
+                    _controllerClockResetPending = true;
+                }
+                if (message.Detail.StartsWith("ERR:WINDOWS_WATCHDOG:", StringComparison.Ordinal))
+                {
+                    HandleControllerFault("Controller watchdog cut track power");
+                }
+                if (message.ControllerIdentity is { ProtocolVersion: >= 2 and <= 4 } identity &&
+                    identity.LaneCount >= _form.ActiveLaneCount)
+                {
+                    _controllerSession.ObserveIdentity();
+                    Volatile.Write(ref _controllerIdentity, identity);
+                }
+                if (message.ControllerTimestampMillis is uint timestamp)
+                {
+                    bool heartbeat = message.Kind == LapProtocolMessageKind.Heartbeat;
+                    bool reset = _controllerClockResetPending ||
+                        (heartbeat && _controllerSession.IsBackwardTimestamp(timestamp));
+                    if (reset && !_controllerClockResetPending)
+                    {
+                        HandleControllerFault("Controller clock restarted");
+                    }
+                    if (!_controllerSession.ObserveTimestamp(timestamp, heartbeat, newClock: reset))
+                    {
+                        _log.Warn($"ignored stale controller timestamp {timestamp}");
+                        return;
+                    }
+                    _controllerClockResetPending = false;
+                }
+            }
 
             if (!isDemoLine && demoActive)
             {
@@ -1052,7 +1345,7 @@ namespace YATSS
                 return;
             }
 
-            if (message.ControllerTimestampMillis.HasValue)
+            if (isDemoLine && message.ControllerTimestampMillis.HasValue)
             {
                 UpdateLatestControllerTimestamp(message.ControllerTimestampMillis.Value);
             }
@@ -1060,7 +1353,11 @@ namespace YATSS
             switch (message.Kind)
             {
                 case LapProtocolMessageKind.Edge:
-                    if (_diagnosticsActive)
+                    if (!isDemoLine && !_controllerSession.PowerAllowed)
+                    {
+                        _log.Info("ignored EDGE while controller recovery is pending");
+                    }
+                    else if (_diagnosticsActive)
                     {
                         _log.Info("ignored EDGE while controller diagnostics are active");
                     }
@@ -1140,7 +1437,7 @@ namespace YATSS
                 case LapProtocolMessageKind.Error:
                     if (message.Detail.StartsWith("ERR:WINDOWS_WATCHDOG:", StringComparison.OrdinalIgnoreCase))
                     {
-                        HandleControllerWatchdogTrip(message.ControllerTimestampMillis);
+                        // The fault was handled before observing the message timestamp.
                     }
                     else
                     {
@@ -1154,6 +1451,10 @@ namespace YATSS
                     _log.Warn($"rejected serial line '{message.RawLine}': {message.Detail}");
                     _form.SetStatusMessage($"Rejected serial line: {message.Detail}");
                     break;
+            }
+            if (!isDemoLine && _controllerSession.NeedsResume)
+            {
+                PublishControllerRecoveryStatus();
             }
         }
 
@@ -1308,30 +1609,71 @@ namespace YATSS
             LapProtocolMessageKind messageKind) =>
             !isDemoLine && demoActive && messageKind == LapProtocolMessageKind.Heartbeat;
 
-        private void HandleControllerWatchdogTrip(uint? controllerTimestamp)
+        private void HandleControllerFault(string reason, bool requestPowerCut = true)
         {
-            CancelStartCountdown();
-            _trackPowerEnabled = false;
-            uint timestamp = controllerTimestamp ?? GetCurrentControllerTimestamp();
-            string statusMessage;
-
-            if (_heatRace.State == HeatRaceState.Running && _heatRace.Pause(timestamp))
+            lock (_controlGate)
             {
-                PublishHeatRaceStatus("Paused");
-                statusMessage = "Controller watchdog cut track power and paused the heat. Press Space to restart.";
+                bool firstFault = !_controllerFaultActive;
+                _controllerFaultActive = true;
+                _trackPowerEnabled = false;
+                _controllerRecoveryReason = reason;
+                if (firstFault)
+                {
+                    if (!DemoLapStreamActive)
+                    {
+                        CancelStartCountdown();
+                        bool intermission = _heatRace.State == HeatRaceState.Complete && _heatRace.HasMoreHeats;
+                        CancelBetweenHeatsTimer();
+                        _betweenHeatsPaused = intermission;
+                        bool qualifierInterrupted = _controllerSession.SuspendRace(_heatRace, _qualifying, _race);
+                        if (qualifierInterrupted)
+                        {
+                            PrepareCurrentQualifier();
+                        }
+                        _log.Warn($"{reason}; session interrupted at last confirmed controller time " +
+                            $"{_controllerSession.LastConfirmedTimestamp} ms. Outage crossings are uncertain; " +
+                            "review lap counts before resuming. Interrupted qualifying must be rerun.");
+                    }
+                    else
+                    {
+                        _controllerSession.RequireRecovery();
+                    }
+                    if (requestPowerCut && IsPortOpen())
+                    {
+                        TryWriteLine("TRACK_POWER:MASK:00");
+                        TryWriteLine("PING");
+                    }
+                }
+                else
+                {
+                    _controllerSession.RequireRecovery();
+                }
+                PublishControllerRecoveryStatus();
             }
-            else if (_qualifying.InterruptCurrent())
+        }
+
+        private void PublishControllerRecoveryStatus()
+        {
+            if (DemoLapStreamActive)
             {
-                PrepareCurrentQualifier();
-                statusMessage = $"Controller watchdog interrupted {_qualifying.CurrentRacer}. Press Space to restart qualifying.";
+                return;
+            }
+            string state = _controllerSession.IsReady ? "Controller ready" : "Controller lost";
+            if (_qualifying.State != QualifyingState.Inactive)
+            {
+                PublishQualifyingStatus(state);
+            }
+            else if (_heatRace.State != HeatRaceState.Practice)
+            {
+                PublishHeatRaceStatus(state);
             }
             else
             {
-                statusMessage = "Controller watchdog cut track power. Press Space to restore practice power.";
+                _form.UpdateControllerStatus(state);
             }
-
-            _log.Warn(statusMessage);
-            _form.SetStatusMessage(statusMessage);
+            _form.SetStatusMessage(_controllerSession.IsReady
+                ? "Controller ready - power off. Review lap counts, then press Space to continue."
+                : $"{_controllerRecoveryReason} - verifying power off, controller identity, and heartbeat.");
         }
 
         private void InitializeDemoControllerClockCore()
@@ -1366,7 +1708,7 @@ namespace YATSS
 
         private string GetTrackPowerCommand()
         {
-            if (!_trackPowerEnabled)
+            if (!_trackPowerEnabled || !_controllerSession.PowerAllowed)
             {
                 return "TRACK_POWER:MASK:00";
             }
@@ -1521,24 +1863,7 @@ namespace YATSS
 
         private uint GetControllerTimestamp()
         {
-            if (!_hasControllerTimestamp)
-            {
-                return 0;
-            }
-
-            if (!_latestControllerTimestampUtc.HasValue)
-            {
-                return _latestControllerTimestamp;
-            }
-
-            double elapsedMilliseconds = (DateTime.UtcNow - _latestControllerTimestampUtc.Value).TotalMilliseconds;
-            if (elapsedMilliseconds <= 0)
-            {
-                return _latestControllerTimestamp;
-            }
-
-            uint elapsed = (uint)Math.Min(elapsedMilliseconds, uint.MaxValue);
-            return unchecked(_latestControllerTimestamp + elapsed);
+            return _controllerSession.EstimateTimestamp();
         }
 
         private void UpdateLatestControllerTimestamp(uint timestamp)
@@ -1553,7 +1878,6 @@ namespace YATSS
             }
 
             _latestControllerTimestamp = timestamp;
-            _latestControllerTimestampUtc = DateTime.UtcNow;
             _hasControllerTimestamp = true;
         }
 
@@ -1579,7 +1903,7 @@ namespace YATSS
 
         private bool CheckQualifyingExpired(uint? controllerTimestamp)
         {
-            if (!controllerTimestamp.HasValue ||
+            if ((!DemoLapStreamActive && !_controllerSession.PowerAllowed) || !controllerTimestamp.HasValue ||
                 !_qualifying.IsExpired(controllerTimestamp.Value))
             {
                 return false;
@@ -1667,7 +1991,8 @@ namespace YATSS
 
         private bool CheckHeatExpired(uint? controllerTimestamp)
         {
-            if (!controllerTimestamp.HasValue || !_heatRace.IsExpired(controllerTimestamp.Value))
+            if ((!DemoLapStreamActive && !_controllerSession.PowerAllowed) ||
+                !controllerTimestamp.HasValue || !_heatRace.IsExpired(controllerTimestamp.Value))
             {
                 return false;
             }
@@ -1714,14 +2039,27 @@ namespace YATSS
             PublishHeatRaceStatus("Intermission");
             _form.SetStatusMessage($"Heat {_heatRace.HeatNumber} complete. Next heat in {betweenHeatsSeconds} seconds. {StoppedAdjustmentHint}");
             _betweenHeatsTimer = new System.Threading.Timer(
-                _ => StartNextHeatFromComplete(manualStart: false),
+                _ => StartNextHeatFromComplete(manualStart: false, expectedVersion: betweenHeatsVersion),
                 null,
                 TimeSpan.FromSeconds(betweenHeatsSeconds),
                 Timeout.InfiniteTimeSpan);
             ScheduleBetweenHeatsAnnouncements(betweenHeatsSeconds, betweenHeatsVersion);
         }
 
-        private void StartNextHeatFromComplete(bool manualStart)
+        private void StartNextHeatFromComplete(bool manualStart, int? expectedVersion = null)
+        {
+            lock (_controlGate)
+            {
+                if ((expectedVersion.HasValue && expectedVersion != Volatile.Read(ref _betweenHeatsVersion)) ||
+                    !CanRunController())
+                {
+                    return;
+                }
+                StartNextHeatFromCompleteCore(manualStart);
+            }
+        }
+
+        private void StartNextHeatFromCompleteCore(bool manualStart)
         {
             CancelBetweenHeatsTimer();
             _betweenHeatsPaused = false;
@@ -1832,6 +2170,10 @@ namespace YATSS
 
         private void PublishHeatRaceStatus(string state)
         {
+            if (!DemoLapStreamActive && _controllerSession.NeedsResume)
+            {
+                state = _controllerSession.IsReady ? "Controller ready" : "Controller lost";
+            }
             uint controllerTimestamp = GetCurrentControllerTimestamp();
             HeatRaceSnapshot snapshot = _heatRace.GetSnapshot(controllerTimestamp);
             TimeSpan remaining = state == "Intermission" && _nextHeatStartUtc.HasValue
@@ -1847,6 +2189,10 @@ namespace YATSS
 
         private void PublishQualifyingStatus(string state)
         {
+            if (!DemoLapStreamActive && _controllerSession.NeedsResume)
+            {
+                state = _controllerSession.IsReady ? "Controller ready" : "Controller lost";
+            }
             _form.UpdateQualifyingStatus(
                 _qualifying.CurrentNumber,
                 _qualifying.RacerCount,
@@ -2028,9 +2374,19 @@ namespace YATSS
         {
             StopControllerDiagnostics();
             StopDemoLapStream();
+            lock (_controlGate)
+            {
+                CancelStartCountdown();
+                CancelBetweenHeatsTimer();
+                _trackPowerEnabled = false;
+                if (IsPortOpen())
+                {
+                    TryWriteLine("TRACK_POWER:MASK:00");
+                }
+                _controllerSession.EndConnection();
+            }
             _stop.Cancel();
             Interlocked.Increment(ref _connectionGeneration);
-            CancelBetweenHeatsTimer();
             try
             {
                 _readerTask?.Wait(TimeSpan.FromSeconds(3));
@@ -2042,6 +2398,7 @@ namespace YATSS
             CloseActivePort();
 
             _lapBestSoundPlayer?.Dispose();
+            _log.Dispose();
             _stop.Dispose();
         }
 

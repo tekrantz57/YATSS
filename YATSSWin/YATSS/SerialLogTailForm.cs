@@ -6,10 +6,14 @@ namespace YATSS
         private const int EmGetFirstVisibleLine = 0x00CE;
         private readonly TextBox _logTextBox = new();
         private readonly System.Windows.Forms.Timer _refreshTimer = new();
+        private readonly Label _loggingStatus = new() { Dock = DockStyle.Top, AutoSize = true, MaximumSize = new Size(900, 0) };
+        private readonly SerialLog? _log;
         private long _lastLength = -1;
+        private string? _lastPath;
 
-        public SerialLogTailForm()
+        public SerialLogTailForm(SerialLog? log = null)
         {
+            _log = log;
             Text = "Serial Log Tail";
             StartPosition = FormStartPosition.CenterParent;
             Size = new Size(950, 520);
@@ -20,6 +24,8 @@ namespace YATSS
             _logTextBox.ScrollBars = ScrollBars.Both;
             _logTextBox.WordWrap = false;
             Controls.Add(_logTextBox);
+            Controls.Add(_loggingStatus);
+            Resize += (_, _) => _loggingStatus.MaximumSize = new Size(Math.Max(1, ClientSize.Width), 0);
 
             _refreshTimer.Interval = 1000;
             _refreshTimer.Tick += (_, _) => RefreshLog();
@@ -29,12 +35,39 @@ namespace YATSS
                 BeginInvoke(ScrollToEnd);
                 _refreshTimer.Start();
             };
-            FormClosed += (_, _) => _refreshTimer.Stop();
+            FormClosed += (_, _) => _refreshTimer.Dispose();
         }
 
         private void RefreshLog(bool force = false)
         {
+            _loggingStatus.Text = _log?.Failure ?? string.Empty;
+            if (_log is { DroppedEntries: > 0 })
+            {
+                _loggingStatus.Text += $" Diagnostic entries dropped: {_log.DroppedEntries}. Race scoring is unaffected.";
+            }
+            _loggingStatus.Visible = _loggingStatus.Text.Length > 0;
+            try
+            {
+                RefreshLogCore(force);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+            {
+                _lastLength = -1;
+                Text = "Serial Log Tail (unavailable)";
+                _loggingStatus.Text = $"Unable to read the log: {ex.Message}. Racing continues.";
+                _loggingStatus.Visible = true;
+            }
+        }
+
+        private void RefreshLogCore(bool force)
+        {
             string path = SerialLog.CurrentPath;
+            if (path != _lastPath)
+            {
+                _lastPath = path;
+                _lastLength = -1;
+                force = true;
+            }
             if (!File.Exists(path))
             {
                 _logTextBox.Text = $"Waiting for log file:{Environment.NewLine}{path}";
@@ -55,9 +88,10 @@ namespace YATSS
                 return;
             }
 
-            _lastLength = fileInfo.Length;
             using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-            if (stream.Length > MaxCharacters)
+            long length = stream.Length;
+            bool tailOnly = length > MaxCharacters;
+            if (tailOnly)
             {
                 stream.Seek(-MaxCharacters, SeekOrigin.End);
             }
@@ -65,12 +99,13 @@ namespace YATSS
             using StreamReader reader = new(stream);
             string text = reader.ReadToEnd();
             int firstFullLine = text.IndexOf(Environment.NewLine, StringComparison.Ordinal);
-            if (stream.Position >= MaxCharacters && firstFullLine >= 0)
+            if (tailOnly && firstFullLine >= 0)
             {
                 text = text[(firstFullLine + Environment.NewLine.Length)..];
             }
 
             _logTextBox.Text = text;
+            _lastLength = length;
             ScrollToEnd();
             Text = "Serial Log Tail";
         }

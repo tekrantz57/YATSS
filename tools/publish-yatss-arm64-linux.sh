@@ -32,6 +32,7 @@ command -v dotnet >/dev/null || { echo "The .NET 10 SDK is required." >&2; exit 
 command -v zip >/dev/null || { echo "The zip command is required." >&2; exit 1; }
 
 repository_root="$(find_repository "${1:-}")"
+bash "$repository_root/tools/sync-controller-core-linux.sh" "$repository_root" check
 project="$repository_root/YATSSWin/YATSS/YATSS.csproj"
 artifact_root="$repository_root/artifacts"
 publish_dir="$artifact_root/YATSS-win-arm64-linux-build"

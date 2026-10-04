@@ -50,6 +50,7 @@ namespace YATSS
             public uint? LastRawTimestamp { get; set; }
             public uint? LastSequence { get; set; }
             public int MissedFrames { get; set; }
+            public bool CountAfterInterruption { get; set; }
 
             public void Reset(int laneIndex)
             {
@@ -58,6 +59,7 @@ namespace YATSS
                 LastRawTimestamp = null;
                 LastSequence = null;
                 MissedFrames = 0;
+                CountAfterInterruption = false;
             }
         }
 
@@ -188,6 +190,13 @@ namespace YATSS
                 if (!lane.LastAcceptedTimestamp.HasValue)
                 {
                     lane.LastAcceptedTimestamp = edge.TimestampMillis;
+                    if (lane.CountAfterInterruption)
+                    {
+                        lane.CountAfterInterruption = false;
+                        lane.Stats.AddLapCountOnly(edge.TimestampMillis);
+                        return new LapUpdate(LapUpdateKind.Counted, edge.LaneIndex, null,
+                            lane.MissedFrames, "first crossing after controller interruption; excluded from lap timing");
+                    }
                     if (countFirstEdgeAsLap)
                     {
                         if (firstLapMilliseconds.HasValue)
@@ -299,6 +308,21 @@ namespace YATSS
                     _lanes[i].LastRawTimestamp = null;
                     _lanes[i].LastSequence = null;
                     _lanes[i].MissedFrames = 0;
+                    _lanes[i].CountAfterInterruption = false;
+                }
+            }
+        }
+
+        public void InterruptTiming()
+        {
+            lock (_gate)
+            {
+                foreach (LaneRuntime lane in _lanes)
+                {
+                    lane.CountAfterInterruption |= lane.LastAcceptedTimestamp.HasValue;
+                    lane.LastAcceptedTimestamp = null;
+                    lane.LastRawTimestamp = null;
+                    lane.LastSequence = null;
                 }
             }
         }

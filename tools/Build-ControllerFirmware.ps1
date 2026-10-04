@@ -6,6 +6,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $repositoryRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
+& (Join-Path $PSScriptRoot "Sync-ControllerCore.ps1") -Check
 $OutputDirectory = if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
     Join-Path $repositoryRoot "YATSSMC\dist"
 } else {

@@ -695,6 +695,132 @@ Assert(
     rolloverHeat.GetRemaining(500) == TimeSpan.FromMilliseconds(59000),
     "heat timing should continue across controller timestamp rollover");
 
+long controllerTicks = 0;
+ControllerSession controllerSession = new(() => controllerTicks);
+controllerSession.BeginConnection();
+Assert(!controllerSession.PowerAllowed && !controllerSession.AuthorizeResume(),
+    "opening a transport must not authorize race starts or power");
+controllerSession.ObserveIdentity();
+Assert(!controllerSession.IsReady, "identity alone must not make a controller ready");
+controllerSession.ObserveTimestamp(100000, heartbeat: true);
+Assert(!controllerSession.IsReady, "readiness must also require acknowledgement that track power is off");
+controllerSession.ObservePowerOff();
+Assert(controllerSession.IsReady && !controllerSession.PowerAllowed,
+    "identity, heartbeat, and power-off acknowledgement should establish readiness while power remains inhibited");
+Assert(controllerSession.AuthorizeResume() && controllerSession.PowerAllowed,
+    "the operator must explicitly authorize the first start");
+
+HeatRaceController interruptedHeat = new();
+interruptedHeat.Configure(1, 15, new[] { "A", "B" });
+interruptedHeat.Start(100000);
+LapRace interruptedLaps = new(new LapRaceOptions(1000, 600000, 155));
+interruptedLaps.Process(interruptedHeat.PrepareEdge(new LapEdge(0, 1, 100500)).Edge);
+interruptedLaps.Process(interruptedHeat.PrepareEdge(new LapEdge(0, 2, 102500)).Edge);
+controllerSession.ObserveTimestamp(102500, heartbeat: false);
+controllerTicks = 1000;
+Assert(controllerSession.EstimateTimestamp() == 103500,
+    "the display clock should extrapolate using monotonic host time");
+controllerTicks = 3000;
+Assert(controllerSession.HeartbeatExpired,
+    "missing heartbeats should trigger a fault even when sensor frames have arrived");
+QualifyingController inactiveQualifier = new();
+controllerSession.SuspendRace(interruptedHeat, inactiveQualifier, interruptedLaps);
+Assert(interruptedHeat.State == HeatRaceState.Paused &&
+    interruptedHeat.GetRemaining(999999) == TimeSpan.FromMilliseconds(57500),
+    "a lost connection should freeze the heat at confirmed time, excluding host extrapolation");
+Assert(interruptedLaps.GetLane(0).getCount() == 1 && !controllerSession.PowerAllowed,
+    "loss without a watchdog notification must preserve laps and inhibit power");
+controllerSession.EndConnection();
+controllerTicks = 9000;
+Assert(!controllerSession.HeartbeatExpired, "a closed transport should wait for reconnect without repeated heartbeat expiry");
+controllerSession.BeginConnection();
+controllerSession.ObserveTimestamp(103200, heartbeat: true);
+Assert(!controllerSession.IsReady, "a reconnect heartbeat must also be accompanied by identity");
+controllerSession.ObserveIdentity();
+controllerSession.ObservePowerOff();
+Assert(controllerSession.IsReady && !controllerSession.PowerAllowed && interruptedHeat.State == HeatRaceState.Paused,
+    "successful reconnect must leave the race paused until the director resumes");
+controllerSession.AuthorizeResume();
+interruptedHeat.Resume(103500);
+LapUpdate recoveryCrossing = interruptedLaps.Process(
+    interruptedHeat.PrepareEdge(new LapEdge(0, 9, 104000)).Edge);
+Assert(recoveryCrossing.Kind == LapUpdateKind.Counted && recoveryCrossing.LapMilliseconds == null &&
+    !recoveryCrossing.FastestLapEligible && recoveryCrossing.MissedFrames == 0,
+    "the first crossing after an outage should count without timing or invented sequence gaps");
+Assert(interruptedLaps.GetLane(0).best_time == 2000 && interruptedLaps.GetLane(0).getCount() == 2,
+    "recovery should preserve the existing best lap and cumulative count");
+LapUpdate fullyTimedRecoveryLap = interruptedLaps.Process(
+    interruptedHeat.PrepareEdge(new LapEdge(0, 10, 106000)).Edge);
+Assert(fullyTimedRecoveryLap.LapMilliseconds == 2000,
+    "the next complete lap after recovery should have normal timing");
+controllerSession.ObserveTimestamp(106000, heartbeat: false);
+controllerSession.SuspendRace(interruptedHeat, inactiveQualifier, interruptedLaps);
+Assert(controllerSession.IsBackwardTimestamp(10), "a reboot heartbeat should be recognized as a new clock");
+controllerSession.ObserveTimestamp(10, heartbeat: true, newClock: true);
+controllerSession.ObserveIdentity();
+controllerSession.ObservePowerOff();
+controllerSession.AuthorizeResume();
+interruptedHeat.Resume(10);
+LapUpdate rebootCrossing = interruptedLaps.Process(
+    interruptedHeat.PrepareEdge(new LapEdge(0, 1, 510)).Edge);
+Assert(rebootCrossing.Kind == LapUpdateKind.Counted && rebootCrossing.LapMilliseconds == null &&
+    interruptedLaps.GetLane(0).getCount() == 4,
+    "a fresh MCU clock and sequence must preserve scoring across a reboot");
+Assert(interruptedHeat.GetRemaining(510) == TimeSpan.FromMilliseconds(54500),
+    "a reboot must retain the previously consumed active heat time");
+
+ControllerSession wrapSession = new(() => 0);
+wrapSession.BeginConnection();
+wrapSession.ObserveIdentity();
+wrapSession.ObserveTimestamp(uint.MaxValue - 500, heartbeat: true);
+wrapSession.ObservePowerOff();
+wrapSession.AuthorizeResume();
+Assert(!wrapSession.IsBackwardTimestamp(1500) && wrapSession.ObserveTimestamp(1500, heartbeat: true) &&
+    wrapSession.PowerAllowed, "normal uint timestamp rollover must not interrupt racing");
+Assert(!wrapSession.ObserveTimestamp(1400, heartbeat: false) && wrapSession.LastConfirmedTimestamp == 1500,
+    "a stale edge must not move the confirmed clock backward");
+
+QualifyingController interruptedQualifier = new();
+interruptedQualifier.Configure(new[] { "Finished", "Interrupted" }, 0, 30);
+interruptedQualifier.Start(1000);
+interruptedQualifier.CompleteCurrent(2000);
+interruptedQualifier.Start(32000);
+wrapSession.ObserveTimestamp(35000, heartbeat: true);
+Assert(wrapSession.SuspendRace(new HeatRaceController(), interruptedQualifier, new LapRace()),
+    "a connection fault should interrupt a running qualifier");
+Assert(interruptedQualifier.State == QualifyingState.Ready && interruptedQualifier.CurrentRacer == "Interrupted" &&
+    interruptedQualifier.GetRankedResults().Single().RacerName == "Finished",
+    "qualifying recovery must rerun only the interrupted racer and preserve completed results");
+
+ControllerSession silentController = new(() => controllerTicks);
+silentController.BeginConnection();
+silentController.ObserveIdentity();
+controllerTicks += ControllerSession.HeartbeatTimeoutMilliseconds;
+Assert(silentController.HeartbeatExpired && !silentController.AuthorizeResume(),
+    "an open port that never sends a heartbeat must not become usable");
+
+SpeechBackendMode cancellationBackend = SpeechAnnouncer.BackendMode;
+try
+{
+    SpeechAnnouncer.BackendMode = SpeechBackendMode.None;
+    bool countdownAllowed = true;
+    List<int> cancelledCountdownSteps = new();
+    using ManualResetEventSlim cancellationQueueDrained = new(false);
+    SpeechAnnouncer.SpeakCountdownAsync("", step =>
+    {
+        cancelledCountdownSteps.Add(step);
+        countdownAllowed = false;
+    }, () => cancelledCountdownSteps.Add(4), () => countdownAllowed);
+    SpeechAnnouncer.SpeakCountdownAsync("", _ => { }, () => cancellationQueueDrained.Set());
+    Assert(cancellationQueueDrained.Wait(TimeSpan.FromSeconds(5)), "the speech queue should drain after cancellation");
+    Assert(cancelledCountdownSteps.SequenceEqual(new[] { 1 }),
+        "a fault during countdown must suppress remaining lights and the power/start callback");
+}
+finally
+{
+    SpeechAnnouncer.BackendMode = cancellationBackend;
+}
+
 HeatRaceController enduroHeat = new();
 enduroHeat.Configure(HeatRaceController.MaximumHeatLengthMinutes, 0, new[] { "A", "B" });
 Assert(enduroHeat.HeatLengthMinutes == 1440, "heat race should allow a 24-hour heat");
@@ -784,6 +910,149 @@ customLaneHeat.Configure(1, 0, new[] { "A", "B" }, activeLaneCount: 4, laneConfi
 HeatRaceReport customLaneReport = customLaneHeat.CreateReport();
 Assert(customLaneReport.LaneNames[0] == "Aqua", "report should use configured lane names");
 Assert(customLaneReport.LaneColorArgb[1] == System.Drawing.Color.HotPink.ToArgb(), "report should use configured lane colors");
+
+HeatRaceController correctedHeat = new();
+correctedHeat.Configure(1, 0, new[] { "Corrected", "Leader", "Waiting" }, activeLaneCount: 2);
+Assert(correctedHeat.Start(0), "correction regression heat should start");
+HeatRaceSnapshot correctionSnapshot = correctedHeat.GetSnapshot(0);
+int[] correctionTotals = correctionSnapshot.LaneRacers.Select(_ => 10).ToArray();
+correctedHeat.RecordHeatResults(correctionTotals, new int?[2]);
+Assert(correctedHeat.Complete() && correctedHeat.PrepareNextHeat(correctionTotals), "correction regression should rotate racers");
+Assert(correctedHeat.Start(100000), "second correction heat should start");
+correctionSnapshot = correctedHeat.GetSnapshot(100000);
+int correctedLane = correctionSnapshot.LaneRacers.ToList().IndexOf("Corrected");
+Assert(correctedLane >= 0, "corrected racer should still be active in heat two");
+Assert(correctedHeat.Pause(101000), "director should stop before correcting laps");
+correctionTotals = correctionSnapshot.LaneLapCounts.ToArray();
+correctionTotals[correctedLane] = 9;
+correctedHeat.RecordManualLapAdjustment(correctedLane, -1, 9);
+correctedHeat.RecordHeatResults(correctionTotals, new int?[2]);
+Assert(correctedHeat.Complete() && correctedHeat.PrepareNextHeat(correctionTotals), "corrected racer should rotate out");
+Assert(!correctedHeat.GetSnapshot(101000).LaneRacers.Contains("Corrected"), "corrected total should survive while racer waits");
+correctedHeat.RecordHeatResults(correctedHeat.GetSnapshot(101000).LaneLapCounts, new int?[2]);
+HeatRaceReport correctedReport = correctedHeat.CreateReport();
+Assert(correctedReport.Racers.Single(racer => racer.RacerName == "Corrected").TotalLaps == 9,
+    "final total must use latest cumulative total, not the earlier maximum of ten");
+Assert(correctedReport.Racers[0].RacerName == "Leader", "corrected standings should retain the proper winner");
+Assert(correctedReport.ManualAdjustments.Single().Delta == -1, "downward correction should retain its audit trail");
+string correctionDirectory = Path.Combine(Path.GetTempPath(), "YATSS.Tests", Guid.NewGuid().ToString("N"));
+try
+{
+    RaceExportPaths correctedExports = RaceArchiveWriter.Write(correctedReport, correctionDirectory);
+    using JsonDocument correctedJson = JsonDocument.Parse(File.ReadAllText(correctedExports.Json!));
+    JsonElement correctedRacer = correctedJson.RootElement.GetProperty("race").GetProperty("racers")
+        .EnumerateArray().Single(racer => racer.GetProperty("racerName").GetString() == "Corrected");
+    Assert(correctedRacer.GetProperty("totalLaps").GetInt32() == 9, "JSON must preserve corrected total");
+    Assert(correctedJson.RootElement.GetProperty("race").GetProperty("manualAdjustments")[0]
+        .GetProperty("delta").GetInt32() == -1, "JSON must preserve negative adjustment history");
+    string correctedHtml = File.ReadAllText(correctedExports.Html);
+    Assert(correctedHtml.Contains($"<td>Corrected</td>{Environment.NewLine}<td class=\"total\">9</td>"), "HTML standings must show nine corrected laps");
+    Assert(correctedHtml.Contains("<td>-1</td>"), "HTML must preserve negative adjustment history");
+    Assert(File.ReadAllLines(correctedExports.ResultsCsv!).Any(line => line.Contains(",Corrected,0,9,")),
+        "CSV heat results must contain the latest corrected cumulative total");
+    Assert(File.ReadAllText(correctedExports.AdjustmentsCsv!).Contains(",-1,9,"), "CSV audit must preserve negative correction");
+}
+finally
+{
+    if (Directory.Exists(correctionDirectory)) Directory.Delete(correctionDirectory, recursive: true);
+}
+
+string logDirectory = Path.Combine(Path.GetTempPath(), "YATSS.Tests", Guid.NewGuid().ToString("N"));
+DateTimeOffset logTime = new(2026, 10, 4, 23, 59, 59, TimeSpan.FromHours(-4));
+try
+{
+    Directory.CreateDirectory(logDirectory);
+    string oldLog = Path.Combine(logDirectory, "serial-20260904.log");
+    string retainedLog = Path.Combine(logDirectory, "serial-20260905.log");
+    string unrelatedFile = Path.Combine(logDirectory, "notes.log");
+    File.WriteAllText(oldLog, "old");
+    File.WriteAllText(retainedLog, "retain");
+    File.WriteAllText(unrelatedFile, "retain");
+    using (SerialLog rolloverLog = new(logDirectory, () => logTime, trace: _ => throw new InvalidOperationException("listener failed")))
+    {
+        rolloverLog.Info("before midnight");
+        await rolloverLog.FlushAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        Assert(!File.Exists(oldLog) && File.Exists(retainedLog), "logger should retain thirty calendar days");
+        Assert(File.Exists(unrelatedFile), "retention must leave unrelated files alone");
+        logTime = logTime.AddSeconds(2);
+        rolloverLog.Info("after midnight");
+        await rolloverLog.FlushAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        Assert(File.ReadAllText(Path.Combine(logDirectory, "serial-20261004.log")).Contains("before midnight"), "old day log should retain earlier entries");
+        Assert(File.ReadAllText(Path.Combine(logDirectory, "serial-20261005.log")).Contains("after midnight"), "running logger should roll over at midnight");
+        Assert(rolloverLog.Failure == null, "throwing trace listener must not prevent disk logging");
+        rolloverLog.Raw(new string('X', 100000));
+        await rolloverLog.FlushAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        Assert(File.ReadAllLines(Path.Combine(logDirectory, "serial-20261005.log")).Last().Length < 8300,
+            "oversized diagnostic entry should be truncated to bound queue memory");
+    }
+
+    string blockedDirectory = Path.Combine(logDirectory, "not-a-directory");
+    File.WriteAllText(blockedDirectory, "block directory creation");
+    using (SerialLog blockedLog = new(Path.Combine(blockedDirectory, "logs"), () => logTime, trace: _ => { }))
+    {
+        blockedLog.Info("cannot create log directory");
+        await blockedLog.FlushAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        Assert(blockedLog.Failure != null && blockedLog.DroppedEntries == 1,
+            "real directory creation failure must not escape construction or logging");
+    }
+
+    foreach (Exception storageFailure in new Exception[] { new IOException("disk full"), new UnauthorizedAccessException("access denied") })
+    {
+        bool failWrites = true;
+        int appendAttempts = 0;
+        int warnings = 0;
+        using SerialLog failingLog = new(logDirectory, () => logTime, append: (_, _) =>
+        {
+            appendAttempts++;
+            if (failWrites) throw storageFailure;
+        }, trace: _ => { });
+        failingLog.Warning += _ => { warnings++; throw new InvalidOperationException("UI closed"); };
+        failingLog.Raw("first failure");
+        await failingLog.FlushAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        Assert(failingLog.Failure != null && warnings == 1, "storage error should surface once even if warning callback fails");
+        LapRace uninterruptedRace = new();
+        uninterruptedRace.Process(new LapEdge(0, 1, 0));
+        for (uint lap = 1; lap <= 100; lap++)
+        {
+            failingLog.Raw($"EDGE:0:{lap + 1}:{lap * 2000}");
+            Assert(uninterruptedRace.Process(new LapEdge(0, lap + 1, lap * 2000)).Kind == LapUpdateKind.Counted,
+                "logging failure must not stop accepted laps");
+        }
+        await failingLog.FlushAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        Assert(appendAttempts == 1 && warnings == 1 && failingLog.DroppedEntries == 101,
+            "failed destination should back off without recursive warnings or accumulated entries");
+        failWrites = false;
+        logTime = logTime.AddSeconds(31);
+        failingLog.Info("retry");
+        await failingLog.FlushAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        Assert(failingLog.Failure == null && appendAttempts == 2, "logger should recover after retry interval");
+    }
+
+    using ManualResetEventSlim writerEntered = new(false);
+    using ManualResetEventSlim releaseWriter = new(false);
+    using SerialLog slowLog = new(logDirectory, () => logTime, append: (_, _) =>
+    {
+        writerEntered.Set();
+        releaseWriter.Wait();
+    }, trace: _ => { });
+    slowLog.Raw("blocked writer");
+    Assert(writerEntered.Wait(TimeSpan.FromSeconds(5)), "slow writer should begin in background");
+    try
+    {
+        Task producer = Task.Run(() =>
+        {
+            for (int entry = 0; entry < SerialLog.QueueCapacity * 10; entry++) slowLog.Raw("queued entry");
+        });
+        Assert(producer.Wait(TimeSpan.FromSeconds(5)), "full diagnostic queue must not block producer");
+        Assert(slowLog.DroppedEntries >= SerialLog.QueueCapacity * 9, "full queue should drop excess entries with bounded memory");
+    }
+    finally { releaseWriter.Set(); }
+    await slowLog.FlushAsync().WaitAsync(TimeSpan.FromSeconds(5));
+}
+finally
+{
+    if (Directory.Exists(logDirectory)) Directory.Delete(logDirectory, recursive: true);
+}
 
 HeatRaceController reportHeat = new();
 reportHeat.Configure(

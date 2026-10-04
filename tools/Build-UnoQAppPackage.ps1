@@ -5,6 +5,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $repositoryRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
+& (Join-Path $PSScriptRoot "Sync-ControllerCore.ps1") -Check
 $sourceDirectory = Join-Path $repositoryRoot "YATSSUnoQ"
 $OutputPath = if ([string]::IsNullOrWhiteSpace($OutputPath)) {
     Join-Path $repositoryRoot "artifacts\YATSS-UNOQ-AppLab.zip"

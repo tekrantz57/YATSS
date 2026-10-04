@@ -22,8 +22,65 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      - name: Check self-contained sketch copies
+        run: ./tools/Sync-ControllerCore.ps1 -Check
+
       - name: Build Windows solution
         run: dotnet build YATSSWin\YATSS.sln -c Release
 
       - name: Run protocol and lap-race tests
         run: dotnet run --project YATSSWin\YATSS.Tests\YATSS.Tests.csproj -c Release
+
+  controller:
+    name: Shared controller behavior
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check self-contained sketch copies
+        run: bash tools/sync-controller-core-linux.sh "$PWD" check
+      - name: Build common behavior tests
+        run: g++ -std=c++17 -Wall -Wextra -Werror -pedantic tests/controller/main.cpp -o controller-tests
+      - name: Test common behavior
+        run: ./controller-tests
+
+  firmware:
+    name: Firmware (${{ matrix.board.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        board:
+          - name: Nano ESP32
+            core: arduino:esp32@2.0.18-arduino.5
+            fqbn: arduino:esp32:nano_nora:USBMode=default,PartitionScheme=default,PinNumbers=default
+            sketch: YATSSMC
+          - name: C5 N16R8
+            core: esp32:esp32@3.3.11
+            fqbn: esp32:esp32:esp32c5:CDCOnBoot=default,CPUFreq=240,FlashFreq=80,FlashMode=qio,FlashSize=16M,PartitionScheme=fatflash,PSRAM=enabled
+            sketch: YATSSMC
+          - name: C6 N4
+            core: esp32:esp32@3.3.11
+            fqbn: esp32:esp32:esp32c6:CDCOnBoot=default,FlashSize=4M,PartitionScheme=default
+            sketch: YATSSMC
+          - name: C6 N8
+            core: esp32:esp32@3.3.11
+            fqbn: esp32:esp32:esp32c6:CDCOnBoot=default,FlashSize=8M,PartitionScheme=default_8MB
+            sketch: YATSSMC
+          - name: UNO Q
+            core: arduino:zephyr@0.90.0
+            fqbn: arduino:zephyr:unoq
+            sketch: YATSSUnoQ/sketch
+    steps:
+      - uses: actions/checkout@v6
+      - uses: arduino/setup-arduino-cli@v2
+      - name: Check self-contained sketch copies
+        run: bash tools/sync-controller-core-linux.sh "$PWD" check
+      - name: Install pinned board core
+        run: |
+          arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core install '${{ matrix.board.core }}' --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+      - name: Install UNO Q bridge library
+        if: matrix.board.name == 'UNO Q'
+        run: arduino-cli lib install Arduino_RouterBridge@0.4.3
+      - name: Compile controller
+        run: arduino-cli compile --fqbn '${{ matrix.board.fqbn }}' '${{ matrix.board.sketch }}'

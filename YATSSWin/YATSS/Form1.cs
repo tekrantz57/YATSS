@@ -832,7 +832,7 @@ namespace YATSS
 
         private void serialLogToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            SerialLogTailForm logTail = new();
+            SerialLogTailForm logTail = new(s.Log);
             logTail.Show(this);
         }
 
@@ -1069,11 +1069,13 @@ namespace YATSS
             {
                 SetPracticeClockEnabled(false);
                 string trimmedState = state.Trim();
-                bool waitingForSpace = trimmedState is "Ready" or "Paused";
+                bool waitingForSpace = trimmedState is "Ready" or "Paused" or "Controller ready" or "Controller lost";
                 string displayState = trimmedState switch
                 {
                     "Ready" => "PRESS SPACE TO START",
                     "Paused" => "PAUSED - PRESS SPACE TO RESUME",
+                    "Controller ready" => "CONTROLLER READY - PRESS SPACE TO RERUN",
+                    "Controller lost" => "CONTROLLER LOST - QUALIFYING STOPPED",
                     "Starting" => "STARTING...",
                     "Resuming" => "RESUMING...",
                     _ => trimmedState
@@ -1445,10 +1447,13 @@ namespace YATSS
                 bool waitingForSpace = string.Equals(trimmedState, "Ready", StringComparison.OrdinalIgnoreCase) ||
                     string.Equals(trimmedState, "Paused", StringComparison.OrdinalIgnoreCase) ||
                     string.Equals(trimmedState, "Intermission paused", StringComparison.OrdinalIgnoreCase);
+                waitingForSpace |= trimmedState is "Controller ready" or "Controller lost";
                 string displayState = trimmedState switch
                 {
                     "Ready" => "PRESS SPACE TO START",
                     "Paused" => "PAUSED - PRESS SPACE TO RESUME",
+                    "Controller ready" => "CONTROLLER READY - PRESS SPACE TO CONTINUE",
+                    "Controller lost" => "CONTROLLER LOST - RACE PAUSED",
                     "Starting" => "STARTING...",
                     "Resuming" => "RESUMING...",
                     "Intermission paused" => "INTERMISSION PAUSED - PRESS SPACE FOR NEXT HEAT",
@@ -1477,6 +1482,18 @@ namespace YATSS
                 _heatStatusLabel.ForeColor = Color.White;
                 SetPracticeClockEnabled(true);
                 _onDeckLabel.Text = "On deck: ";
+            });
+        }
+
+        public void UpdateControllerStatus(string state)
+        {
+            RunOnUiThread(() =>
+            {
+                _heatStatusLabel.Text = state == "Controller ready"
+                    ? "CONTROLLER READY - PRESS SPACE FOR PRACTICE POWER"
+                    : "CONTROLLER LOST - POWER OFF";
+                _heatStatusLabel.ForeColor = Color.Gold;
+                SetFontSizeToFit(_heatStatusLabel, 14F);
             });
         }
 
@@ -1532,7 +1549,7 @@ namespace YATSS
             RunOnUiThread(() => statusLabel.Text = message);
         }
 
-        public void ShowStartCountdownStep(int step)
+        public void ShowStartCountdownStep(int step, Func<bool>? stillValid = null)
         {
             if (IsDisposed)
             {
@@ -1541,7 +1558,12 @@ namespace YATSS
 
             if (InvokeRequired)
             {
-                Invoke(() => ShowStartCountdownStep(step));
+                Invoke(() => ShowStartCountdownStep(step, stillValid));
+                return;
+            }
+
+            if (stillValid != null && !stillValid())
+            {
                 return;
             }
 

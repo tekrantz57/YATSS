@@ -64,6 +64,12 @@ The `File > Serial Log` window tails the current log. It follows the end of the
 file while scrolled to the bottom, pauses when you scroll up to inspect older
 lines, and resumes following when you scroll back to the bottom.
 
+Logging runs in a bounded background queue so a slow or failed disk does not
+block lap counting. Files roll over at midnight and retain the last 30 calendar
+days. Storage errors are reported, and the log window shows dropped diagnostic
+entries. See [Serial logging](../docs/SERIAL_LOGGING.md) for retry and shutdown
+limits; these logs are not a durable race-recovery journal.
+
 While YATSS is running, the app asks Windows to keep the system and display
 awake so the race board does not sleep or blank during timing. Normal power
 management resumes when the app exits.
@@ -230,7 +236,7 @@ the controller when connected.
 ## Track Power
 
 The app sends track-power commands over serial. In practice mode it enables the
-configured active lanes. In heat-race mode it enables only occupied lanes and
+configured active lanes after an explicit Space start. In heat-race mode it enables only occupied lanes and
 cuts power during intermissions and track calls.
 
 Windows acknowledges each controller heartbeat. If acknowledgements stop for
@@ -238,6 +244,14 @@ five seconds while a lane is powered, the controller cuts every lane. A
 watchdog report pauses a running heat or returns the current qualifier to Ready
 for another attempt; routine communication resumption does not itself restore
 track power.
+
+Serial/TCP read or write failures, missing heartbeats, and detected controller
+resets also interrupt the session even if a watchdog report never arrives.
+Reconnection verifies controller identity, heartbeat, and power-off
+acknowledgement; the director must press Space to resume. Heat laps and remaining
+time are preserved, while an interrupted qualifier must rerun its attempt.
+See [Controller recovery](../docs/CONTROLLER_RECOVERY.md) for the complete
+workflow, outage timing rules, and hardware checks.
 
 See `..\docs\SERIAL_PROTOCOL.md` for the serial protocol and
 `..\docs\TROUBLESHOOTING.md` for Visual Studio and upload recovery notes. See

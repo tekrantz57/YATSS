@@ -256,7 +256,8 @@ relay off, relay on, and car running at both the driver station and the track.
 Each lane has a per-lane debounce interval. The default is:
 
 ```cpp
-#define DEFAULT_EDGE_DEBOUNCE_MILLIS 1800UL
+// Default in Controller/YatssController.h:
+uint32_t debounce_ = 1800;
 ```
 
 Windows can change this at runtime with `CONFIG:DEBOUNCE:<milliseconds>`. The
@@ -269,6 +270,14 @@ EDGE:<zero-based-lane>:<per-lane-sequence>:<millis>*XX
 ```
 
 The queue is protected with ESP32 critical-section APIs.
+
+The common protocol, capture/debounce, diagnostics, and safety implementation
+now lives in `Controller/YatssController.h` and is also used by UNO Q. The `.ino`
+file retains pin mapping, ISR/critical-section handling, serial, flash-capacity
+identity, and hardware reset. Open this sketch normally in Arduino IDE; its
+generated `src/YatssController` copy is self-contained. Do not edit that copy:
+see [Shared controller core](../docs/SHARED_CONTROLLER.md) for synchronization
+and common tests.
 
 Serial command reads use a 10 ms timeout so an incomplete command cannot block
 edge publishing or heartbeats for the Arduino default timeout.

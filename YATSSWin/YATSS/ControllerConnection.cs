@@ -45,7 +45,7 @@ namespace YATSS
             _client = new TcpClient { NoDelay = true };
             try
             {
-                _client.Connect(host, port);
+                _client.ConnectAsync(host, port).WaitAsync(TimeSpan.FromSeconds(3)).GetAwaiter().GetResult();
                 NetworkStream stream = _client.GetStream();
                 stream.ReadTimeout = readTimeout;
                 stream.WriteTimeout = writeTimeout;

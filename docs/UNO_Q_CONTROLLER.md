@@ -37,7 +37,7 @@ indicator:
 
 - A plain `Y` means the controller firmware is running and waiting for YATSS.
 - A boxed `Y` means YATSS commands and keepalives are being received.
-- `!` means the Windows keepalive watchdog expired or the sensor-transition
+- `!` means the Windows keepalive watchdog expired or the accepted-edge
   queue overflowed.
 
 The display uses one-bit brightness and is redrawn only when its state changes.
@@ -198,17 +198,24 @@ automatic recovery for a physical track.
 This first hardware-test implementation preserves YATSS protocol v4, including
 lane edges, track-power masks, debounce configuration, diagnostics, keepalives,
 and the power-cut watchdog. Each active-low sensor input uses a GPIO `CHANGE`
-interrupt. The interrupt callback records only the lane, level, and MCU
-timestamp in a fixed 64-entry queue. The normal MCU loop drains that queue,
-applies debounce and sequence handling, and sends frames through RouterBridge;
-no Bridge, string, or logging work occurs inside an interrupt callback. Bridge
-latency therefore does not alter the recorded edge timestamp.
+interrupt. The interrupt callback timestamps the transition, then the shared
+controller core applies debounce and sequences accepted edges into a fixed
+64-slot ring (63 usable entries). The normal MCU loop drains accepted edges and
+sends frames through RouterBridge; no Bridge, string, or logging work occurs
+inside an interrupt callback. Bridge latency therefore does not alter the
+recorded edge timestamp. Diagnostics retains transition counts and coalesces
+display updates to the latest changed state per lane.
 
-If the loop cannot drain transitions quickly enough, the controller reports
-`ERR:QUEUE_FULL:<count>` and includes its cumulative dropped-transition count
+If the loop cannot drain accepted edges quickly enough, the controller reports
+`ERR:QUEUE_FULL:<count>` and includes its cumulative dropped-edge count
 in Controller Diagnostics. Entering or leaving diagnostics and resetting the
-controller flushes queued transitions so an event cannot cross operating-mode
+controller flushes queued edges so an event cannot cross operating-mode
 boundaries.
+
+The ESP32 and UNO Q adapters now use the same controller source and firmware
+identity. See [Shared controller core](SHARED_CONTROLLER.md) for maintenance,
+self-contained App Lab packaging, intentional reset differences, tests, and the
+required post-refactor hardware checks.
 
 The sketch compiles with Arduino Zephyr core 0.90.0 and Arduino_RouterBridge
 0.4.3 for `arduino:zephyr:unoq`. App Lab deployment and the Bridge/TCP transport
