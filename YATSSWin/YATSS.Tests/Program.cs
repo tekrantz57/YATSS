@@ -15,7 +15,9 @@ static void Assert(bool condition, string message)
     }
 }
 
+if (args.Contains("--distance-ui")) { DistanceUiTests.Run(); return; }
 bool originalSpeechEnabled = SpeechAnnouncer.Enabled;
+DistanceTests.Run();
 SpeechBackendMode originalSpeechBackend = SpeechAnnouncer.BackendMode;
 try
 {

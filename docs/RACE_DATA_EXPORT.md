@@ -4,6 +4,10 @@ YATSS creates race artifacts when the final heat completes. The HTML report is
 the primary human-readable result. Optional JSON and CSV exports preserve the
 same scoring data for spreadsheets, custom reports, websites, and other tools.
 
+For Combined Distance Racing, final artifacts wait for director confirmation
+of every finishing fraction and any exact tie order. See
+[Combined Distance Racing](COMBINED_DISTANCE.md) for its scoring and workflow.
+
 ## Configuration
 
 Open `Configure` and use the `Race Reports` options:
@@ -39,13 +43,20 @@ HeatRace_yyyyMMdd_HHmmss_adjustments.csv
 Only the HTML file is present when both optional exports are disabled. Disabling
 JSON does not affect CSV, and disabling CSV does not affect JSON.
 
+Combined Distance uses the prefix `CombinedDistance_` instead of `HeatRace_`
+and adds `_distance.csv` and `_distance_confirmations.csv` when CSV is enabled.
+Those tables preserve the official combined scores and distance confirmation
+audit; the ordinary integer lap fields describe racing only.
+
 ## Scoring Boundaries
 
 The archive records accepted race-scoring information, not every controller
 message:
 
 - A lane's first practice or first-heat edge establishes its timing baseline
-  and is not exported as a lap.
+  and is not exported as a lap in the ordinary format. Combined Distance seeds
+  its starting-line timing at race/qualifying start so the first full lap counts;
+  a departure pulse below minimum lap time does not count.
 - Accepted timed laps are exported individually.
 - A counted lap without a duration is retained with a null/empty lap time.
 - Laps rejected by minimum-time, raw-edge-lockout, sequence, or other validity
@@ -87,7 +98,7 @@ otherwise, and the file is UTF-8 without a byte-order mark.
 
 | Property | Meaning |
 | --- | --- |
-| `schemaVersion` | Integer contract version. The initial version is `1`. |
+| `schemaVersion` | Integer contract version. Current development exports use `2`; earlier exports used `1`. |
 | `applicationVersion` | YATSS assembly version that produced the archive. |
 | `exportedAt` | ISO 8601 timestamp with UTC offset for archive creation. |
 | `race` | Complete race-report object described below. |
@@ -114,6 +125,15 @@ change is introduced.
 | `laps` | Every accepted heat-race lap record. |
 | `manualAdjustments` | Ordered manual correction audit entries. |
 | `notes` | Human-readable scoring notes. |
+| `format` | Named format: `HeatRace` or `CombinedDistance` (schema 2). |
+| `distanceStandings` | Official Combined Distance standings, with event-local racer IDs and integer hundredths (empty for ordinary races). |
+| `finalDistanceApprovals` | Race finishing confirmations keyed by event-local racer ID. |
+| `finalTieOrderRecordedAt` | Timestamp of final Combined Distance ordering confirmation, or null. |
+
+Combined Distance qualifying results also include `distance`,
+`directorTieOrder`, and `directorTieRecordedAt`. Approval records retain completed
+laps, estimated/approved partial hundredths, timestamp, reason, and computed
+total hundredths. See the format guide for the complete distance CSV contract.
 
 JSON `laneIndex` values are zero based. CSV files expose one-based
 `LaneNumber` values for human-facing use.

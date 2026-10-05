@@ -8,18 +8,22 @@ namespace YATSS
         private readonly FlowLayoutPanel _laneButtons = new();
         private readonly int[] _selectedLaneByRank;
         private int _currentRank;
+        private readonly bool _grouped;
+        public IReadOnlyList<IReadOnlyList<string>> Groups { get; private set; } = Array.Empty<IReadOnlyList<string>>();
 
         public IReadOnlyList<string> SeededRacers { get; private set; } = Array.Empty<string>();
 
         public QualifyingLaneSelection(
             IReadOnlyList<QualifyingResult> rankedResults,
             int activeLaneCount,
-            IReadOnlyList<LaneConfiguration> laneConfigurations)
+            IReadOnlyList<LaneConfiguration> laneConfigurations,
+            bool grouped = false)
         {
             _rankedResults = rankedResults;
             int laneCount = Math.Clamp(activeLaneCount, 2, LapProtocolParser.LaneCount);
             _lanes = laneConfigurations.Take(laneCount).ToArray();
-            _selectedLaneByRank = Enumerable.Repeat(-1, Math.Min(laneCount, rankedResults.Count)).ToArray();
+            _grouped = grouped;
+            _selectedLaneByRank = Enumerable.Repeat(-1, grouped ? rankedResults.Count : Math.Min(laneCount, rankedResults.Count)).ToArray();
 
             Text = "Choose Starting Lanes";
             StartPosition = FormStartPosition.CenterParent;
@@ -55,7 +59,7 @@ namespace YATSS
             for (int i = 0; i < rankedResults.Count; i++)
             {
                 QualifyingResult result = rankedResults[i];
-                string time = result.BestLapMilliseconds.HasValue
+                string time = result.Distance != null ? DistanceScoring.Format(result.Distance.TotalHundredths) + " laps" : result.BestLapMilliseconds.HasValue
                     ? $"{result.BestLapMilliseconds.Value / 1000.0:0.000}s"
                     : "No valid lap";
                 ranking.Items.Add($"{i + 1}. {result.RacerName} - {time}");
@@ -99,6 +103,8 @@ namespace YATSS
             _currentRank++;
             if (_currentRank < _selectedLaneByRank.Length)
             {
+                if (_grouped && _currentRank % _lanes.Count == 0)
+                    foreach (Button laneButton in _laneButtons.Controls.OfType<Button>()) laneButton.Enabled = true;
                 ShowCurrentChooser();
                 return;
             }
@@ -112,11 +118,17 @@ namespace YATSS
         {
             _prompt.Text = _selectedLaneByRank.Length == 0
                 ? "No lane choices are required."
-                : $"{_rankedResults[_currentRank].RacerName} chooses a starting lane";
+                : $"{(_grouped ? $"Group {_currentRank / _lanes.Count + 1}: " : "")}{_rankedResults[_currentRank].RacerName} chooses a starting lane";
         }
 
         private void BuildSeededRacers()
         {
+            if (_grouped)
+            {
+                Groups = QualifyingController.BuildGroups(_rankedResults, _selectedLaneByRank, _lanes.Count);
+                SeededRacers = Groups.SelectMany(group => group).ToArray();
+                return;
+            }
             SeededRacers = QualifyingController.BuildSeededRacers(
                 _rankedResults,
                 _selectedLaneByRank,
@@ -130,6 +142,12 @@ namespace YATSS
                 (0.587 * background.G) +
                 (0.114 * background.B);
             return luminance >= 150 ? Color.Black : Color.White;
+        }
+
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            if (_grouped && e.CloseReason == CloseReason.UserClosing && DialogResult != DialogResult.OK) e.Cancel = true;
+            base.OnFormClosing(e);
         }
     }
 }

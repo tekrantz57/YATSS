@@ -23,6 +23,9 @@ namespace YATSS
         public int ConfiguredDurationSeconds { get; init; }
         public int ElapsedMilliseconds { get; init; }
         public IReadOnlyList<QualifyingLapRecord> Laps { get; init; } = Array.Empty<QualifyingLapRecord>();
+        public DistanceApproval? Distance { get; init; }
+        public int? DirectorTieOrder { get; init; }
+        public DateTimeOffset? DirectorTieRecordedAt { get; init; }
     }
 
     public sealed class QualifyingController
@@ -227,6 +230,69 @@ namespace YATSS
                     .ThenBy(result => result.OriginalOrder)
                     .ToArray();
             }
+        }
+
+        public void ApproveLastDistance(int partialHundredths, string reason)
+        {
+            lock (_gate)
+            {
+                if (_results.Count == 0) throw new InvalidOperationException("No completed qualifier.");
+                QualifyingResult result = _results[^1];
+                long lastCrossing = result.Laps.LastOrDefault()?.SessionElapsedMilliseconds ?? 0;
+                int? estimate = DistanceScoring.EstimatePartial(
+                    Math.Min(result.ElapsedMilliseconds, _durationMilliseconds) - lastCrossing, result.Laps.Select(lap => lap.LapMilliseconds));
+                _results[^1] = result with { Distance = DistanceScoring.Approve(result.Laps.Count, estimate, partialHundredths, reason) };
+            }
+        }
+
+        public IReadOnlyList<QualifyingResult> GetDistanceResults()
+        {
+            lock (_gate)
+            {
+                if (_results.Any(result => result.Distance == null))
+                    throw new InvalidOperationException("Every qualifying distance requires approval.");
+                return _results.OrderByDescending(result => result.Distance!.TotalHundredths)
+                    .ThenBy(result => result.BestLapMilliseconds ?? int.MaxValue)
+                    .ThenBy(result => result.DirectorTieOrder ?? int.MaxValue)
+                    .ThenBy(result => result.OriginalOrder).ToArray();
+            }
+        }
+
+        public void SetDistanceTieOrder(IReadOnlyList<int> racerIds)
+        {
+            lock (_gate)
+            {
+                if (racerIds.Count != _results.Count || racerIds.Distinct().Count() != _results.Count ||
+                    racerIds.Any(id => !_results.Any(result => result.OriginalOrder == id)))
+                    throw new ArgumentException("Tie order must include every qualifier once.");
+                for (int index = 0; index < _results.Count; index++)
+                    _results[index] = _results[index] with
+                    {
+                        DirectorTieOrder = Array.IndexOf(racerIds.ToArray(), _results[index].OriginalOrder),
+                        DirectorTieRecordedAt = DateTimeOffset.Now
+                    };
+            }
+        }
+
+        public static IReadOnlyList<IReadOnlyList<string>> BuildGroups(
+            IReadOnlyList<QualifyingResult> rankedResults, IReadOnlyList<int> selectedLaneByRank, int laneCount)
+        {
+            if (laneCount is < 2 or > 8 || selectedLaneByRank.Count != rankedResults.Count)
+                throw new ArgumentException("Each racer must select an active lane.");
+            List<IReadOnlyList<string>> groups = new();
+            for (int start = 0; start < rankedResults.Count; start += laneCount)
+            {
+                string[] lanes = Enumerable.Repeat(string.Empty, laneCount).ToArray();
+                for (int rank = start; rank < Math.Min(start + laneCount, rankedResults.Count); rank++)
+                {
+                    int lane = selectedLaneByRank[rank];
+                    if (lane < 0 || lane >= laneCount || !string.IsNullOrEmpty(lanes[lane]))
+                        throw new ArgumentException("Lane choices must be unique within each group.");
+                    lanes[lane] = rankedResults[rank].RacerName;
+                }
+                groups.Add(lanes);
+            }
+            return groups;
         }
 
         public static IReadOnlyList<string> BuildSeededRacers(

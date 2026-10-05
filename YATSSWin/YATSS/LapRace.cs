@@ -313,6 +313,14 @@ namespace YATSS
             }
         }
 
+        public void SeedStartLineTiming(uint timestamp)
+        {
+            lock (_gate)
+            {
+                foreach (LaneRuntime lane in _lanes) lane.LastAcceptedTimestamp = timestamp;
+            }
+        }
+
         public void InterruptTiming()
         {
             lock (_gate)

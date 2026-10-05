@@ -13,8 +13,8 @@ regression tests and hardware confirmation.
 3. Implement active race recovery and complete the physical hardware validation
    already listed below before relying on YATSS at a venue.
 4. Bench-validate the implemented shared controller core on ESP32 and UNO Q.
-5. Settle the distance-format scoring rules, then implement its data model,
-   director workflow, reports/exports, and separate live grid.
+5. Bench-validate the first Combined Distance Racing implementation and revisit
+   its working rules with the venue owner before relying on it at a venue.
 6. Keep sector timing as a later hardware and scoring project.
 
 ## Communication loss and controller clock resets
@@ -62,6 +62,10 @@ regression tests and hardware confirmation.
 - Bench-check log-window rollover and errors under Windows/Wine and run a
   sustained session. Logs are best-effort diagnostics, not the authoritative
   race journal; crash recovery remains separate work below.
+- User-reported October 5, 2026: overnight demo practice remained running on
+  Windows and ARM64 Wine at over 10,000 laps per lane, with no suspicious
+  behavior on either machine. This exercised the app, not physical MCU capture
+  or relay behavior, and predates Combined Distance implementation.
 - See [Serial logging](docs/SERIAL_LOGGING.md) for limits and failure behavior.
 
 ## Active race crash recovery
@@ -184,7 +188,61 @@ regression tests and hardware confirmation.
   three sensors per lane plus eight track-power outputs cannot all connect
   directly to the current ESP32-C6 GPIOs.
 
-## Future distance-based championship race format
+## Starting-lane selection for separate racer groups
+
+- The rules below are current working decisions, subject to revision based on
+  venue-owner input. Confirm them before implementation and venue use.
+- Requested October 5, 2026: each group of eight or fewer racers (limited by
+  the active lane count) chooses its starting lanes independently. The best
+  qualifier within that group chooses first, followed by the remaining racers
+  in that group's qualifying order; each choice removes that lane from the
+  available choices for that group.
+- Apply this to existing timed heat races using fastest-lap qualifying order.
+  The current qualifying workflow offers lane choices only to the first
+  lane-count racers in the overall ranking and puts the remainder in the
+  rotation queue; it does not provide independent choices for separate groups.
+- Apply the same group-local workflow to Combined Distance Racing using
+  director-approved qualifying distance, highest distance first.
+- Grouping agreed October 5, 2026: use consecutive qualifying ranks, 1-8,
+  9-16, and so on on an eight-lane track (use the active lane count on smaller
+  tracks). No director regrouping. For now, fill each group before starting
+  the next; ten racers form groups of eight and two, not five and five.
+- These are starting-lane choices, not new choices at every timed segment.
+  Keep subsequent lane rotation separate. Define how independent groups are
+  scheduled in relation to the existing rotation queue before implementation.
+
+## Combined Distance Racing validation and follow-up
+
+- Rules comparison recorded October 5, 2026: see
+  [Timing and scoring rules comparison](docs/TIMING_SCORING_RULES_COMPARISON.md).
+  Revisit final tie-breaks, group balancing/run order, fractional-minute segment
+  durations, and assigned versus chosen initial lanes with the venue owner.
+  Consider backup-lap qualifying ties, segment reruns, and penalty workflows
+  before claiming sanctioned-format support. Current local policies are
+  unchanged; current USRA rules still need verification.
+- First version implemented October 5, 2026: integer-hundredths scoring,
+  mandatory qualifying/final confirmations, consecutive independent groups,
+  group-local starting-lane choices, a separate Live Standings window with
+  projections, and HTML/JSON/CSV distance results and confirmation audits.
+- See [Combined Distance Racing](docs/COMBINED_DISTANCE.md) for the operator
+  workflow, tie and estimate defaults, export schema, and current limits.
+- Bench-test start-line pulses, full rotation, equivalent-position car moves,
+  short-group power masks, track calls, and interrupted qualifiers under
+  Windows and Wine. Project-wide active-race crash recovery remains pending.
+- The separate-group lane-choice change for existing fastest-lap heat races
+  remains pending; that format's existing rotation-queue behavior is unchanged.
+
+- The scoring and workflow rules below are current working decisions, not
+  fixed requirements. Revisit them with the venue owner before venue deployment;
+  keep this document updated when decisions change.
+- Naming agreed October 4, 2026: **Combined Distance Racing** is the feature
+  name; **Combined Distance** is the selectable race-format label. Qualifying
+  distance carries forward, and the winner is determined by the combined
+  qualifying and race distance.
+- Call the separate grid **Live Standings** and its forecast column
+  **Projected Final Distance**. Keep projections distinct from official
+  credited distance. These descriptive names do not imply affiliation with
+  any organization or other software.
 
 - Add a distinct, selectable race format; leave the existing fastest-lap
   qualifying and heat-race scoring unchanged.
@@ -195,25 +253,48 @@ regression tests and hardware confirmation.
   default), rank by that distance, and carry the credited qualifying distance
   into the first heat and the final combined race total. Show qualifying,
   racing, and combined distances separately in results and exports.
+- Rules clarified October 5, 2026: everyone starts the race at the starting
+  line. Promote the approved qualifying distance into each racer's starting
+  lap total (for example, 10.7), then add counted race laps. Preserve qualifying
+  credit separately for reports even though the displayed cumulative total
+  includes it from the beginning.
+- Do not credit or adjust partial laps between race segments. At lane changes,
+  move each car to the equivalent position in its new lane. Estimate and obtain
+  director approval of partial distance only at qualifying completion and at
+  the end of the race. Starting-lane choices are independent within each racer
+  group, as described above.
 - Introduce a distance-scoring data model that stores completed laps, estimated
   partial-lap distance, director-approved partial distance, and qualifying
-  credit separately. Define the scoring unit/precision before implementation;
-  the current integer lap count cannot represent an official fractional score.
+  credit separately. Precision agreed October 5, 2026: official distance uses
+  hundredths of a lap, stored as integer hundredths and displayed with two
+  decimal places (for example, 10.70). The current integer lap count cannot
+  represent an official fractional score.
+- Recommend that the director prepare a chart before the event mapping the
+  track's numbered sections to hundredths of a lap. Section numbers are not
+  automatically percentages; use the chart when confirming partial distance.
+- Tie rules agreed October 5, 2026: equal qualifying distances or equal final
+  combined totals are broken by best valid lap, with any remaining exact tie
+  resolved by the director. First-version defaults: use qualifying laps for
+  qualifying ties and eligible race laps for final ties; a valid lap beats
+  no valid lap. Retain director resolutions and timestamps in the audit.
+- Final confirmation agreed October 5, 2026: do not finalize official race
+  results until the director has confirmed every racer's finishing fraction,
+  including an explicit zero. Apply the same approval requirement to each
+  qualifying result before ranking and carrying its distance into the race.
 - At the end of a qualifying run, estimate the unfinished-lap distance from
   elapsed active time since the last crossing and recent valid lap pace. Show
   the estimate to the race director and let them correct it to the car's
   observed track position before the qualifying result is finalized. The
-  start/finish sensor cannot measure this fraction directly; define the
-  track-section/measurement scale, behavior with too few valid laps, and
-  tie-break rules before implementing this format.
+  start/finish sensor cannot measure this fraction directly. Use the agreed
+  hundredths scale. First-version estimates round down and remain unknown
+  without valid pace data; the director must still confirm the actual fraction.
 - Retain a correction audit trail with the original value, replacement value,
   time, and reason. Preserve estimated and approved values in recovery data,
   reports, JSON, and CSV so the official result can be explained later.
-- Decide whether partial distance is credited after each heat or only at
-  qualifying/race completion, where cars physically restart, and how the next
-  sensor crossing is scored. Prevent the same partial lap from being credited
-  twice after a lane change or heat transition. Cover these rules with tests
-  before enabling the format.
+- Preserve progress across lane changes and heat transitions without crediting
+  the same partial lap twice. Define first-crossing counting at the starting
+  line and timing-baseline behavior after lane changes; cover these rules with
+  tests before enabling the format.
 - Add a separate live standings grid for this format, alongside the existing
   lane board. Show current order, racer/lane, qualifying credit, race distance,
   combined distance, and an explicitly labeled estimated final distance.

@@ -43,9 +43,8 @@ namespace YATSS
             int?[] fastestByLane = GetFastestByLane(report);
             StringBuilder html = new();
             html.AppendLine("<!doctype html>");
-            string reportTitle = string.IsNullOrWhiteSpace(report.RaceName)
-                ? "Heat Race Results"
-                : $"{report.RaceName} - Heat Race Results";
+            string category = report.Format == RaceFormat.CombinedDistance ? "Combined Distance Results" : "Heat Race Results";
+            string reportTitle = string.IsNullOrWhiteSpace(report.RaceName) ? category : $"{report.RaceName} - {category}";
             html.AppendLine($"<html><head><meta charset=\"utf-8\"><title>{WebUtility.HtmlEncode(reportTitle)}</title>");
             html.AppendLine("<style>");
             html.AppendLine("body{font-family:Segoe UI,Arial,sans-serif;margin:32px;color:#202020}");
@@ -73,6 +72,7 @@ namespace YATSS
                 html.AppendLine($"<p class=\"muted\">{WebUtility.HtmlEncode(report.Notes)}</p>");
             }
             AppendQualifyingResults(html, report);
+            AppendDistanceResults(html, report);
             AppendFinishOrder(html, report);
             AppendFastLaps(html, report, fastestByLane);
             AppendHeatDetails(html, report);
@@ -89,10 +89,33 @@ namespace YATSS
             html.AppendLine("</tr>");
         }
 
+        private static void AppendDistanceResults(StringBuilder html, HeatRaceReport report)
+        {
+            if (report.Format != RaceFormat.CombinedDistance) return;
+            html.AppendLine("<h2>Official Combined Distance</h2><table><thead><tr><th>Place</th><th>Racer</th><th>Group</th><th>Qualifying Credit</th><th>Race Distance</th><th>Combined Distance</th><th>Director Tie Order</th></tr></thead><tbody>");
+            for (int index = 0; index < report.DistanceStandings.Count; index++)
+            {
+                DistanceStanding row = report.DistanceStandings[index];
+                html.AppendLine($"<tr><td>{index + 1}</td><td>{WebUtility.HtmlEncode(row.RacerName)}</td><td>{row.Group}</td><td>{DistanceScoring.Format(row.QualifyingHundredths)}</td><td>{DistanceScoring.Format(row.RaceLaps * 100L + (row.FinalPartialHundredths ?? 0))}</td><td class=\"total\">{DistanceScoring.Format(row.CombinedHundredths)}</td><td>{row.DirectorTieOrder + 1}</td></tr>");
+            }
+            html.AppendLine("</tbody></table><h2>Distance Confirmations</h2><table><thead><tr><th>Stage</th><th>Racer</th><th>Completed Laps</th><th>Estimated Fraction</th><th>Approved Fraction</th><th>Recorded</th><th>Reason</th></tr></thead><tbody>");
+            foreach (QualifyingResult qualifier in report.QualifyingResults)
+            {
+                AppendApproval("Qualifying", qualifier.RacerName, qualifier.Distance!);
+                if (report.FinalDistanceApprovals.TryGetValue(qualifier.OriginalOrder, out DistanceApproval? final))
+                    AppendApproval("Race", qualifier.RacerName, final);
+            }
+            html.AppendLine("</tbody></table>");
+            void AppendApproval(string stage, string name, DistanceApproval approval)
+            {
+                html.AppendLine($"<tr><td>{stage}</td><td>{WebUtility.HtmlEncode(name)}</td><td>{approval.CompletedLaps}</td><td>{(approval.EstimatedPartialHundredths.HasValue ? DistanceScoring.Format(approval.EstimatedPartialHundredths.Value) : "Unknown")}</td><td>{DistanceScoring.Format(approval.ApprovedPartialHundredths)}</td><td>{WebUtility.HtmlEncode(approval.RecordedAt.ToString("g"))}</td><td>{WebUtility.HtmlEncode(approval.Reason)}</td></tr>");
+            }
+        }
+
         private static void AppendFinishOrder(StringBuilder html, HeatRaceReport report)
         {
-            html.AppendLine("<h2>Finish Order</h2>");
-            html.AppendLine("<table><thead><tr><th>Place</th><th>Racer</th><th>Total Laps</th>");
+            html.AppendLine(report.Format == RaceFormat.CombinedDistance ? "<h2>Race Lap Breakdown</h2>" : "<h2>Finish Order</h2>");
+            html.AppendLine($"<table><thead><tr><th>Place</th><th>Racer</th><th>{(report.Format == RaceFormat.CombinedDistance ? "Race Completed Laps" : "Total Laps")}</th>");
             for (int heat = 1; heat <= report.TotalHeats; heat++)
             {
                 html.AppendLine($"<th>Heat {heat}</th>");

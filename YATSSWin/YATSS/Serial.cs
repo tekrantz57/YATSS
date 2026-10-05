@@ -58,6 +58,10 @@ namespace YATSS
         private IReadOnlyList<LaneConfiguration> _configuredLaneConfigurations =
             LaneConfiguration.CreateDefaults();
         private IReadOnlyList<QualifyingResult> _qualifyingResults = Array.Empty<QualifyingResult>();
+        private RaceFormat _configuredFormat;
+        private bool _distanceApprovalPending;
+        private volatile int _raceConfigurationVersion;
+        public bool CombinedDistanceActive => _configuredFormat == RaceFormat.CombinedDistance && _heatRace.State != HeatRaceState.Practice;
         private static readonly TimeSpan ControllerPingInterval = TimeSpan.FromSeconds(3);
         private static readonly TimeSpan ControllerPingTimeout = TimeSpan.FromSeconds(3);
 
@@ -137,6 +141,7 @@ namespace YATSS
                 PublishControllerRecoveryStatus();
                 return;
             }
+            if (_distanceApprovalPending) return;
             uint controllerTimestamp = GetCurrentControllerTimestamp();
             uint confirmedTimestamp = DemoLapStreamActive
                 ? controllerTimestamp : _controllerSession.LastConfirmedTimestamp;
@@ -197,6 +202,7 @@ namespace YATSS
 
         private void InitCore()
         {
+            ClearDistanceWorkflow();
             StopControllerDiagnostics();
             StopDemoLapStream();
             CancelStartCountdown();
@@ -233,6 +239,7 @@ namespace YATSS
 
         private void ResetLaneCore(int laneIndex)
         {
+            if (CombinedDistanceActive) { _form.SetStatusMessage("Lane reset is unavailable during Combined Distance; use stopped-time lap corrections."); return; }
             if (laneIndex < 0 || laneIndex >= LapProtocolParser.LaneCount)
             {
                 return;
@@ -257,19 +264,22 @@ namespace YATSS
             IReadOnlyList<string> racers,
             int activeLaneCount,
             IReadOnlyList<LaneConfiguration> laneConfigurations,
-            double trackLengthFeet)
+            double trackLengthFeet,
+            RaceFormat format = RaceFormat.HeatRace)
         {
             lock (_controlGate)
             {
                 ConfigureHeatRaceCore(raceName, heatLengthMinutes, betweenHeatsSeconds,
-                    racers, activeLaneCount, laneConfigurations, trackLengthFeet);
+                    racers, activeLaneCount, laneConfigurations, trackLengthFeet, format);
             }
         }
 
         private void ConfigureHeatRaceCore(string raceName, int heatLengthMinutes, int betweenHeatsSeconds,
             IReadOnlyList<string> racers, int activeLaneCount,
-            IReadOnlyList<LaneConfiguration> laneConfigurations, double trackLengthFeet)
+            IReadOnlyList<LaneConfiguration> laneConfigurations, double trackLengthFeet, RaceFormat format)
         {
+            ClearDistanceWorkflow();
+            _configuredFormat = format;
             StopControllerDiagnostics();
             CancelStartCountdown();
             CancelBetweenHeatsTimer();
@@ -294,11 +304,14 @@ namespace YATSS
                 laneConfigurations,
                 raceName,
                 trackLengthFeet,
-                _qualifyingResults);
+                _qualifyingResults,
+                format);
             HeatRaceSnapshot snapshot = _heatRace.GetSnapshot(GetCurrentControllerTimestamp());
             _form.ResetHeatTimingDisplay(snapshot.LaneLapCounts);
             PublishHeatRaceStatus("Ready");
-            SetTrackPowerEnabled(false, null, $"Heat 1 ready: {heatLengthMinutes} minute heat. Press Space to start.");
+            SetTrackPowerEnabled(false, null, format == RaceFormat.CombinedDistance ?
+                "Combined Distance requires qualifying. Select Mode > Qualifying." :
+                $"Heat 1 ready: {heatLengthMinutes} minute heat. Press Space to start.");
             _log.Info($"heat race configured for {heatLengthMinutes} minute(s), {betweenHeatsSeconds} second(s) between heats");
         }
 
@@ -312,6 +325,7 @@ namespace YATSS
 
         private void SetPracticeModeCore()
         {
+            ClearDistanceWorkflow();
             StopControllerDiagnostics();
             CancelStartCountdown();
             CancelBetweenHeatsTimer();
@@ -377,6 +391,9 @@ namespace YATSS
 
         private void HandleSpaceBarCore()
         {
+            if (_distanceApprovalPending) { _form.SetStatusMessage("Director distance confirmation required"); return; }
+            if (CombinedDistanceActive && !QualifyingActive && _qualifyingResults.Count == 0)
+            { _form.SetStatusMessage("Select Mode > Qualifying before starting Combined Distance."); return; }
             if (_diagnosticsActive)
             {
                 _form.SetStatusMessage("Close Controller Diagnostics before using race controls");
@@ -497,7 +514,8 @@ namespace YATSS
                 _configuredLaneConfigurations,
                 _configuredRaceName,
                 _configuredTrackLengthFeet,
-                _qualifyingResults);
+                _qualifyingResults,
+                _configuredFormat);
             HeatRaceSnapshot snapshot = _heatRace.GetSnapshot(GetCurrentControllerTimestamp());
             _form.ResetBoardDisplay(clearRacers: false);
             _form.SetLaneRacerNames(snapshot.LaneRacers);
@@ -524,7 +542,7 @@ namespace YATSS
                 return false;
             }
 
-            if (!_heatRace.CanAdjustLapCounts)
+            if (!_heatRace.CanAdjustLapCounts || (CombinedDistanceActive && _heatRace.State == HeatRaceState.Complete && _heatRace.IsGroupEnd))
             {
                 _form.SetStatusMessage("Lap adjustment is only available during stopped heat time");
                 return false;
@@ -909,6 +927,8 @@ namespace YATSS
                 bool started = resumePausedQualifier
                     ? _qualifying.Resume(controllerTimestamp)
                     : _qualifying.Start(controllerTimestamp);
+                if (started && !resumePausedQualifier && CombinedDistanceActive)
+                    _race.SeedStartLineTiming(controllerTimestamp);
                 if (!started)
                 {
                     return;
@@ -954,6 +974,8 @@ namespace YATSS
                 bool started = resumePausedHeat
                     ? _heatRace.Resume(controllerTimestamp)
                     : _heatRace.Start(controllerTimestamp);
+                if (started && !resumePausedHeat && _heatRace.StartsAtLine)
+                    _race.SeedStartLineTiming(_heatRace.TimingBaseTimestamp);
 
                 if (!started)
                 {
@@ -1470,6 +1492,7 @@ namespace YATSS
                 uint[] nextLaneEdge = new uint[LapProtocolParser.LaneCount];
                 string[] laneRacerAtNextEdge = new string[LapProtocolParser.LaneCount];
                 HeatRaceState previousDemoHeatState = _heatRace.State;
+                QualifyingState previousDemoQualifyingState = _qualifying.State;
 
                 for (int lane = 0; lane < nextLaneEdge.Length; lane++)
                 {
@@ -1495,10 +1518,11 @@ namespace YATSS
                     demoTimestamp = GetDemoControllerTimestamp();
                     HeatRaceState demoHeatState = _heatRace.State;
 
-                    if (demoHeatState != previousDemoHeatState)
+                    if (demoHeatState != previousDemoHeatState || _qualifying.State != previousDemoQualifyingState)
                     {
                         previousDemoHeatState = demoHeatState;
-                        if (demoHeatState == HeatRaceState.Running)
+                        previousDemoQualifyingState = _qualifying.State;
+                        if (demoHeatState == HeatRaceState.Running || _qualifying.State == QualifyingState.Running)
                         {
                             demoTimestamp = GetDemoControllerTimestamp();
                             _log.Info($"DEMO: heat {_heatRace.HeatNumber} running at {demoTimestamp} ms");
@@ -1523,7 +1547,9 @@ namespace YATSS
                     for (int lane = 0; lane < activeLaneCount; lane++)
                     {
                         string currentRacer = GetDemoLaneRacerName(lane);
-                        if (demoHeatState != HeatRaceState.Practice &&
+                        if (_qualifying.State != QualifyingState.Inactive &&
+                            (_qualifying.State != QualifyingState.Running || lane != _qualifying.LaneIndex)) continue;
+                        if (_qualifying.State == QualifyingState.Inactive && demoHeatState != HeatRaceState.Practice &&
                             demoHeatState != HeatRaceState.Running)
                         {
                             continue;
@@ -1689,6 +1715,7 @@ namespace YATSS
 
         private string GetDemoLaneRacerName(int lane)
         {
+            if (QualifyingActive) return lane == _qualifying.LaneIndex ? _qualifying.CurrentRacer : string.Empty;
             if (_heatRace.State == HeatRaceState.Practice)
             {
                 return string.Empty;
@@ -1768,6 +1795,7 @@ namespace YATSS
             }
 
             PublishLapUpdate(edge, update, previousHeatBest);
+            PublishDistanceStandings();
         }
 
         private void HandleQualifyingEdge(LapEdge edge)
@@ -1927,6 +1955,31 @@ namespace YATSS
                     ? $"{completedRacer} qualifier complete; best {FormatSeconds(bestLap.Value)}s"
                     : $"{completedRacer} qualifier complete without a valid lap");
 
+            if (CombinedDistanceActive)
+            {
+                _distanceApprovalPending = true;
+                int version = _raceConfigurationVersion;
+                QualifyingResult result = _qualifying.GetRankedResults().Single(item => item.RacerName == completedRacer);
+                int elapsed = Math.Min(result.ElapsedMilliseconds, result.ConfiguredDurationSeconds * 1000);
+                int? estimate = DistanceScoring.EstimatePartial(elapsed - (result.Laps.LastOrDefault()?.SessionElapsedMilliseconds ?? 0),
+                    result.Laps.Select(lap => lap.LapMilliseconds));
+                _form.ShowDistanceApproval(completedRacer, result.Laps.Count, estimate, "Qualifying", (partial, reason) =>
+                {
+                    lock (_controlGate)
+                    {
+                        if (version != _raceConfigurationVersion) return;
+                        _qualifying.ApproveLastDistance(partial, reason);
+                        _distanceApprovalPending = false;
+                        ContinueAfterQualifier();
+                    }
+                }, () => version == _raceConfigurationVersion);
+            }
+            else ContinueAfterQualifier();
+            return true;
+        }
+
+        private void ContinueAfterQualifier()
+        {
             if (_qualifying.State == QualifyingState.Ready)
             {
                 PrepareCurrentQualifier();
@@ -1938,8 +1991,6 @@ namespace YATSS
                 PublishQualifyingStatus("Complete");
                 BeginQualifyingLaneSelection();
             }
-
-            return true;
         }
 
         private void PrepareCurrentQualifier()
@@ -1961,32 +2012,62 @@ namespace YATSS
             }
 
             _qualifyingLaneSelectionPending = true;
-            IReadOnlyList<QualifyingResult> rankedResults = _qualifying.GetRankedResults();
-            _form.ShowQualifyingLaneSelection(rankedResults, seededRacers =>
+            IReadOnlyList<QualifyingResult> rankedResults = CombinedDistanceActive ? _qualifying.GetDistanceResults() : _qualifying.GetRankedResults();
+            int version = _raceConfigurationVersion;
+            void ChooseLanes(IReadOnlyList<QualifyingResult> ranked)
             {
-                _qualifyingResults = rankedResults;
-                _configuredRacers = seededRacers.ToArray();
-                _qualifying.Reset();
-                _qualifyingLaneSelectionPending = false;
-                _race.Reset();
-                _heatRace.Configure(
-                    _configuredHeatLengthMinutes,
-                    _configuredBetweenHeatsSeconds,
-                    _configuredRacers,
-                    _configuredActiveLaneCount,
-                    _configuredLaneConfigurations,
-                    _configuredRaceName,
-                    _configuredTrackLengthFeet,
-                    _qualifyingResults);
-                HeatRaceSnapshot snapshot = _heatRace.GetSnapshot(GetControllerTimestamp());
-                _form.ResetBoardDisplay(clearRacers: false);
-                _form.SetLaneRacerNames(snapshot.LaneRacers);
-                _form.ResetHeatTimingDisplay(snapshot.LaneLapCounts);
-                PublishHeatRaceStatus("Ready");
-                SetTrackPowerEnabled(false, null, "Qualifying complete. Press Space to start Heat 1.");
-                _form.SetQualifyingAvailable(false);
-                _log.Info("qualifying lane selections complete; heat race reseeded");
-            });
+                _form.ShowQualifyingLaneSelection(ranked, (seededRacers, groups) =>
+                {
+                    lock (_controlGate)
+                    {
+                        if (version != _raceConfigurationVersion) return;
+                        _qualifyingResults = ranked;
+                        _configuredRacers = seededRacers.ToArray();
+                        _qualifying.Reset();
+                        _qualifyingLaneSelectionPending = false;
+                        _race.Reset();
+                        _heatRace.Configure(
+                            _configuredHeatLengthMinutes,
+                            _configuredBetweenHeatsSeconds,
+                            _configuredRacers,
+                            _configuredActiveLaneCount,
+                            _configuredLaneConfigurations,
+                            _configuredRaceName,
+                            _configuredTrackLengthFeet,
+                            _qualifyingResults,
+                            _configuredFormat,
+                            groups.Count > 0 ? groups : null);
+                        HeatRaceSnapshot snapshot = _heatRace.GetSnapshot(GetCurrentControllerTimestamp());
+                        _form.ResetBoardDisplay(clearRacers: false);
+                        _form.SetLaneRacerNames(snapshot.LaneRacers);
+                        _form.ResetHeatTimingDisplay(snapshot.LaneLapCounts);
+                        PublishHeatRaceStatus("Ready");
+                        SetTrackPowerEnabled(false, null, "Qualifying complete. Press Space to start Heat 1.");
+                        _form.SetQualifyingAvailable(false);
+                        _log.Info("qualifying lane selections complete; heat race reseeded");
+                        PublishDistanceStandings();
+                    }
+                }, CombinedDistanceActive, () => version == _raceConfigurationVersion,
+                    _configuredActiveLaneCount, _configuredLaneConfigurations);
+            }
+            if (CombinedDistanceActive)
+            {
+                _distanceApprovalPending = true;
+                DistanceStanding[] rows = rankedResults.Select(result => new DistanceStanding(result.OriginalOrder,
+                    result.RacerName, 0, string.Empty, result.Distance!.TotalHundredths, 0, null,
+                    result.Distance.TotalHundredths, null, result.BestLapMilliseconds, null)).ToArray();
+                _form.ResolveDistanceTies(rows, "Qualifying", ids =>
+                {
+                    lock (_controlGate)
+                    {
+                        if (version != _raceConfigurationVersion) return;
+                        _qualifying.SetDistanceTieOrder(ids);
+                        _distanceApprovalPending = false;
+                        ChooseLanes(_qualifying.GetDistanceResults());
+                    }
+                }, () => version == _raceConfigurationVersion);
+            }
+            else ChooseLanes(rankedResults);
         }
 
         private bool CheckHeatExpired(uint? controllerTimestamp)
@@ -2014,13 +2095,37 @@ namespace YATSS
 
         private void ScheduleNextHeatIfNeeded()
         {
+            if (CombinedDistanceActive && _heatRace.IsGroupEnd && _heatRace.GetFinalDistanceCandidates().Count > 0)
+            {
+                ConfirmNextFinalDistance();
+                return;
+            }
             if (!_heatRace.HasMoreHeats)
             {
                 PublishHeatRaceStatus("Race complete");
                 _form.SetStatusMessage("Heat race complete");
-                HeatRaceReport report = _heatRace.CreateReport();
-                _raceReports.AnnouncePodium(report);
-                _raceReports.Write(report);
+                if (CombinedDistanceActive)
+                {
+                    int version = _raceConfigurationVersion;
+                    _distanceApprovalPending = true;
+                    _form.ResolveDistanceTies(_heatRace.GetDistanceStandings(0), "Final Results", ids =>
+                    {
+                        lock (_controlGate)
+                        {
+                            if (version != _raceConfigurationVersion) return;
+                            _heatRace.SetFinalTieOrder(ids);
+                            _distanceApprovalPending = false;
+                            WriteFinalReport();
+                        }
+                    }, () => version == _raceConfigurationVersion);
+                }
+                else WriteFinalReport();
+                return;
+            }
+
+            if (CombinedDistanceActive && _heatRace.NextHeatStartsGroup)
+            {
+                _form.SetStatusMessage($"Group {_heatRace.GroupNumber} complete. Place Group {_heatRace.GroupNumber + 1} at the starting line; press Space when ready.");
                 return;
             }
 
@@ -2184,7 +2289,53 @@ namespace YATSS
                 _heatRace.TotalHeats,
                 state,
                 remaining,
-                snapshot.OnDeckRacer);
+                CombinedDistanceActive ? $"Group {_heatRace.GroupNumber}/{_heatRace.GroupCount}" : snapshot.OnDeckRacer);
+            PublishDistanceStandings();
+        }
+
+        private void ClearDistanceWorkflow()
+        {
+            _raceConfigurationVersion++;
+            _distanceApprovalPending = false;
+            _configuredFormat = RaceFormat.HeatRace;
+            _form.UpdateDistanceStandings(null);
+        }
+
+        private void PublishDistanceStandings()
+        {
+            if (!CombinedDistanceActive || QualifyingActive || _qualifyingResults.Count == 0) return;
+            HeatRaceSnapshot snapshot = _heatRace.GetSnapshot(GetCurrentControllerTimestamp());
+            IReadOnlyList<DistanceStanding> standings = _heatRace.GetDistanceStandings(GetCurrentControllerTimestamp(), _race.GetLaneSnapshots());
+            _form.ShowCombinedLaneTotals(snapshot.LaneRacers, standings);
+            _form.UpdateDistanceStandings(standings);
+        }
+
+        private void ConfirmNextFinalDistance()
+        {
+            var candidates = _heatRace.GetFinalDistanceCandidates();
+            if (candidates.Count == 0) { _distanceApprovalPending = false; ScheduleNextHeatIfNeeded(); return; }
+            var candidate = candidates[0];
+            int version = _raceConfigurationVersion;
+            _distanceApprovalPending = true;
+            _form.SetStatusMessage("Confirm finishing fractions before continuing");
+            _form.ShowDistanceApproval(candidate.RacerName, candidate.Laps, candidate.Estimate, "Race", (partial, reason) =>
+            {
+                lock (_controlGate)
+                {
+                    if (version != _raceConfigurationVersion) return;
+                    _heatRace.ApproveFinalDistance(candidate.RacerId, partial, reason);
+                    PublishDistanceStandings();
+                    ConfirmNextFinalDistance();
+                }
+            }, () => version == _raceConfigurationVersion);
+        }
+
+        private void WriteFinalReport()
+        {
+            HeatRaceReport report = _heatRace.CreateReport();
+            _raceReports.AnnouncePodium(report);
+            _raceReports.Write(report);
+            PublishDistanceStandings();
         }
 
         private void PublishQualifyingStatus(string state)

@@ -57,6 +57,11 @@ the prerelease. Verify the GitHub source and checksum before running it.
 
 ## Capabilities
 
+Current development source also includes the first version of
+[Combined Distance Racing](docs/COMBINED_DISTANCE.md), with distance qualifying,
+independent racer groups, director-approved finishing fractions, and a separate
+Live Standings window. It is not included in the previously published beta.
+
 - Practice timing and demo lap generation.
 - Optional qualifying with track calls and active-time scoring.
 - Multi-heat races for more racers than lanes, including timed or manually

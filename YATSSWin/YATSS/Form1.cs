@@ -542,6 +542,12 @@ namespace YATSS
                 new ToolStripSeparator(),
                 demoLapStreamToolStripMenuItem
             });
+            _liveStandingsMenu.Click += (_, _) =>
+            {
+                _standingsDismissed = false;
+                if (_latestDistanceStandings != null) UpdateDistanceStandings(_latestDistanceStandings);
+            };
+            modeToolStripMenuItem.DropDownItems.Add(_liveStandingsMenu);
         }
 
         private static Bitmap CreateModeIndicator(bool selected)
@@ -922,17 +928,20 @@ namespace YATSS
                     heatRaceSetup.SelectedRacers,
                     ActiveLaneCount,
                     LaneConfigurations,
-                    TrackLengthFeet);
+                    TrackLengthFeet,
+                    heatRaceSetup.Format);
                 SetRaceTitle(heatRaceSetup.RaceName);
                 SetLaneRacerNames(heatRaceSetup.FirstHeatLaneRacers);
                 SetQualifyingAvailable(true);
+                if (heatRaceSetup.Format == RaceFormat.CombinedDistance)
+                    qualifyingToolStripMenuItem_Click(sender, e);
             }
         }
 
         private void qualifyingToolStripMenuItem_Click(object sender, EventArgs e)
         {
             CloseControllerDiagnostics();
-            using QualifyingSetup qualifyingSetup = new(ActiveLaneCount, LaneConfigurations);
+            using QualifyingSetup qualifyingSetup = new(ActiveLaneCount, LaneConfigurations, s.CombinedDistanceActive);
             if (qualifyingSetup.ShowDialog(this) == DialogResult.OK)
             {
                 s.ConfigureQualifying(
@@ -1022,6 +1031,9 @@ namespace YATSS
 
         private bool ConfirmAbandonQualifying()
         {
+            if (s.CombinedDistanceActive)
+                return MessageBox.Show(this, "Changing modes will discard the current Combined Distance event.",
+                    "Discard Event?", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes;
             return !s.QualifyingActive ||
                 MessageBox.Show(
                     this,
@@ -1090,17 +1102,85 @@ namespace YATSS
 
         public void ShowQualifyingLaneSelection(
             IReadOnlyList<QualifyingResult> rankedResults,
-            Action<IReadOnlyList<string>> completed)
+            Action<IReadOnlyList<string>, IReadOnlyList<IReadOnlyList<string>>> completed,
+            bool grouped = false,
+            Func<bool>? stillCurrent = null,
+            int? laneCount = null,
+            IReadOnlyList<LaneConfiguration>? laneConfigurations = null)
+        {
+            QueueRaceDialog(() =>
+            {
+                if (stillCurrent != null && !stillCurrent()) return;
+                using QualifyingLaneSelection selection = new(
+                    rankedResults,
+                    laneCount ?? ActiveLaneCount,
+                    laneConfigurations ?? LaneConfigurations,
+                    grouped);
+                if (selection.ShowDialog(this) == DialogResult.OK)
+                {
+                    completed(selection.SeededRacers, selection.Groups);
+                }
+            });
+        }
+
+        private LiveStandingsForm? _liveStandings;
+        private readonly ToolStripMenuItem _liveStandingsMenu = new("Live Standings") { Enabled = false };
+        private IReadOnlyList<DistanceStanding>? _latestDistanceStandings;
+        private bool _standingsDismissed;
+        public void UpdateDistanceStandings(IReadOnlyList<DistanceStanding>? rows)
         {
             RunOnUiThread(() =>
             {
-                using QualifyingLaneSelection selection = new(
-                    rankedResults,
-                    ActiveLaneCount,
-                    LaneConfigurations);
-                if (selection.ShowDialog(this) == DialogResult.OK)
+                _latestDistanceStandings = rows;
+                _liveStandingsMenu.Enabled = rows != null;
+                if (rows == null) { _liveStandings?.Close(); _liveStandings = null; _standingsDismissed = false; return; }
+                if (_standingsDismissed) return;
+                if (_liveStandings == null || _liveStandings.IsDisposed)
                 {
-                    completed(selection.SeededRacers);
+                    _liveStandings = new LiveStandingsForm();
+                    _liveStandings.FormClosed += (_, _) => _standingsDismissed = true;
+                    _liveStandings.Show(this);
+                }
+                _liveStandings.UpdateStandings(rows);
+            });
+        }
+
+        public void ShowDistanceApproval(string racer, int laps, int? estimate, string stage, Action<int, string> completed, Func<bool>? stillCurrent = null)
+        {
+            QueueRaceDialog(() =>
+            {
+                if (stillCurrent != null && !stillCurrent()) return;
+                using DistanceApprovalForm approval = new(racer, laps, estimate, stage);
+                if (approval.ShowDialog(this) == DialogResult.OK) completed(approval.PartialHundredths, approval.Reason);
+            });
+        }
+
+        public void ResolveDistanceTies(IReadOnlyList<DistanceStanding> rows, string stage, Action<IReadOnlyList<int>> completed, Func<bool>? stillCurrent = null)
+        {
+            QueueRaceDialog(() =>
+            {
+                if (stillCurrent != null && !stillCurrent()) return;
+                if (!DistanceTieForm.HasExactTies(rows)) { completed(rows.Select(row => row.RacerId).ToArray()); return; }
+                using DistanceTieForm ties = new(rows, stage);
+                if (ties.ShowDialog(this) == DialogResult.OK) completed(ties.RacerOrder);
+            });
+        }
+
+        private void QueueRaceDialog(Action action)
+        {
+            // Never hold the caller's race-control lock throughout a modal dialog.
+            if (!IsDisposed && IsHandleCreated) BeginInvoke(action);
+        }
+
+        public void ShowCombinedLaneTotals(IReadOnlyList<string> racers, IReadOnlyList<DistanceStanding> standings)
+        {
+            RunOnUiThread(() =>
+            {
+                for (int lane = 0; lane < racers.Count; lane++)
+                {
+                    DistanceStanding? row = standings.FirstOrDefault(item => item.RacerName == racers[lane]);
+                    _totalLapLabels[lane].Text = row == null ? string.Empty : DistanceScoring.Format(row.CombinedHundredths);
+                    ApplyBoardValueFont(_totalLapLabels[lane]);
                 }
             });
         }

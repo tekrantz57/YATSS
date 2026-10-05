@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace YATSS
 {
@@ -25,7 +26,7 @@ namespace YATSS
 
     public static class RaceArchiveWriter
     {
-        public const int CurrentSchemaVersion = 1;
+        public const int CurrentSchemaVersion = 2;
 
         private static readonly UTF8Encoding Utf8NoBom = new(false);
 
@@ -40,7 +41,7 @@ namespace YATSS
                 : Path.GetFullPath(outputDirectory);
             Directory.CreateDirectory(directory);
 
-            string baseName = $"HeatRace_{report.CreatedLocal:yyyyMMdd_HHmmss}";
+            string baseName = $"{(report.Format == RaceFormat.CombinedDistance ? "CombinedDistance" : "HeatRace")}_{report.CreatedLocal:yyyyMMdd_HHmmss}";
             RaceExportPaths paths = new(
                 Path.Combine(directory, $"{baseName}.html"),
                 options.ExportJson ? Path.Combine(directory, $"{baseName}.json") : null,
@@ -62,6 +63,11 @@ namespace YATSS
                 File.WriteAllText(paths.LapsCsv, BuildLapsCsv(report), Utf8NoBom);
                 File.WriteAllText(paths.QualifyingCsv, BuildQualifyingCsv(report), Utf8NoBom);
                 File.WriteAllText(paths.AdjustmentsCsv, BuildAdjustmentsCsv(report), Utf8NoBom);
+                if (report.Format == RaceFormat.CombinedDistance)
+                {
+                    File.WriteAllText(Path.Combine(directory, $"{baseName}_distance.csv"), BuildDistanceCsv(report), Utf8NoBom);
+                    File.WriteAllText(Path.Combine(directory, $"{baseName}_distance_confirmations.csv"), BuildDistanceConfirmationsCsv(report), Utf8NoBom);
+                }
             }
             return paths;
         }
@@ -78,6 +84,7 @@ namespace YATSS
             {
                 WriteIndented = true
             };
+            options.Converters.Add(new JsonStringEnumConverter());
             File.WriteAllText(path, JsonSerializer.Serialize(archive, options), Utf8NoBom);
         }
 
@@ -106,6 +113,34 @@ namespace YATSS
             }
 
             return csv.ToString();
+        }
+
+        private static string BuildDistanceCsv(HeatRaceReport report)
+        {
+            StringBuilder csv = new();
+            AppendRow(csv, "RaceName", "Position", "RacerId", "Racer", "Group", "QualifyingHundredths", "RaceLaps", "FinalPartialHundredths", "CombinedHundredths", "BestLapMilliseconds", "DirectorTieOrder");
+            for (int index = 0; index < report.DistanceStandings.Count; index++)
+            {
+                DistanceStanding row = report.DistanceStandings[index];
+                AppendRow(csv, report.RaceName, index + 1, row.RacerId, row.RacerName, row.Group,
+                    row.QualifyingHundredths, row.RaceLaps, row.FinalPartialHundredths, row.CombinedHundredths, row.BestLapMilliseconds, row.DirectorTieOrder + 1);
+            }
+            return csv.ToString();
+        }
+
+        private static string BuildDistanceConfirmationsCsv(HeatRaceReport report)
+        {
+            StringBuilder csv = new();
+            AppendRow(csv, "RaceName", "RacerId", "Racer", "Stage", "CompletedLaps", "EstimatedPartialHundredths", "ApprovedPartialHundredths", "RecordedAt", "Reason");
+            foreach (QualifyingResult qualifier in report.QualifyingResults)
+            {
+                AppendApproval("Qualifying", qualifier, qualifier.Distance!);
+                if (report.FinalDistanceApprovals.TryGetValue(qualifier.OriginalOrder, out DistanceApproval? final)) AppendApproval("Race", qualifier, final);
+            }
+            return csv.ToString();
+            void AppendApproval(string stage, QualifyingResult qualifier, DistanceApproval approval) =>
+                AppendRow(csv, report.RaceName, qualifier.OriginalOrder, qualifier.RacerName, stage, approval.CompletedLaps,
+                    approval.EstimatedPartialHundredths, approval.ApprovedPartialHundredths, approval.RecordedAt.ToString("O"), approval.Reason);
         }
 
         private static string BuildLapsCsv(HeatRaceReport report)

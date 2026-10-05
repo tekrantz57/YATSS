@@ -11,7 +11,8 @@ namespace YATSS
 
         public QualifyingSetup(
             int activeLaneCount,
-            IReadOnlyList<LaneConfiguration> laneConfigurations)
+            IReadOnlyList<LaneConfiguration> laneConfigurations,
+            bool distance = false)
         {
             int laneCount = Math.Clamp(activeLaneCount, 2, LapProtocolParser.LaneCount);
             _lanes = laneConfigurations.Take(laneCount).ToArray();
@@ -79,6 +80,7 @@ namespace YATSS
             CancelButton = cancel;
 
             LoadSettings(laneCount);
+            if (distance) { Text = "Distance Qualifying"; _durationSeconds.Value = 60; }
         }
 
         protected override void OnFormClosing(FormClosingEventArgs e)

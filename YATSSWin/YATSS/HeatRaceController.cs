@@ -75,7 +75,13 @@ namespace YATSS
         IReadOnlyList<HeatRaceLaneResult> LaneResults,
         IReadOnlyList<HeatRaceLapRecord> Laps,
         IReadOnlyList<HeatRaceManualAdjustment> ManualAdjustments,
-        string Notes);
+        string Notes)
+    {
+        public RaceFormat Format { get; init; }
+        public IReadOnlyList<DistanceStanding> DistanceStandings { get; init; } = Array.Empty<DistanceStanding>();
+        public IReadOnlyDictionary<int, DistanceApproval> FinalDistanceApprovals { get; init; } = new Dictionary<int, DistanceApproval>();
+        public DateTimeOffset? FinalTieOrderRecordedAt { get; init; }
+    }
 
     public sealed class HeatRaceController
     {
@@ -118,6 +124,18 @@ namespace YATSS
         private string _raceName = string.Empty;
         private double _trackLengthFeet = LapRaceOptions.Default.TrackLengthFeet;
         private IReadOnlyList<QualifyingResult> _qualifyingResults = Array.Empty<QualifyingResult>();
+        private IReadOnlyList<IReadOnlyList<string>> _groups = Array.Empty<IReadOnlyList<string>>();
+        private readonly Dictionary<int, DistanceApproval> _finalApprovals = new();
+        private readonly Dictionary<int, int> _directorTieOrder = new();
+        private DateTimeOffset? _finalTieOrderRecordedAt;
+        public RaceFormat Format { get; private set; }
+        public int GroupNumber => _groups.Count == 0 ? 1 : (HeatNumber - 1) / _initialLaneIndexes.Length + 1;
+        public int GroupCount => Math.Max(1, _groups.Count);
+        public bool IsGroupEnd => _groups.Count > 0 && HeatNumber % _initialLaneIndexes.Length == 0;
+        public bool NextHeatStartsGroup => IsGroupEnd && HasMoreHeats;
+        public bool StartsAtLine => Format == RaceFormat.CombinedDistance && _isFirstHeat;
+        public uint TimingBaseTimestamp => (uint)_raceTimestampBase;
+        public bool FinalDistancesConfirmed => _qualifyingResults.Count > 0 && _finalApprovals.Count == _qualifyingResults.Count;
 
         public HeatRaceState State { get; private set; } = HeatRaceState.Practice;
         public int HeatNumber { get; private set; }
@@ -153,7 +171,9 @@ namespace YATSS
             IReadOnlyList<LaneConfiguration>? laneConfigurations = null,
             string raceName = "",
             double trackLengthFeet = 155.0,
-            IReadOnlyList<QualifyingResult>? qualifyingResults = null)
+            IReadOnlyList<QualifyingResult>? qualifyingResults = null,
+            RaceFormat format = RaceFormat.HeatRace,
+            IReadOnlyList<IReadOnlyList<string>>? groups = null)
         {
             lock (_gate)
             {
@@ -179,6 +199,32 @@ namespace YATSS
                 _raceName = raceName.Trim();
                 _trackLengthFeet = Math.Clamp(trackLengthFeet, 1.0, 10000.0);
                 _qualifyingResults = qualifyingResults?.ToArray() ?? Array.Empty<QualifyingResult>();
+                Format = format;
+                _groups = groups?.Select(group => (IReadOnlyList<string>)group.ToArray()).ToArray()
+                    ?? Array.Empty<IReadOnlyList<string>>();
+                if (format == RaceFormat.CombinedDistance && _groups.Count > 0)
+                {
+                    if (_groups.Any(group => group.Count != laneCount) ||
+                        _groups.Count != (_qualifyingResults.Count + laneCount - 1) / laneCount ||
+                        _qualifyingResults.Select(result => result.OriginalOrder).Distinct().Count() != _qualifyingResults.Count ||
+                        _qualifyingResults.Any(result => result.Distance == null) ||
+                        _groups.SelectMany(group => group).Where(name => !string.IsNullOrWhiteSpace(name)).Count() != _qualifyingResults.Count ||
+                        !_groups.SelectMany(group => group).Where(name => !string.IsNullOrWhiteSpace(name)).OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+                            .SequenceEqual(_qualifyingResults.Select(result => result.RacerName).OrderBy(name => name, StringComparer.OrdinalIgnoreCase), StringComparer.OrdinalIgnoreCase) ||
+                        _qualifyingResults.Select(result => result.RacerName).Distinct(StringComparer.OrdinalIgnoreCase).Count() != _qualifyingResults.Count)
+                        throw new ArgumentException("Combined Distance requires approved qualifying and complete group lane assignments.");
+                    for (int group = 0; group < _groups.Count; group++)
+                    {
+                        string[] members = _groups[group].Where(name => !string.IsNullOrWhiteSpace(name)).OrderBy(name => name).ToArray();
+                        string[] rankedMembers = _qualifyingResults.Skip(group * laneCount).Take(laneCount)
+                            .Select(result => result.RacerName).OrderBy(name => name).ToArray();
+                        if (!members.SequenceEqual(rankedMembers)) throw new ArgumentException("Groups must use consecutive qualifying ranks.");
+                    }
+                    TotalHeats = laneCount * _groups.Count;
+                }
+                _finalApprovals.Clear();
+                _directorTieOrder.Clear();
+                _finalTieOrderRecordedAt = null;
                 _heatLengthMilliseconds = Math.Clamp(
                     heatLengthMinutes,
                     1,
@@ -192,7 +238,7 @@ namespace YATSS
                 _laneResults.Clear();
                 _laps.Clear();
                 _manualAdjustments.Clear();
-                SetInitialRacers(racers);
+                SetInitialRacers(_groups.Count > 0 ? _groups[0] : racers);
                 Array.Fill(_laneSeenThisHeat, false);
                 State = HeatRaceState.Ready;
             }
@@ -203,6 +249,8 @@ namespace YATSS
             lock (_gate)
             {
                 State = HeatRaceState.Practice;
+                Format = RaceFormat.HeatRace;
+                _groups = Array.Empty<IReadOnlyList<string>>();
                 _activeMillisecondsBeforeRun = 0;
                 _raceTimestampBase = 0;
                 _hasRunStartedAt = false;
@@ -224,6 +272,7 @@ namespace YATSS
                 {
                     return false;
                 }
+                if (Format == RaceFormat.CombinedDistance && _groups.Count == 0) return false;
 
                 _runStartedAt = controllerTimestamp;
                 _hasRunStartedAt = true;
@@ -291,12 +340,18 @@ namespace YATSS
                     return false;
                 }
 
+                if (IsGroupEnd && Format == RaceFormat.CombinedDistance && _laneRacers.Where(racer => !string.IsNullOrWhiteSpace(racer.Name))
+                    .Any(racer => !_finalApprovals.ContainsKey(GetRacerId(racer.Name)))) return false;
                 UpdateLaneLapCounts(laneLapCounts);
-                RotateRacers();
+                if (IsGroupEnd)
+                {
+                    SetInitialRacers(_groups[GroupNumber]);
+                }
+                else RotateRacers();
                 HeatNumber++;
                 _activeMillisecondsBeforeRun = 0;
                 _hasRunStartedAt = false;
-                _isFirstHeat = false;
+                _isFirstHeat = _groups.Count > 0 && (HeatNumber - 1) % _initialLaneIndexes.Length == 0;
                 Array.Fill(_laneSeenThisHeat, false);
                 State = HeatRaceState.Ready;
                 return true;
@@ -540,7 +595,7 @@ namespace YATSS
                         bestByLane));
                 }
 
-                return new HeatRaceReport(
+                HeatRaceReport report = new HeatRaceReport(
                     DateTime.Now,
                     _raceName,
                     HeatLengthMinutes,
@@ -565,6 +620,25 @@ namespace YATSS
                         .ToArray(),
                     _manualAdjustments.ToArray(),
                     "Manual lap adjustments made during stopped time are reflected in totals.");
+                if (Format == RaceFormat.CombinedDistance)
+                {
+                    if (!FinalDistancesConfirmed) throw new InvalidOperationException("Final distances have not all been confirmed.");
+                    IReadOnlyList<DistanceStanding> standings = GetDistanceStandings(0);
+                    if (standings.GroupBy(row => (row.CombinedHundredths, row.BestLapMilliseconds))
+                        .Any(tie => tie.Count() > 1 && tie.Any(row => row.DirectorTieOrder == null)))
+                        throw new InvalidOperationException("Exact final ties require a director order.");
+                    Dictionary<string, HeatRaceRacerReport> byName = report.Racers.ToDictionary(racer => racer.RacerName);
+                    report = report with
+                    {
+                        Format = Format,
+                        DistanceStandings = standings,
+                        FinalDistanceApprovals = new Dictionary<int, DistanceApproval>(_finalApprovals),
+                        FinalTieOrderRecordedAt = _finalTieOrderRecordedAt,
+                        Racers = standings.Select(row => byName[row.RacerName]).ToArray(),
+                        Notes = "Combined Distance: approved qualifying credit + counted race laps + approved final fraction. All distances are in laps."
+                    };
+                }
+                return report;
             }
         }
 
@@ -652,6 +726,81 @@ namespace YATSS
             for (int i = 0; i < _laneRacers.Length; i++)
             {
                 _laneRacers[i] = new RacerEntry(string.Empty);
+            }
+        }
+
+        private int GetRacerId(string name) => _qualifyingResults.Single(result => result.RacerName == name).OriginalOrder;
+
+        public IReadOnlyList<(int RacerId, string RacerName, int Laps, int? Estimate)> GetFinalDistanceCandidates()
+        {
+            lock (_gate)
+            {
+                if (Format != RaceFormat.CombinedDistance || State != HeatRaceState.Complete || !IsGroupEnd)
+                    return Array.Empty<(int, string, int, int?)>();
+                return _laneRacers.Where(racer => !string.IsNullOrWhiteSpace(racer.Name) && !_finalApprovals.ContainsKey(GetRacerId(racer.Name))).Select(racer =>
+                {
+                    HeatRaceLaneResult last = _laneResults.Last(result => result.RacerName == racer.Name);
+                    HeatRaceLapRecord[] laps = _laps.Where(lap => lap.RacerName == racer.Name && lap.HeatNumber == HeatNumber).ToArray();
+                    int? estimate = laps.Length == 0 ? null : DistanceScoring.EstimatePartial(
+                        _raceTimestampBase - laps[^1].RaceElapsedMilliseconds,
+                        laps.Where(lap => lap.FastestLapEligible && lap.LapMilliseconds.HasValue).Select(lap => lap.LapMilliseconds!.Value));
+                    return (GetRacerId(racer.Name), racer.Name, last.TotalLaps, estimate);
+                }).ToArray();
+            }
+        }
+
+        public void ApproveFinalDistance(int racerId, int partialHundredths, string reason)
+        {
+            lock (_gate)
+            {
+                var candidate = GetFinalDistanceCandidates().Single(item => item.RacerId == racerId);
+                if (_finalApprovals.ContainsKey(racerId)) throw new InvalidOperationException("Distance is already confirmed.");
+                _finalApprovals.Add(racerId, DistanceScoring.Approve(candidate.Laps, candidate.Estimate, partialHundredths, reason));
+            }
+        }
+
+        public void SetFinalTieOrder(IReadOnlyList<int> ids)
+        {
+            lock (_gate)
+            {
+                if (ids.Count != _qualifyingResults.Count || ids.Distinct().Count() != ids.Count ||
+                    ids.Any(id => !_qualifyingResults.Any(result => result.OriginalOrder == id)))
+                    throw new ArgumentException("Tie order must include each racer once.");
+                _directorTieOrder.Clear();
+                for (int index = 0; index < ids.Count; index++) _directorTieOrder.Add(ids[index], index);
+                _finalTieOrderRecordedAt = DateTimeOffset.Now;
+            }
+        }
+
+        public IReadOnlyList<DistanceStanding> GetDistanceStandings(uint timestamp, IReadOnlyList<LapRaceLaneSnapshot>? current = null)
+        {
+            lock (_gate)
+            {
+                List<DistanceStanding> rows = new();
+                foreach (QualifyingResult qualifier in _qualifyingResults)
+                {
+                    int id = qualifier.OriginalOrder;
+                    HeatRaceLaneResult[] results = _laneResults.Where(result => result.RacerName == qualifier.RacerName).ToArray();
+                    int lane = Array.FindIndex(_laneRacers, racer => racer.Name == qualifier.RacerName);
+                    bool active = lane >= 0 && State != HeatRaceState.Complete;
+                    LapRaceLaneSnapshot? live = active ? current?.FirstOrDefault(snapshot => snapshot.LaneIndex == lane) : null;
+                    int laps = live?.TotalLapCount ?? results.LastOrDefault()?.TotalLaps ?? 0;
+                    int[] valid = _laps.Where(lap => lap.RacerName == qualifier.RacerName && lap.FastestLapEligible && lap.LapMilliseconds.HasValue)
+                        .Select(lap => lap.LapMilliseconds!.Value)
+                        .Concat(live?.Laps.Where(lap => lap.FastestLapEligible && lap.LapMilliseconds.HasValue).Select(lap => lap.LapMilliseconds!.Value) ?? Enumerable.Empty<int>()).ToArray();
+                    long qualifying = qualifier.Distance?.TotalHundredths ?? 0;
+                    _finalApprovals.TryGetValue(id, out DistanceApproval? final);
+                    long combined = qualifying + laps * 100L + (final?.ApprovedPartialHundredths ?? 0);
+                    long activeTime = results.Length * _heatLengthMilliseconds + (active ? GetElapsedMillisecondsCore(timestamp) : 0);
+                    long remaining = Math.Max(0, _initialLaneIndexes.Length * _heatLengthMilliseconds - activeTime);
+                    long? projected = final != null ? combined : valid.Length == 0 || activeTime <= 0 ? null :
+                        qualifying + (long)Math.Floor(laps * 100d * (activeTime + remaining) / activeTime);
+                    int group = _groups.Select((members, index) => (members, index)).FirstOrDefault(item => item.members.Contains(qualifier.RacerName)).index + 1;
+                    rows.Add(new(id, qualifier.RacerName, group, lane >= 0 && final == null ? _laneNames[lane] : string.Empty,
+                        qualifying, laps, final?.ApprovedPartialHundredths, combined, projected,
+                        valid.Length > 0 ? valid.Min() : null, _directorTieOrder.TryGetValue(id, out int order) ? order : null));
+                }
+                return DistanceScoring.Rank(rows);
             }
         }
 

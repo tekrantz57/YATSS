@@ -9,6 +9,8 @@ namespace YATSS
         private readonly NumericUpDown _heatLengthMinutes = new();
         private readonly NumericUpDown _betweenHeatsSeconds = new();
         private readonly TextBox _raceName = new();
+        private readonly ComboBox _format = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 180 };
+        public RaceFormat Format => _format.SelectedIndex == 1 ? RaceFormat.CombinedDistance : RaceFormat.HeatRace;
         private readonly Button _okButton = new();
         private readonly Random _random = new();
         private readonly List<string> _selectedNames = new();
@@ -165,9 +167,12 @@ namespace YATSS
                 AutoSize = true,
                 Margin = new Padding(0, 6, 8, 0)
             });
-            _raceName.Width = 360;
+            _raceName.Width = 190;
             _raceName.MaxLength = 80;
             raceIdentity.Controls.Add(_raceName);
+            _format.Items.AddRange(new object[] { "Heat Race", "Combined Distance" });
+            _format.SelectedIndex = 0;
+            raceIdentity.Controls.Add(_format);
 
             FlowLayoutPanel heatSettings = new()
             {
