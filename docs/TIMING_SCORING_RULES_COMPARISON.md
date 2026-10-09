@@ -102,3 +102,7 @@ bench-validation items.
 See [Combined Distance Racing](COMBINED_DISTANCE.md) for current operation and
 [the TODO list](../TODO.md) for follow-up. Active-event crash recovery remains a
 separate project-wide limitation, not a newly established rulebook requirement.
+
+Implementation update October 9, 2026: [Active event recovery](ACTIVE_RACE_RECOVERY.md)
+is now implemented, pending physical/Wine validation. The rulebook comparison
+above remains the October 5 assessment; this does not establish a rulebook requirement.

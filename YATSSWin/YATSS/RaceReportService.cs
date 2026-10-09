@@ -25,7 +25,7 @@ namespace YATSS
             }
         }
 
-        public void Write(HeatRaceReport report)
+        public bool Write(HeatRaceReport report)
         {
             try
             {
@@ -43,12 +43,14 @@ namespace YATSS
                 string? reportDirectory = Path.GetDirectoryName(paths.Html);
                 _log.Info($"heat race {artifactDescription} written to {reportDirectory}");
                 _form.SetStatusMessage($"Race {artifactDescription} written: {reportDirectory}");
+                return true;
             }
             catch (Exception exception) when (
                 exception is IOException or UnauthorizedAccessException or InvalidOperationException)
             {
                 _log.Error(exception, "heat race artifact export failed");
                 _form.SetStatusMessage("Race report and enabled data exports could not be written");
+                return false;
             }
         }
     }

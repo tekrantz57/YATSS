@@ -50,8 +50,9 @@ outside diagnostics. Pin maps and relay polarity have not changed.
   its configured debounce, as before; ESP32 reboot restores the default.
 - Valid checksummed host commands arm/refresh the watchdog. Invalid checksums
   do not. Ordinary KEEPALIVE does not extend the separate diagnostic timeout.
-- Relay pulses remain cut-only tests capped at two seconds. Power-off cannot
-  protect against loss of relay-coil power with normally closed wiring. A stalled
+- Relay pulses remain cut-only tests capped at two seconds. Both adapters share
+  the active-high run mapping for normally open contacts; OFF releases coils.
+  See [Relay wiring](RELAY_WIRING.md). A stalled
   transport/foreground loop still requires hardware validation; source reuse
   does not create an independent hardwired safety interlock.
 

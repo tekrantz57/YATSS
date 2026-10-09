@@ -83,7 +83,7 @@ namespace YATSS
         public DateTimeOffset? FinalTieOrderRecordedAt { get; init; }
     }
 
-    public sealed class HeatRaceController
+    public sealed partial class HeatRaceController
     {
         public const int MaximumHeatLengthMinutes = 24 * 60;
 
@@ -128,6 +128,7 @@ namespace YATSS
         private readonly Dictionary<int, DistanceApproval> _finalApprovals = new();
         private readonly Dictionary<int, int> _directorTieOrder = new();
         private DateTimeOffset? _finalTieOrderRecordedAt;
+        private int _recoveryHistoryVersion;
         public RaceFormat Format { get; private set; }
         public int GroupNumber => _groups.Count == 0 ? 1 : (HeatNumber - 1) / _initialLaneIndexes.Length + 1;
         public int GroupCount => Math.Max(1, _groups.Count);
@@ -223,6 +224,7 @@ namespace YATSS
                     TotalHeats = laneCount * _groups.Count;
                 }
                 _finalApprovals.Clear();
+                _recoveryHistoryVersion++;
                 _directorTieOrder.Clear();
                 _finalTieOrderRecordedAt = null;
                 _heatLengthMilliseconds = Math.Clamp(
@@ -249,6 +251,7 @@ namespace YATSS
             lock (_gate)
             {
                 State = HeatRaceState.Practice;
+                _recoveryHistoryVersion++;
                 Format = RaceFormat.HeatRace;
                 _groups = Array.Empty<IReadOnlyList<string>>();
                 _activeMillisecondsBeforeRun = 0;
@@ -513,6 +516,8 @@ namespace YATSS
             {
                 return;
             }
+
+            _recoveryHistoryVersion++;
 
             _laneResults.RemoveAll(result => result.HeatNumber == HeatNumber);
             _laps.RemoveAll(lap => lap.HeatNumber == HeatNumber);

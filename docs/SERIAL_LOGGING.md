@@ -38,8 +38,8 @@ On orderly exit, the app closes the queue and allows up to two seconds for the
 worker to drain it. A stalled disk or listener cannot hold shutdown indefinitely.
 Forced termination, power loss, queue overload, or a storage failure can lose
 diagnostic entries. These logs are not a durable race journal or a substitute
-for completed race reports and exports. Active-race crash recovery remains a
-separate TODO item. Retention limits the number of calendar days, not the size
+for completed race reports and exports. [Active event recovery](ACTIVE_RACE_RECOVERY.md)
+uses a separate transactional journal. Retention limits calendar days, not the size
 of an individual day's file.
 
 ## Verification

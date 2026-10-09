@@ -1,5 +1,9 @@
 # Controller connection loss and recovery
 
+For application closing, crashes, and OS restarts, see
+[Active event recovery](ACTIVE_RACE_RECOVERY.md). Both recovery paths hold
+power off until the director explicitly resumes.
+
 YATSS opens serial and UNO Q TCP connections with track power disabled. Before
 offering a start, it requires a supported controller identity, a valid
 heartbeat, and acknowledgement of the power-off command. Press Space (or the
@@ -29,8 +33,9 @@ traffic do not substitute for heartbeats.
 YATSS requests a power cut whenever communication permits. The existing MCU
 watchdog independently cuts power after five seconds without host commands.
 The MCU and relay-coil supply must remain powered for that watchdog to operate;
-the documented normally closed relay wiring does not fail off on loss of coil
-power. Software cannot deliver an immediate relay command through a broken
+current normally open contacts release on coil-power loss; controller power-loss
+behavior also depends on the external gate pulldown and verified GPIO behavior.
+See [Relay wiring](RELAY_WIRING.md). Software cannot deliver an immediate relay command through a broken
 connection.
 
 ## After the controller responds

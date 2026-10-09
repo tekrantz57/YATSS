@@ -24,7 +24,9 @@ device as a Windows serial port and requires no Wine COM-port mapping.
 | 8 | D9 | A3 |
 
 Sensor inputs use the internal pull-up and become active when pulled low. A
-track-power cut output is active high. External sensor conditioning and relay
+track-power output is HIGH to run and LOW to cut, using normally open contacts
+and an external gate pulldown. See [Relay wiring](RELAY_WIRING.md)
+before connecting track power. External sensor conditioning and relay
 or solid-state switching hardware are still required; do not connect track
 power directly to an UNO Q pin.
 

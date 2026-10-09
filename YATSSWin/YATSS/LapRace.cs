@@ -36,7 +36,7 @@ namespace YATSS
         int? BestLapMilliseconds,
         IReadOnlyList<LaneLapRecord> Laps);
 
-    public sealed class LapRace
+    public sealed partial class LapRace
     {
         private sealed class LaneRuntime
         {
@@ -51,9 +51,11 @@ namespace YATSS
             public uint? LastSequence { get; set; }
             public int MissedFrames { get; set; }
             public bool CountAfterInterruption { get; set; }
+            public int RecoveryEpoch { get; set; }
 
             public void Reset(int laneIndex)
             {
+                RecoveryEpoch++;
                 Stats = new Lane(laneIndex);
                 LastAcceptedTimestamp = null;
                 LastRawTimestamp = null;
@@ -304,6 +306,7 @@ namespace YATSS
                 {
                     int lapCount = i < lapCounts.Count ? Math.Max(0, lapCounts[i]) : 0;
                     _lanes[i].Stats.ResetTiming(lapCount);
+                    _lanes[i].RecoveryEpoch++;
                     _lanes[i].LastAcceptedTimestamp = null;
                     _lanes[i].LastRawTimestamp = null;
                     _lanes[i].LastSequence = null;

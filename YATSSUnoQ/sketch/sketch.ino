@@ -5,7 +5,6 @@
 #include "src/YatssController/YatssController.h"
 
 const byte LaneCount = 8;
-const byte TrackPowerCutActiveLevel = HIGH;
 const byte sensorPins[LaneCount] = { D2, D3, D4, D5, D6, D7, D8, D9 };
 const byte trackPowerCutPins[LaneCount] = { D10, D11, D12, D13, A0, A1, A2, A3 };
 Arduino_LED_Matrix statusMatrix;
@@ -22,8 +21,7 @@ struct UnoQPlatform {
   static void configureCapture(bool diagnostics) { (void)diagnostics; }
   static void setPower(uint8_t mask) {
     for (byte lane = 0; lane < LaneCount; ++lane) {
-      byte restoreLevel = TrackPowerCutActiveLevel == HIGH ? LOW : HIGH;
-      digitalWrite(trackPowerCutPins[lane], (mask & (1u << lane)) ? restoreLevel : TrackPowerCutActiveLevel);
+      digitalWrite(trackPowerCutPins[lane], yatss::trackPowerOutputHigh(mask, lane) ? HIGH : LOW);
     }
   }
   static uint8_t sensorMask() {
@@ -107,7 +105,7 @@ void handleYatssCommand(String command) {
 
 void setup() {
   for (byte lane = 0; lane < LaneCount; ++lane) {
-    digitalWrite(trackPowerCutPins[lane], TrackPowerCutActiveLevel);
+    digitalWrite(trackPowerCutPins[lane], LOW);
     pinMode(trackPowerCutPins[lane], OUTPUT);
     pinMode(sensorPins[lane], INPUT_PULLUP);
   }

@@ -15,7 +15,10 @@ static void Assert(bool condition, string message)
     }
 }
 
+if (args.Contains("--recovery-crash-fixture")) { RecoveryTests.CrashFixture(args[1]); return; }
+if (args.Contains("--recovery-ui")) { RecoveryTests.RunUi(); return; }
 if (args.Contains("--distance-ui")) { DistanceUiTests.Run(); return; }
+RecoveryTests.Run();
 bool originalSpeechEnabled = SpeechAnnouncer.Enabled;
 DistanceTests.Run();
 SpeechBackendMode originalSpeechBackend = SpeechAnnouncer.BackendMode;

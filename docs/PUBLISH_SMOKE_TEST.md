@@ -5,6 +5,21 @@ outside the development environment. It covers publishing, first launch,
 settings persistence, a complete demo race, exported reports, controller
 communication, and track-power behavior.
 
+## Active event recovery checks
+
+- [ ] Terminate a demo heat mid-race; restart and restore. Verify totals,
+  history, lane assignments, and remaining time; power stays off until Space.
+- [ ] Restore an interrupted qualifier: rerun it, retaining earlier results.
+- [ ] Restore pending Combined Distance fraction approvals and lane choices;
+  verify no qualifying carry or final fraction is applied twice.
+- [ ] Restore during intermission; verify no automatic next-heat start.
+- [ ] Repeat with real sensors on Windows and ARM64 Wine, including OS restart,
+  controller reset, and power loss. Reconcile outage crossings explicitly.
+- [ ] Exercise storage failure/backlog safely with track power disconnected;
+  verify stopped racing, visible warning, and last committed recovery.
+- [ ] Verify final exports and startup archive behavior, and Close YATSS leaves
+  unfinished recovery untouched. See [Active event recovery](ACTIVE_RACE_RECOVERY.md).
+
 ## Prerequisites
 
 - A clean Windows account, Windows Sandbox, or another Windows computer is
@@ -12,8 +27,9 @@ communication, and track-power behavior.
 - The hardware portion requires a supported YATSS controller with the current
   sketch installed.
 - Keep the controller powered while testing loss of Windows communication.
-  Removing controller or relay-coil power is a different electrical test and,
-  with normally closed relay contacts, may restore track power.
+  Removing controller or relay-coil power is a separate electrical test: the
+  current normally open wiring should leave power off. Verify matching firmware,
+  wiring, and gate pulldowns first; see [Relay wiring](RELAY_WIRING.md).
 
 ## 1. Create the Published Folder
 
@@ -277,8 +293,11 @@ Reset the controller while Windows is not commanding track power:
 
 Completely remove controller or relay-coil power as a separate test:
 
-- [ ] Actual relay behavior matches the documented normally closed wiring.
-- [ ] Any need for a normally open safety contactor or independent interlock is
+- [ ] Each healthy normally open 30-87 contact remains open without coil power.
+- [ ] Each gate has an external pulldown; boot/reset/unplugging causes no pickup.
+- [ ] Restoring control/coil supplies does not automatically restart the track.
+- [ ] Release latency, long-run coil/driver temperature, and DC load ratings pass.
+- [ ] Any need for an independent safety contactor or hardwired interlock is
   recorded before installation.
 
 ## 7. Result Record

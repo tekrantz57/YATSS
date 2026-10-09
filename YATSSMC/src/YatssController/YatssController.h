@@ -13,6 +13,11 @@
 
 namespace yatss {
 
+// Normally open contacts with a low-side MOSFET: energize only to run.
+constexpr bool trackPowerOutputHigh(uint8_t mask, uint8_t lane) {
+  return lane < 8 && (mask & (1u << lane)) != 0;
+}
+
 // Platform supplies clock, framed transport, GPIO, critical sections, and reset.
 // Sensor capture is called inside the platform's ISR critical section.
 template<class Platform, uint8_t QueueSize>

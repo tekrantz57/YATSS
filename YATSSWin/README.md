@@ -74,6 +74,18 @@ While YATSS is running, the app asks Windows to keep the system and display
 awake so the race board does not sleep or blank during timing. Normal power
 management resumes when the app exits.
 
+## Active Event Recovery
+
+Unfinished races and qualifying sessions are saved separately in
+`%LOCALAPPDATA%\YATSS\ActiveRace.db`. Startup offers Resume Event, Archive and
+Discard, or Close YATSS. Recovery holds power off until the director reviews
+totals/positions and explicitly resumes. Interrupted qualifiers are rerun;
+earlier completed results remain. Ordinary practice is not journaled.
+
+Settings backups do not include this journal. See
+[Active event recovery](../docs/ACTIVE_RACE_RECOVERY.md) for storage failures,
+outage-crossing uncertainty, pending approvals, and first-version limits.
+
 ## Controller Diagnostics
 
 `File > Controller Diagnostics` opens a live eight-lane wiring view when the

@@ -72,6 +72,16 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
+    <Content Include="..\..\docs\ACTIVE_RACE_RECOVERY.md">
+      <Link>Documentation\ACTIVE_RACE_RECOVERY.md</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="..\..\docs\RELAY_WIRING.md">
+      <Link>Documentation\RELAY_WIRING.md</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
     <Content Include="..\..\docs\SHARED_CONTROLLER.md">
       <Link>Documentation\SHARED_CONTROLLER.md</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

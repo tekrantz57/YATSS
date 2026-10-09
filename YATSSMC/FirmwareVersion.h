@@ -1,3 +1,3 @@
 #pragma once
 
-#define YATSSMC_FIRMWARE_VERSION "0.20.0-beta.2-shared.1"
+#define YATSSMC_FIRMWARE_VERSION "0.20.0-beta.2-no-relay.1"

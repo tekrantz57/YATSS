@@ -179,8 +179,10 @@ Arduino Nano ESP32 logical lane to track-power output map:
 | 7 | A2 |
 | 8 | A3 |
 
-`TRACK_POWER_CUT_ACTIVE_LEVEL` is currently `HIGH`. That means the sketch writes
-the active level to cut power and the opposite level to restore power.
+Firmware `0.20.0-beta.2-no-relay.1` and later uses normally open relay contacts
+with the documented low-side MOSFET driver: GPIO `HIGH` energizes the coil to
+enable power; GPIO `LOW` de-energizes it to cut power. Both board adapters use
+the shared `yatss::trackPowerOutputHigh` mapping. Pin assignments are unchanged.
 
 The sketch drives every track-power GPIO to the cut level before serial startup
 and its one-second boot delay. After Windows connects, valid commands arm a
@@ -189,20 +191,22 @@ acknowledgements stop while track power is enabled, the controller cuts all
 lanes and requires another explicit track-power command before power can be
 restored.
 
-This watchdog protects against loss of Windows communication while the
-controller remains powered. It cannot keep the track off if controller or
-relay-coil power is lost: the normally closed contacts documented below return
-to their unpowered state, which supplies track power. Use normally open safety
-contacts or an independent interlock where power loss must fail to off.
+The watchdog handles loss of Windows communication. Normally open contacts
+also open when coil power disappears. An external gate pulldown holds the
+MOSFET off when controller outputs are high-impedance. This is not protection
+against welded contacts, a shorted driver, or every MCU failure; retain an
+independent emergency cutoff. See [Normally open relay wiring](../docs/RELAY_WIRING.md).
 
 ### Relay Driver Notes
 
-The bench-tested relay driver cell used:
+The previously bench-tested relay driver cell used the following parts. The
+new normally open wiring and pulldown require fresh bench validation:
 
 - ESP32 GPIO into an IRLZ44N MOSFET gate
 - Shared ground between the ESP32/control circuit and relay supply
 - MOSFET low-side switching for the 12V relay coil
 - Flyback diode across the relay coil
+- External 10 kOhm resistor from MOSFET gate to source/control ground
 
 In this arrangement the ESP32 pin only drives the MOSFET gate. The MOSFET sinks
 the relay-coil current, so the GPIO does not carry the coil load.
@@ -212,7 +216,11 @@ One lane of the relay driver and track-power cutoff wiring:
 ```text
 Control / relay-coil side
 
-ESP32 track-power GPIO  -------------------- IRLZ44N gate
+MCU track-power GPIO   -------------------- IRLZ44N gate
+                                              |
+                                           10 kOhm
+                                              |
+control GND            -----------------------+
 
 12V relay/control +  ----+------------------ relay coil +
                          |
@@ -230,15 +238,17 @@ Diode anode goes to the MOSFET drain / relay coil - side.
 
 Track-power contact side, one lane
 
-lane power supply +  ----------------------- relay COM
-relay NC          -------------------------- driver station / lane feed +
+lane power supply +  ----------------------- relay COM (30)
+relay NO (87)      -------------------------- driver station / lane feed +
 lane power supply -  ----------------------- driver station / lane feed -
-relay NO          -------------------------- unused with current active-high cut
+relay NC (87a)     -------------------------- unused; insulate
 ```
 
-With `TRACK_POWER_CUT_ACTIVE_LEVEL` set to `HIGH`, the relay energizes when
-YATSS cuts track power. Using `COM` and `NC` means the lane feed is connected
-when the relay is relaxed, and opened when the relay clicks.
+The relay energizes while YATSS enables track power. Using `COM` and `NO`
+means the lane feed is disconnected when the relay is relaxed. For the pictured
+12 V automotive relay, connect 86 to +12 V and 85 to the MOSFET drain; the
+flyback diode's banded end goes to 86/+12 V. Verify the actual relay markings
+and any built-in diode polarity before connecting it.
 
 For track-power cutoff, wire the lane supply through the relay contacts before
 the driver station / lane feed. Use the relay contact side for the actual track

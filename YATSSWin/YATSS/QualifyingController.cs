@@ -28,7 +28,7 @@ namespace YATSS
         public DateTimeOffset? DirectorTieRecordedAt { get; init; }
     }
 
-    public sealed class QualifyingController
+    public sealed partial class QualifyingController
     {
         private readonly object _gate = new();
         private readonly List<string> _racers = new();
@@ -238,6 +238,7 @@ namespace YATSS
             {
                 if (_results.Count == 0) throw new InvalidOperationException("No completed qualifier.");
                 QualifyingResult result = _results[^1];
+                if (result.Distance != null) throw new InvalidOperationException("Qualifying distance is already confirmed.");
                 long lastCrossing = result.Laps.LastOrDefault()?.SessionElapsedMilliseconds ?? 0;
                 int? estimate = DistanceScoring.EstimatePartial(
                     Math.Min(result.ElapsedMilliseconds, _durationMilliseconds) - lastCrossing, result.Laps.Select(lap => lap.LapMilliseconds));

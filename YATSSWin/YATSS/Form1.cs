@@ -133,6 +133,7 @@ namespace YATSS
                 AllowSystemSleep();
             };
             Shown += (_, _) => BeginInvoke(CreateAutomaticDatabaseBackup);
+            Shown += (_, _) => BeginInvoke(s.OfferRaceRecovery);
         }
 
         private void ConfigureDataMenu()
@@ -1031,6 +1032,12 @@ namespace YATSS
 
         private bool ConfirmAbandonQualifying()
         {
+            if (!s.EventChangesAllowed)
+            {
+                MessageBox.Show(this, "Resolve the saved event or journal error before changing modes.",
+                    "Race Recovery", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return false;
+            }
             if (s.CombinedDistanceActive)
                 return MessageBox.Show(this, "Changing modes will discard the current Combined Distance event.",
                     "Discard Event?", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes;

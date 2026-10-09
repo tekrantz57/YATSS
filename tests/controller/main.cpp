@@ -26,7 +26,13 @@ struct Hardware {
   static void reset() { ++resets; }
   static void configureCapture(bool value) { diagnostics = value; }
   static uint8_t sensorMask() { return sensors; }
-  static void setPower(uint8_t mask) { power = mask; powerHistory.push_back(mask); }
+  static void setPower(uint8_t mask) {
+    power = mask;
+    powerHistory.push_back(mask);
+    for (uint8_t lane = 0; lane < 8; ++lane)
+      check(yatss::trackPowerOutputHigh(mask, lane) == ((mask & (1u << lane)) != 0),
+            "normally open relay must energize only an enabled lane");
+  }
   static void sendFrame(const char* frame) {
     check(locks == 0, "transport output must not run inside critical section");
     std::string text(frame);
@@ -66,6 +72,12 @@ static size_t countPrefix(const std::string& prefix) {
 template<uint8_t QueueSize>
 static void run() {
   using Core = yatss::Controller<Hardware, QueueSize>;
+  for (unsigned mask = 0; mask < 256; ++mask) {
+    for (uint8_t lane = 0; lane < 8; ++lane)
+      check(yatss::trackPowerOutputHigh(uint8_t(mask), lane) == ((mask & (1u << lane)) != 0),
+            "all power masks must map to active-high run outputs");
+    check(!yatss::trackPowerOutputHigh(uint8_t(mask), 8), "invalid relay lane must stay off");
+  }
   Hardware::clear();
   Core core;
   auto command = [&](const std::string& body) { core.command(encode(body).c_str()); };

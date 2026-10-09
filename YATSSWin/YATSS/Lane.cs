@@ -88,6 +88,19 @@ namespace YATSS
 
         public IReadOnlyList<LaneLapRecord> GetLapRecords() => times.ToArray();
 
+        internal int RecordedLapCount => times.Count;
+        internal IReadOnlyList<LaneLapRecord> GetLapRecordsSince(int start) => times.GetRange(start, times.Count - start);
+
+        internal void Restore(LapRaceLaneSnapshot snapshot)
+        {
+            times = snapshot.Laps.ToList();
+            manualLapAdjustment = snapshot.ManualLapAdjustment;
+            carriedLapCount = snapshot.TotalLapCount - times.Count - manualLapAdjustment;
+            if (carriedLapCount < 0 || snapshot.TotalLapCount < 0)
+                throw new InvalidDataException("Invalid saved lane count.");
+            best_time = snapshot.BestLapMilliseconds ?? int.MaxValue;
+        }
+
         public int ManualLapAdjustment => manualLapAdjustment;
     }
 }

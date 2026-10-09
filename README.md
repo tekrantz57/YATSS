@@ -4,8 +4,8 @@
 
 YATSS is an open-source slot-car lap timing and race-control system. A Windows
 race board handles lap scoring, qualifying, heat rotation, reports, backups,
-and operator workflow. An ESP32 controller timestamps sensor edges and controls
-up to eight lane-power relays.
+and operator workflow. An ESP32 or the integrated UNO Q microcontroller
+timestamps sensor edges and controls up to eight lane-power relays.
 
 [![YATSS running the second heat of a demo race](docs/images/yatss-demo-race-heat-2.png)](docs/images/yatss-demo-race-heat-2.png)
 
@@ -60,7 +60,10 @@ the prerelease. Verify the GitHub source and checksum before running it.
 Current development source also includes the first version of
 [Combined Distance Racing](docs/COMBINED_DISTANCE.md), with distance qualifying,
 independent racer groups, director-approved finishing fractions, and a separate
-Live Standings window. It is not included in the previously published beta.
+Live Standings window, plus [active event recovery](docs/ACTIVE_RACE_RECOVERY.md)
+and the [normally open relay setup](docs/RELAY_WIRING.md). These development
+changes are not included in the previously published beta; its release notes
+describe that release's behavior.
 
 - Practice timing and demo lap generation.
 - Optional qualifying with track calls and active-time scoring.
@@ -78,6 +81,12 @@ Live Standings window. It is not included in the previously published beta.
 - Controller watchdog that cuts all lanes when Windows communication stops.
 - Controller-loss pauses and verified, operator-initiated recovery with power
   held off during reconnection.
+- Automatic unfinished-event saving and startup recovery, preserving laps,
+  remaining heat time, rotations, and pending distance approvals with power off.
+
+Event recovery uses a separate `ActiveRace.db` journal beside the settings
+database; settings backups do not include it. Unknown outage crossings still
+require director review. Practice sessions are not journaled.
 
 ## Architecture
 
@@ -86,6 +95,8 @@ Live Standings window. It is not included in the previously published beta.
   sketch.
 - `YATSSUnoQ` is an experimental Arduino App Lab controller that uses the UNO
   Q's STM32U585 and presents it to YATSS over localhost TCP.
+- `Controller` owns shared firmware logic and version identity; both sketches
+  include synchronized self-contained copies for IDE, CLI, and App Lab builds.
 
 The controller timestamps debounced sensor edges and reports them over serial.
 The Windows app owns lap counting, heat-race state, qualifying, reports,
@@ -109,10 +120,10 @@ bench-test work.
 
 The communication watchdog cuts all lanes after five seconds without Windows
 acknowledgements, provided that the controller and relay-coil supply remain
-powered. **The documented normally closed relay wiring cannot remain off if the
-controller or relay-coil power itself is lost.** Bench-test the complete system
-and use a normally open safety contactor or independent hardwired interlock
-where loss of control power must fail to track power off.
+powered. Current firmware uses **normally open contacts: energize to run**,
+with an external gate pulldown. Follow [Relay wiring](docs/RELAY_WIRING.md) before
+connecting power. Bench-test every lane and retain an independent emergency
+cutoff; normally open contacts do not protect against welded contacts.
 
 ## Platform Status
 
@@ -168,13 +179,20 @@ LICENSE                            MIT project license
 From the repository root:
 
 ```powershell
+./tools/Sync-ControllerCore.ps1 -Check
 dotnet build YATSSWin\YATSS.sln -c Release
 dotnet run --project YATSSWin\YATSS.Tests\YATSS.Tests.csproj -c Release
 arduino-cli compile --fqbn arduino:esp32:nano_nora YATSSMC
 arduino-cli compile --fqbn "esp32:esp32:esp32c5:CDCOnBoot=default,CPUFreq=240,FlashFreq=80,FlashMode=qio,FlashSize=16M,PartitionScheme=fatflash,PSRAM=enabled" YATSSMC
 arduino-cli compile --fqbn "esp32:esp32:esp32c6:CDCOnBoot=default,FlashSize=4M,PartitionScheme=default" YATSSMC
 arduino-cli compile --fqbn "esp32:esp32:esp32c6:CDCOnBoot=default,FlashSize=8M,PartitionScheme=default_8MB" YATSSMC
+arduino-cli compile --fqbn arduino:zephyr:unoq YATSSUnoQ/sketch
 ```
+
+Native controller tests use `./tools/Test-ControllerCore.ps1` with the Visual
+Studio C++ toolchain and Windows SDK installed. On Linux, use
+`bash tools/test-controller-core-linux.sh`. UNO Q compilation additionally
+requires RouterBridge 0.4.3 and its dependencies; see the controller guide.
 
 Visual Studio Community and VS Code with C# Dev Kit can both build the Windows
 solution. The Windows application targets .NET 10 LTS.
@@ -204,6 +222,8 @@ board cores are already installed.
 - [Windows application](YATSSWin/README.md)
 - [Controller sketch, pin maps, and wiring](YATSSMC/README.md)
 - [Shared controller core and maintenance](docs/SHARED_CONTROLLER.md)
+- [Normally open relay wiring and bench checks](docs/RELAY_WIRING.md)
+- [Combined Distance Racing](docs/COMBINED_DISTANCE.md)
 - [Controller firmware updates](docs/CONTROLLER_FIRMWARE_UPDATE.md)
 - [Arduino UNO Q integrated controller](docs/UNO_Q_CONTROLLER.md)
 - [Serial protocol](docs/SERIAL_PROTOCOL.md)
@@ -215,6 +235,7 @@ board cores are already installed.
 - [Windows publish smoke test](docs/PUBLISH_SMOKE_TEST.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 - [Controller connection loss and recovery](docs/CONTROLLER_RECOVERY.md)
+- [Active event recovery after closing or crashing YATSS](docs/ACTIVE_RACE_RECOVERY.md)
 - [0.20 Beta 2 release notes](docs/RELEASE_0.20.0-beta.2.md)
 - [0.10 Beta 1 release notes](docs/RELEASE_0.10.0-beta.1.md)
 - [Project backlog](TODO.md)

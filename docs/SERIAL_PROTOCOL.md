@@ -171,8 +171,8 @@ subsequent track-power command from Windows is required. When Windows receives
 the watchdog report, it pauses a running heat; an interrupted qualifier is
 returned to Ready so the same racer can rerun it.
 
-This is a communication fail-safe, not a complete electrical fail-safe. With
-the documented normally closed relay contacts, loss of controller or relay-coil
-power de-energizes the relay and can restore track power. A normally open
-contactor, safety relay, or independent hardwired interlock is required if
-track power must remain off through controller power loss.
+This is a communication fail-safe, not a complete electrical safety system.
+Current normally open contacts release when the coil loses power, with an
+external gate pulldown for high-impedance controller outputs.
+See [Relay wiring](RELAY_WIRING.md).
+Welded contacts and shorted drivers still require independent protection.

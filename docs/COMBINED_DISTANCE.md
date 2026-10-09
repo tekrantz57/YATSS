@@ -161,7 +161,7 @@ to hardware. No controller firmware changes are required.
 
 Bench-test the whole workflow under Windows and Wine, including sensor pulses
 at the starting line, equivalent-position lane changes, power masks for short
-groups, and interrupted qualifiers. Active-event crash recovery remains an
-unfinished project-wide TODO: closing or crashing the app does not restore this
-event on restart. Database backup is not an active-race checkpoint. Do not rely
+groups, and interrupted qualifiers. [Active event recovery](ACTIVE_RACE_RECOVERY.md)
+now preserves unfinished events and pending fraction/tie decisions, with power
+off on restore. Database backup is not an active-race checkpoint. Do not rely
 on this first version at a venue until scoring and hardware behavior are verified.

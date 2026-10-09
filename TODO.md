@@ -1,21 +1,23 @@
 # TODO
 
-## Review follow-up and suggested order
+## Current priorities
 
-Recorded October 3, 2026 after a read-only project review. The existing Release
-test runner passed its protocol, lap-race, export, and database tests. Wine,
-physical controllers, and complete relay/sensor wiring were not exercised in
-that review. The findings below are source-review findings pending targeted
-regression tests and hardware confirmation.
+Updated October 9, 2026. There are no production installations yet. Implemented
+items below retain their validation gaps; historical demo runs are not a
+substitute for physical sensor/relay testing or validation of newer code.
 
-1. Bench-validate the implemented communication-loss/controller-reset recovery.
-2. Bench-validate the implemented scoring/logging fixes under Wine and sustained load.
-3. Implement active race recovery and complete the physical hardware validation
-   already listed below before relying on YATSS at a venue.
-4. Bench-validate the implemented shared controller core on ESP32 and UNO Q.
-5. Bench-validate the first Combined Distance Racing implementation and revisit
-   its working rules with the venue owner before relying on it at a venue.
-6. Keep sector timing as a later hardware and scoring project.
+1. Bench-validate normally open relay wiring, pulldowns, boot/reset behavior,
+   watchdog cuts, and control-power loss/restoration before enabling track power.
+2. Confirm CI, including native controller tests; repair the local C++ toolchain
+   if local native tests are needed. All five board builds passed October 9.
+3. Bench-validate controller-loss and active-event recovery on Windows and Wine,
+   including real sensor traffic, remaining time, and pending approvals.
+4. Validate sustained scoring/logging and the shared controller core on both
+   controller families; complete each board's hardware checklist below.
+5. Validate Combined Distance Racing and revisit its working rules with the
+   venue owner. Separate-group lane choices for ordinary heat races remain open.
+6. Defer archive enhancements, UNO Q in-app flashing, and sector timing until
+   the current hardware/scoring/recovery workflows are proven.
 
 ## Communication loss and controller clock resets
 
@@ -61,7 +63,7 @@ regression tests and hardware confirmation.
   oversized entries, retention, and midnight rollover.
 - Bench-check log-window rollover and errors under Windows/Wine and run a
   sustained session. Logs are best-effort diagnostics, not the authoritative
-  race journal; crash recovery remains separate work below.
+  race journal; active-event recovery uses the separate journal described below.
 - User-reported October 5, 2026: overnight demo practice remained running on
   Windows and ARM64 Wine at over 10,000 laps per lane, with no suspicious
   behavior on either machine. This exercised the app, not physical MCU capture
@@ -70,12 +72,16 @@ regression tests and hardware confirmation.
 
 ## Active race crash recovery
 
-- Persist a transactional race journal or checkpoint after accepted laps,
-  manual adjustments, heat transitions, qualifying transitions, and relevant
-  configuration changes.
-- On startup, detect an unfinished event and offer to resume it or archive and
-  discard it. Recovery must preserve controller timestamps, lane rotations,
-  stoppage time, qualifying results, and the report audit trail.
+- Implemented October 9, 2026: transactional ActiveRace.db journal, durable
+  crossings/decisions, compact checkpoints, and startup Resume / Archive and
+  Discard / Close choices. Restore holds power off and retains time, rotations,
+  completed qualifiers, pending distance approvals, and export completion.
+- Automated tests cover forced termination, uncommitted-write rollback,
+  locked storage, ownership, compaction, corrections, rotations, approvals,
+  interrupted qualifiers, and unsupported schemas.
+- See [Active event recovery](docs/ACTIVE_RACE_RECOVERY.md) for workflow and limits.
+- Consider archive browsing/retention, full-current-heat rollback, and
+  exactly-once exports after bench validation of this first version.
 - Exercise recovery after forced app termination, Windows restart, controller
   reset, and power loss before relying on YATSS for long endurance races.
 
@@ -86,9 +92,17 @@ regression tests and hardware confirmation.
   five-second command watchdog cuts power if Windows keepalives stop.
 - Bench-test watchdog trips, reconnects, controller resets, and relay polarity
   with the production controller and relay hardware.
-- Decide whether a normally open safety contactor or independent hardwired
-  interlock is required. The current normally closed relay wiring cannot remain
-  power-off when the controller or relay-coil supply itself loses power.
+- Changed October 9, 2026: normally open 30-87 wiring and active-high run output
+  shared by ESP32 and UNO Q, with an external 10 kOhm gate pulldown documented.
+  This new hardware arrangement is not yet bench-validated. See
+  [Relay wiring](docs/RELAY_WIRING.md); verify matching wiring and firmware
+  with track power disconnected. No installations exist yet.
+- Validate every lane during boot/reset, controller disconnection, coil-power
+  loss/restoration, watchdog trips, and prolonged coil energization. Confirm
+  DC motor-load/contact/socket ratings and 3.3 V MOSFET drive adequacy.
+- Decide whether an independent safety contactor/hardwired interlock is required;
+  normally open contacts alone cannot protect against welded contacts or a
+  shorted MOSFET driver.
 
 ## Continuous integration
 
@@ -97,6 +111,9 @@ regression tests and hardware confirmation.
 - Added October 4, 2026: common native firmware tests, generated-source drift
   checks, and pinned-core compile jobs for Nano ESP32, C5 N16R8, C6 N4/N8, and
   UNO Q. Confirm the new jobs run successfully on GitHub after pushing.
+- October 9: new relay-output tests cover all 256 masks. The local native test
+  launcher could not find `cl`; the inspected toolset lacks headers. Do not
+  count the successful Arduino builds as a successful native regression run.
 - Consider caching NuGet and Arduino board packages if workflow time becomes
   noticeable.
 
@@ -117,9 +134,10 @@ regression tests and hardware confirmation.
 - Bench-test this refactor on both controller families before deployment:
   high-speed capture, coalesced diagnostics, relay pulses superseded by OFF or
   watchdog, mode-boundary queue flushing, resets, and repeated reconnects.
-  Existing overnight/lane-1 results predate the refactor. Rebuild release
-  firmware packages before publishing; checked-in images do not follow source
-  changes automatically.
+  Existing overnight/lane-1 results predate the refactor. All four bundled
+  ESP32 firmware packages and the UNO Q import archive were rebuilt October 9
+  for normally open operation. Rebuild again after future firmware changes;
+  checked-in images do not follow source changes automatically.
 
 ## ESP32-C6 controller validation
 
@@ -190,8 +208,9 @@ regression tests and hardware confirmation.
 
 ## Starting-lane selection for separate racer groups
 
-- The rules below are current working decisions, subject to revision based on
-  venue-owner input. Confirm them before implementation and venue use.
+- Combined Distance already implements independent group-local choices.
+  Extending that behavior to ordinary timed heat races is still proposed,
+  subject to venue-owner input and a decision on group/rotation scheduling.
 - Requested October 5, 2026: each group of eight or fewer racers (limited by
   the active lane count) chooses its starting lanes independently. The best
   qualifier within that group chooses first, followed by the remaining racers
@@ -201,8 +220,8 @@ regression tests and hardware confirmation.
   The current qualifying workflow offers lane choices only to the first
   lane-count racers in the overall ranking and puts the remainder in the
   rotation queue; it does not provide independent choices for separate groups.
-- Apply the same group-local workflow to Combined Distance Racing using
-  director-approved qualifying distance, highest distance first.
+- Combined Distance uses director-approved qualifying distance, highest first;
+  keep that implemented group-local workflow covered by recovery/rotation tests.
 - Grouping agreed October 5, 2026: use consecutive qualifying ranks, 1-8,
   9-16, and so on on an eight-lane track (use the active lane count on smaller
   tracks). No director regrouping. For now, fill each group before starting
@@ -228,83 +247,17 @@ regression tests and hardware confirmation.
   workflow, tie and estimate defaults, export schema, and current limits.
 - Bench-test start-line pulses, full rotation, equivalent-position car moves,
   short-group power masks, track calls, and interrupted qualifiers under
-  Windows and Wine. Project-wide active-race crash recovery remains pending.
+  Windows and Wine. Active-race recovery is implemented; bench validation remains pending.
 - The separate-group lane-choice change for existing fastest-lap heat races
   remains pending; that format's existing rotation-queue behavior is unchanged.
 
-- The scoring and workflow rules below are current working decisions, not
-  fixed requirements. Revisit them with the venue owner before venue deployment;
-  keep this document updated when decisions change.
-- Naming agreed October 4, 2026: **Combined Distance Racing** is the feature
-  name; **Combined Distance** is the selectable race-format label. Qualifying
-  distance carries forward, and the winner is determined by the combined
-  qualifying and race distance.
-- Call the separate grid **Live Standings** and its forecast column
-  **Projected Final Distance**. Keep projections distinct from official
-  credited distance. These descriptive names do not imply affiliation with
-  any organization or other software.
-
-- Add a distinct, selectable race format; leave the existing fastest-lap
-  qualifying and heat-race scoring unchanged.
-- Design the workflow and standings grid independently. Implement the requested
-  capabilities without copying another application's code, artwork, wording,
-  or screen layout.
-- Qualify each racer by distance covered during a timed run (one minute by
-  default), rank by that distance, and carry the credited qualifying distance
-  into the first heat and the final combined race total. Show qualifying,
-  racing, and combined distances separately in results and exports.
-- Rules clarified October 5, 2026: everyone starts the race at the starting
-  line. Promote the approved qualifying distance into each racer's starting
-  lap total (for example, 10.7), then add counted race laps. Preserve qualifying
-  credit separately for reports even though the displayed cumulative total
-  includes it from the beginning.
-- Do not credit or adjust partial laps between race segments. At lane changes,
-  move each car to the equivalent position in its new lane. Estimate and obtain
-  director approval of partial distance only at qualifying completion and at
-  the end of the race. Starting-lane choices are independent within each racer
-  group, as described above.
-- Introduce a distance-scoring data model that stores completed laps, estimated
-  partial-lap distance, director-approved partial distance, and qualifying
-  credit separately. Precision agreed October 5, 2026: official distance uses
-  hundredths of a lap, stored as integer hundredths and displayed with two
-  decimal places (for example, 10.70). The current integer lap count cannot
-  represent an official fractional score.
-- Recommend that the director prepare a chart before the event mapping the
-  track's numbered sections to hundredths of a lap. Section numbers are not
-  automatically percentages; use the chart when confirming partial distance.
-- Tie rules agreed October 5, 2026: equal qualifying distances or equal final
-  combined totals are broken by best valid lap, with any remaining exact tie
-  resolved by the director. First-version defaults: use qualifying laps for
-  qualifying ties and eligible race laps for final ties; a valid lap beats
-  no valid lap. Retain director resolutions and timestamps in the audit.
-- Final confirmation agreed October 5, 2026: do not finalize official race
-  results until the director has confirmed every racer's finishing fraction,
-  including an explicit zero. Apply the same approval requirement to each
-  qualifying result before ranking and carrying its distance into the race.
-- At the end of a qualifying run, estimate the unfinished-lap distance from
-  elapsed active time since the last crossing and recent valid lap pace. Show
-  the estimate to the race director and let them correct it to the car's
-  observed track position before the qualifying result is finalized. The
-  start/finish sensor cannot measure this fraction directly. Use the agreed
-  hundredths scale. First-version estimates round down and remain unknown
-  without valid pace data; the director must still confirm the actual fraction.
-- Retain a correction audit trail with the original value, replacement value,
-  time, and reason. Preserve estimated and approved values in recovery data,
-  reports, JSON, and CSV so the official result can be explained later.
-- Preserve progress across lane changes and heat transitions without crediting
-  the same partial lap twice. Define first-crossing counting at the starting
-  line and timing-baseline behavior after lane changes; cover these rules with
-  tests before enabling the format.
-- Add a separate live standings grid for this format, alongside the existing
-  lane board. Show current order, racer/lane, qualifying credit, race distance,
-  combined distance, and an explicitly labeled estimated final distance.
-- Base each estimate on observed pace and the racer's remaining scheduled
-  driving time; account for lane rotations and track calls, and avoid implying
-  precision before enough laps have been recorded.
-- Start with a simple average pace that includes slow laps and unscheduled
-  stops but excludes track-call time. Include future heats in each racer's
-  remaining driving time, freeze projections during intermissions, and keep
-  projected totals visibly distinct from official credited distance.
-- Give each racer a stable identity and publish a consistent race snapshot for
-  the separate grid. Use the same scoring values for recovery, reports, and
-  exports; avoid deriving official scores from display text or racer names.
+- The implemented naming, hundredths precision, qualifying carry, first-crossing
+  rules, no intermediate fractions, independent groups, confirmations, tie
+  defaults, projection policy, stable racer IDs, and export audits are documented
+  in [Combined Distance Racing](docs/COMBINED_DISTANCE.md). Keep that guide as
+  the current behavior reference rather than duplicating completed design tasks
+  here. All working rules remain subject to venue-owner input; update the guide
+  and regression tests together when those decisions change.
+- Preserve an independently designed workflow and UI. Do not copy another
+  application's code, artwork, wording, or screen layout, or imply sanctioned
+  compliance before verifying applicable rules and hardware behavior.

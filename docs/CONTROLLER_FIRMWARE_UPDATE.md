@@ -11,6 +11,10 @@ STM32 sketch and deploys the Linux bridge.
 
 ## Operator Procedure
 
+Current firmware uses normally open relay contacts with HIGH meaning run and
+LOW meaning cut. Verify the [standard relay wiring](RELAY_WIRING.md), including
+the external gate pulldown, before reconnecting track power after flashing.
+
 1. Connect a C5 or C6 through its UART USB-C socket, or connect the Nano through
    USB, and select its COM port in Configure.
 2. Disconnect track power and relay-coil power. Leave only USB connected.

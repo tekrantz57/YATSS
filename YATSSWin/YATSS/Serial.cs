@@ -6,7 +6,7 @@ using System.Net.Sockets;
 
 namespace YATSS
 {
-    public sealed class Serial : IDisposable
+    public sealed partial class Serial : IDisposable
     {
         private readonly YATSS _form;
         private readonly LapRace _race = new();
@@ -72,7 +72,9 @@ namespace YATSS
             _raceReports = new RaceReportService(form, _log);
             Init();
             ApplySettings();
-            _readerTask = Task.Run(ReadLoopAsync);
+            OpenRecoveryJournal();
+            _processingTask = Task.Run(ProcessReceivedLinesAsync);
+            if (!_recoveryFailed) _readerTask = Task.Run(ReadLoopAsync);
         }
 
         public bool QualifyingActive => _qualifying.State != QualifyingState.Inactive;
@@ -119,6 +121,7 @@ namespace YATSS
             }
 
             _form.SetStatusMessage($"Minimum lap time {_form.MinLapMilliseconds} ms");
+            lock (_controlGate) SaveRecovery("Timing settings changed");
         }
 
         public void RefreshActiveStatus()
@@ -202,6 +205,7 @@ namespace YATSS
 
         private void InitCore()
         {
+            if (!ArchiveActiveEvent("Event reset")) return;
             ClearDistanceWorkflow();
             StopControllerDiagnostics();
             StopDemoLapStream();
@@ -220,6 +224,7 @@ namespace YATSS
 
         public void ResetRace(bool resetArduino)
         {
+            if (!EventChangesAllowed) return;
             Init();
             if (resetArduino)
             {
@@ -239,6 +244,7 @@ namespace YATSS
 
         private void ResetLaneCore(int laneIndex)
         {
+            if (!EventChangesAllowed) return;
             if (CombinedDistanceActive) { _form.SetStatusMessage("Lane reset is unavailable during Combined Distance; use stopped-time lap corrections."); return; }
             if (laneIndex < 0 || laneIndex >= LapProtocolParser.LaneCount)
             {
@@ -246,6 +252,7 @@ namespace YATSS
             }
 
             _race.ResetLane(laneIndex);
+            if (!SaveRecovery("Lane reset")) return;
             _form.ResetLaneDisplay(laneIndex, clearRacer: false);
             _log.Info($"lane {laneIndex}: lane state reset");
             _form.SetStatusMessage($"Lane {laneIndex + 1} reset");
@@ -278,6 +285,11 @@ namespace YATSS
             IReadOnlyList<string> racers, int activeLaneCount,
             IReadOnlyList<LaneConfiguration> laneConfigurations, double trackLengthFeet, RaceFormat format)
         {
+            if (!ArchiveActiveEvent("Replaced by a new event")) return;
+            _eventId = Guid.NewGuid();
+            _reportWritten = false;
+            _eventDemo = DemoLapStreamActive;
+            _recoveryArmed = true;
             ClearDistanceWorkflow();
             _configuredFormat = format;
             StopControllerDiagnostics();
@@ -325,6 +337,7 @@ namespace YATSS
 
         private void SetPracticeModeCore()
         {
+            if (!ArchiveActiveEvent("Returned to practice")) return;
             ClearDistanceWorkflow();
             StopControllerDiagnostics();
             CancelStartCountdown();
@@ -346,12 +359,14 @@ namespace YATSS
             {
                 if (_demoTask is { IsCompleted: false })
                 {
+                    _eventDemo = false;
                     _demoStop?.Cancel();
                     _form.SetStatusMessage("Demo lap stream stopping");
                     return false;
                 }
 
                 _demoStop?.Dispose();
+                _eventDemo = true;
                 _demoStop = new CancellationTokenSource();
                 InitializeDemoControllerClockCore();
                 _demoTask = Task.Run(() => RunDemoLapStreamAsync(_demoStop.Token));
@@ -372,6 +387,7 @@ namespace YATSS
                 }
 
                 _demoStop?.Dispose();
+                _eventDemo = true;
                 _demoStop = new CancellationTokenSource();
                 InitializeDemoControllerClockCore();
                 _demoTask = Task.Run(() => RunDemoLapStreamAsync(_demoStop.Token));
@@ -391,6 +407,7 @@ namespace YATSS
 
         private void HandleSpaceBarCore()
         {
+            if (!EventChangesAllowed) { _form.SetStatusMessage("Race recovery needs attention; track power remains off"); return; }
             if (_distanceApprovalPending) { _form.SetStatusMessage("Director distance confirmation required"); return; }
             if (CombinedDistanceActive && !QualifyingActive && _qualifyingResults.Count == 0)
             { _form.SetStatusMessage("Select Mode > Qualifying before starting Combined Distance."); return; }
@@ -467,6 +484,7 @@ namespace YATSS
 
         private void ConfigureQualifyingCore(int laneIndex, int durationSeconds)
         {
+            if (!EventChangesAllowed) return;
             StopControllerDiagnostics();
             if (_heatRace.State != HeatRaceState.Ready || _configuredRacers.Count == 0)
             {
@@ -496,6 +514,7 @@ namespace YATSS
 
         private void CancelQualifyingCore()
         {
+            if (!EventChangesAllowed) return;
             if (_qualifying.State == QualifyingState.Inactive)
             {
                 return;
@@ -536,6 +555,7 @@ namespace YATSS
 
         private bool AdjustStoppedHeatLapCore(int laneIndex, int delta)
         {
+            if (!EventChangesAllowed) return false;
             if (laneIndex < 0 || laneIndex >= _form.ActiveLaneCount)
             {
                 _form.SetStatusMessage($"Lane {laneIndex + 1} is not configured");
@@ -550,12 +570,14 @@ namespace YATSS
 
             int previousCount = _race.GetLane(laneIndex).getCount();
             int count = _race.AdjustLapCount(laneIndex, delta);
+            _reportWritten = false;
             _heatRace.RecordManualLapAdjustment(laneIndex, count - previousCount, count);
+            RecordCurrentHeatResults();
+            if (!SaveRecovery("Director lap correction")) return false;
             Lane lane = _race.GetLane(laneIndex);
             string bestSeconds = lane.best_time == int.MaxValue ? string.Empty : FormatSeconds(lane.best_time);
             string medianSeconds = FormatOptionalSeconds(lane.getMedian());
             _form.UpdateLaneDisplay(laneIndex, count, string.Empty, bestSeconds, medianSeconds);
-            RecordCurrentHeatResults();
 
             string direction = delta > 0 ? "added to" : "subtracted from";
             _log.Info($"lane {laneIndex}: manual lap {direction} stopped heat, count {count}");
@@ -918,11 +940,6 @@ namespace YATSS
                     return;
                 }
 
-                _trackPowerEnabled = true;
-                if (!TryWriteLine(GetTrackPowerCommand()) && !DemoLapStreamActive)
-                {
-                    return;
-                }
                 uint controllerTimestamp = GetCurrentControllerTimestamp();
                 bool started = resumePausedQualifier
                     ? _qualifying.Resume(controllerTimestamp)
@@ -934,6 +951,9 @@ namespace YATSS
                     return;
                 }
 
+                if (!SaveRecovery("Qualifier start authorized")) return;
+                _trackPowerEnabled = true;
+                if (!TryWriteLine(GetTrackPowerCommand()) && !DemoLapStreamActive) return;
                 PublishQualifyingStatus("Running");
                 _form.SetStatusMessage(
                     $"{_qualifying.CurrentRacer} qualifying; " +
@@ -965,11 +985,6 @@ namespace YATSS
                     return;
                 }
 
-                _trackPowerEnabled = true;
-                if (!TryWriteLine(GetTrackPowerCommand()) && !DemoLapStreamActive)
-                {
-                    return;
-                }
                 uint controllerTimestamp = GetCurrentControllerTimestamp();
                 bool started = resumePausedHeat
                     ? _heatRace.Resume(controllerTimestamp)
@@ -982,6 +997,9 @@ namespace YATSS
                     return;
                 }
 
+                if (!SaveRecovery("Heat start authorized")) return;
+                _trackPowerEnabled = true;
+                if (!TryWriteLine(GetTrackPowerCommand()) && !DemoLapStreamActive) return;
                 PublishHeatRaceStatus("Running");
                 string remaining = YATSS.FormatClock(_heatRace.GetRemaining(controllerTimestamp));
                 _form.SetStatusMessage(resumePausedHeat
@@ -1004,7 +1022,7 @@ namespace YATSS
             _form.HideStartCountdown();
         }
 
-        private bool CanRunController() => DemoLapStreamActive || _controllerSession.PowerAllowed;
+        private bool CanRunController() => EventChangesAllowed && (DemoLapStreamActive || _controllerSession.PowerAllowed);
 
         private bool IsCountdownCurrent(int countdownVersion)
         {
@@ -1174,15 +1192,13 @@ namespace YATSS
                         lastLineReceived = DateTime.UtcNow;
                         _lastControllerResponseUtc = lastLineReceived;
                         waitingForPingReply = false;
-                        HandleLine(line, isDemoLine: false);
-                        lock (_controlGate)
+                        if (!_receivedLines.Writer.TryWrite((line, connectionGeneration)))
                         {
-                            if (_controllerSession.HeartbeatExpired)
-                            {
-                                HandleControllerFault("Controller heartbeats stopped");
-                                RequestReconnect();
-                                break;
-                            }
+                            // Cut directly before waiting for race processing/storage.
+                            lock (_portGate) port.WriteLine(LapProtocolParser.EncodeFrame("TRACK_POWER:MASK:00"));
+                            HandleControllerFault("Sensor processing queue overflow; review unrecorded crossings");
+                            RequestReconnect();
+                            break;
                         }
                     }
                 }
@@ -1193,6 +1209,7 @@ namespace YATSS
                 }
                 finally
                 {
+                    Interlocked.Increment(ref _connectionGeneration);
                     if (!_stop.IsCancellationRequested && !_firmwareUpdateActive)
                     {
                         HandleControllerFault("Controller connection lost", requestPowerCut: false);
@@ -1753,6 +1770,7 @@ namespace YATSS
 
         private void HandleEdge(LapEdge edge)
         {
+            if (!EventChangesAllowed) return;
             if (edge.LaneIndex >= _form.ActiveLaneCount)
             {
                 _log.Info($"lane {edge.LaneIndex}: ignored edge because lane is not configured");
@@ -1794,6 +1812,7 @@ namespace YATSS
                     heatDecision.FirstLapMilliseconds);
             }
 
+            if (!SaveRecovery("Sensor crossing")) return;
             PublishLapUpdate(edge, update, previousHeatBest);
             PublishDistanceStandings();
         }
@@ -1812,7 +1831,9 @@ namespace YATSS
                 return;
             }
 
-            PublishLapUpdate(edge, _race.Process(_qualifying.AdjustEdgeTimestamp(edge)));
+            LapUpdate update = _race.Process(_qualifying.AdjustEdgeTimestamp(edge));
+            if (!SaveRecovery("Qualifying crossing")) return;
+            PublishLapUpdate(edge, update);
         }
 
         private void PublishLapUpdate(
@@ -1947,6 +1968,7 @@ namespace YATSS
             }
 
             SetTrackPowerEnabled(false, null, "Qualifier complete");
+            if (!SaveRecovery("Qualifier completed")) return true;
             SpeechAnnouncer.SpeakAsync(
                 $"{completedRacer}, qualifying complete",
                 _form.SpeechVoiceName);
@@ -1957,25 +1979,32 @@ namespace YATSS
 
             if (CombinedDistanceActive)
             {
-                _distanceApprovalPending = true;
-                int version = _raceConfigurationVersion;
                 QualifyingResult result = _qualifying.GetRankedResults().Single(item => item.RacerName == completedRacer);
-                int elapsed = Math.Min(result.ElapsedMilliseconds, result.ConfiguredDurationSeconds * 1000);
-                int? estimate = DistanceScoring.EstimatePartial(elapsed - (result.Laps.LastOrDefault()?.SessionElapsedMilliseconds ?? 0),
-                    result.Laps.Select(lap => lap.LapMilliseconds));
-                _form.ShowDistanceApproval(completedRacer, result.Laps.Count, estimate, "Qualifying", (partial, reason) =>
-                {
-                    lock (_controlGate)
-                    {
-                        if (version != _raceConfigurationVersion) return;
-                        _qualifying.ApproveLastDistance(partial, reason);
-                        _distanceApprovalPending = false;
-                        ContinueAfterQualifier();
-                    }
-                }, () => version == _raceConfigurationVersion);
+                RequestQualifyingDistanceApproval(result);
             }
             else ContinueAfterQualifier();
             return true;
+        }
+
+        private void RequestQualifyingDistanceApproval(QualifyingResult result)
+        {
+            _distanceApprovalPending = true;
+            if (!SaveRecovery("Qualifying fraction awaiting director")) return;
+            int version = _raceConfigurationVersion;
+            int elapsed = Math.Min(result.ElapsedMilliseconds, result.ConfiguredDurationSeconds * 1000);
+            int? estimate = DistanceScoring.EstimatePartial(elapsed - (result.Laps.LastOrDefault()?.SessionElapsedMilliseconds ?? 0),
+                result.Laps.Select(lap => lap.LapMilliseconds));
+            _form.ShowDistanceApproval(result.RacerName, result.Laps.Count, estimate, "Qualifying", (partial, reason) =>
+            {
+                lock (_controlGate)
+                {
+                    if (version != _raceConfigurationVersion || !EventChangesAllowed) return;
+                    _qualifying.ApproveLastDistance(partial, reason);
+                    _distanceApprovalPending = false;
+                    if (!SaveRecovery("Qualifying fraction approved")) return;
+                    ContinueAfterQualifier();
+                }
+            }, () => version == _raceConfigurationVersion && EventChangesAllowed);
         }
 
         private void ContinueAfterQualifier()
@@ -2006,6 +2035,7 @@ namespace YATSS
 
         private void BeginQualifyingLaneSelection()
         {
+            if (!EventChangesAllowed) return;
             if (_qualifyingLaneSelectionPending)
             {
                 return;
@@ -2020,7 +2050,7 @@ namespace YATSS
                 {
                     lock (_controlGate)
                     {
-                        if (version != _raceConfigurationVersion) return;
+                        if (version != _raceConfigurationVersion || !EventChangesAllowed) return;
                         _qualifyingResults = ranked;
                         _configuredRacers = seededRacers.ToArray();
                         _qualifying.Reset();
@@ -2038,6 +2068,7 @@ namespace YATSS
                             _configuredFormat,
                             groups.Count > 0 ? groups : null);
                         HeatRaceSnapshot snapshot = _heatRace.GetSnapshot(GetCurrentControllerTimestamp());
+                        if (!SaveRecovery("Qualifying lane assignments confirmed")) return;
                         _form.ResetBoardDisplay(clearRacers: false);
                         _form.SetLaneRacerNames(snapshot.LaneRacers);
                         _form.ResetHeatTimingDisplay(snapshot.LaneLapCounts);
@@ -2047,7 +2078,7 @@ namespace YATSS
                         _log.Info("qualifying lane selections complete; heat race reseeded");
                         PublishDistanceStandings();
                     }
-                }, CombinedDistanceActive, () => version == _raceConfigurationVersion,
+                }, CombinedDistanceActive, () => version == _raceConfigurationVersion && EventChangesAllowed,
                     _configuredActiveLaneCount, _configuredLaneConfigurations);
             }
             if (CombinedDistanceActive)
@@ -2060,9 +2091,10 @@ namespace YATSS
                 {
                     lock (_controlGate)
                     {
-                        if (version != _raceConfigurationVersion) return;
+                        if (version != _raceConfigurationVersion || !EventChangesAllowed) return;
                         _qualifying.SetDistanceTieOrder(ids);
                         _distanceApprovalPending = false;
+                        if (!SaveRecovery("Qualifying tie order confirmed")) return;
                         ChooseLanes(_qualifying.GetDistanceResults());
                     }
                 }, () => version == _raceConfigurationVersion);
@@ -2095,6 +2127,7 @@ namespace YATSS
 
         private void ScheduleNextHeatIfNeeded()
         {
+            if (!EventChangesAllowed) return;
             if (CombinedDistanceActive && _heatRace.IsGroupEnd && _heatRace.GetFinalDistanceCandidates().Count > 0)
             {
                 ConfirmNextFinalDistance();
@@ -2112,12 +2145,13 @@ namespace YATSS
                     {
                         lock (_controlGate)
                         {
-                            if (version != _raceConfigurationVersion) return;
+                            if (version != _raceConfigurationVersion || !EventChangesAllowed) return;
                             _heatRace.SetFinalTieOrder(ids);
+                            if (!SaveRecovery("Final tie order confirmed")) return;
                             _distanceApprovalPending = false;
                             WriteFinalReport();
                         }
-                    }, () => version == _raceConfigurationVersion);
+                    }, () => version == _raceConfigurationVersion && EventChangesAllowed);
                 }
                 else WriteFinalReport();
                 return;
@@ -2166,6 +2200,7 @@ namespace YATSS
 
         private void StartNextHeatFromCompleteCore(bool manualStart)
         {
+            if (!EventChangesAllowed) return;
             CancelBetweenHeatsTimer();
             _betweenHeatsPaused = false;
             RecordCurrentHeatResults();
@@ -2173,13 +2208,14 @@ namespace YATSS
             {
                 PublishHeatRaceStatus("Race complete");
                 _form.SetStatusMessage("Heat race complete");
-                _raceReports.Write(_heatRace.CreateReport());
+                WriteFinalReport();
                 return;
             }
 
-            PublishHeatRaceStatus("Ready");
             HeatRaceSnapshot snapshot = _heatRace.GetSnapshot(GetCurrentControllerTimestamp());
             _race.ResetTimingForHeat(snapshot.LaneLapCounts);
+            if (!SaveRecovery("Lane rotation prepared")) return;
+            PublishHeatRaceStatus("Ready");
             _form.SetLaneRacerNames(snapshot.LaneRacers);
             _form.ResetHeatTimingDisplay(snapshot.LaneLapCounts);
             QueueStartCountdown(resumePausedHeat: false, manualStart);
@@ -2275,6 +2311,7 @@ namespace YATSS
 
         private void PublishHeatRaceStatus(string state)
         {
+            if (!SaveRecovery("Heat state: " + state)) return;
             if (!DemoLapStreamActive && _controllerSession.NeedsResume)
             {
                 state = _controllerSession.IsReady ? "Controller ready" : "Controller lost";
@@ -2303,6 +2340,7 @@ namespace YATSS
 
         private void PublishDistanceStandings()
         {
+            if (!SaveRecovery("Distance state")) return;
             if (!CombinedDistanceActive || QualifyingActive || _qualifyingResults.Count == 0) return;
             HeatRaceSnapshot snapshot = _heatRace.GetSnapshot(GetCurrentControllerTimestamp());
             IReadOnlyList<DistanceStanding> standings = _heatRace.GetDistanceStandings(GetCurrentControllerTimestamp(), _race.GetLaneSnapshots());
@@ -2312,6 +2350,7 @@ namespace YATSS
 
         private void ConfirmNextFinalDistance()
         {
+            if (!EventChangesAllowed) return;
             var candidates = _heatRace.GetFinalDistanceCandidates();
             if (candidates.Count == 0) { _distanceApprovalPending = false; ScheduleNextHeatIfNeeded(); return; }
             var candidate = candidates[0];
@@ -2322,8 +2361,9 @@ namespace YATSS
             {
                 lock (_controlGate)
                 {
-                    if (version != _raceConfigurationVersion) return;
+                    if (version != _raceConfigurationVersion || !EventChangesAllowed) return;
                     _heatRace.ApproveFinalDistance(candidate.RacerId, partial, reason);
+                    if (!SaveRecovery("Final fraction approved")) return;
                     PublishDistanceStandings();
                     ConfirmNextFinalDistance();
                 }
@@ -2332,14 +2372,17 @@ namespace YATSS
 
         private void WriteFinalReport()
         {
+            if (!SaveRecovery("Final results ready for export")) return;
             HeatRaceReport report = _heatRace.CreateReport();
             _raceReports.AnnouncePodium(report);
-            _raceReports.Write(report);
+            _reportWritten = _raceReports.Write(report);
+            SaveRecovery(_reportWritten ? "Final report exported" : "Final report export requires retry");
             PublishDistanceStandings();
         }
 
         private void PublishQualifyingStatus(string state)
         {
+            if (!SaveRecovery("Qualifying state: " + state)) return;
             if (!DemoLapStreamActive && _controllerSession.NeedsResume)
             {
                 state = _controllerSession.IsReady ? "Controller ready" : "Controller lost";
@@ -2523,19 +2566,21 @@ namespace YATSS
 
         public void Dispose()
         {
+            _recoveryTimer?.Dispose();
             StopControllerDiagnostics();
-            StopDemoLapStream();
             lock (_controlGate)
             {
                 CancelStartCountdown();
                 CancelBetweenHeatsTimer();
                 _trackPowerEnabled = false;
+                SaveRecovery("Application closing; power off on recovery");
                 if (IsPortOpen())
                 {
                     TryWriteLine("TRACK_POWER:MASK:00");
                 }
                 _controllerSession.EndConnection();
             }
+            StopDemoLapStream();
             _stop.Cancel();
             Interlocked.Increment(ref _connectionGeneration);
             try
@@ -2548,6 +2593,9 @@ namespace YATSS
 
             CloseActivePort();
 
+            _receivedLines.Writer.TryComplete();
+            try { _processingTask?.Wait(TimeSpan.FromSeconds(3)); } catch { }
+            lock (_controlGate) { _recoveryArmed = false; _recovery?.Dispose(); _recovery = null; }
             _lapBestSoundPlayer?.Dispose();
             _log.Dispose();
             _stop.Dispose();

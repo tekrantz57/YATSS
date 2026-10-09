@@ -4,7 +4,6 @@
 #include "src/YatssController/YatssController.h"
 
 const byte LaneCount = 8;
-const byte TrackPowerCutActiveLevel = HIGH;
 
 #if defined(CONFIG_IDF_TARGET_ESP32C6)
 const char ControllerBoardProfile[] = "ESP32_C6_DEVKITC1";
@@ -32,8 +31,7 @@ struct Esp32Platform {
   static void reset() { Serial.flush(); delay(100); ESP.restart(); }
   static void setPower(uint8_t mask) {
     for (byte lane = 0; lane < LaneCount; ++lane) {
-      byte restoreLevel = TrackPowerCutActiveLevel == HIGH ? LOW : HIGH;
-      digitalWrite(trackPowerCutPins[lane], (mask & (1u << lane)) ? restoreLevel : TrackPowerCutActiveLevel);
+      digitalWrite(trackPowerCutPins[lane], yatss::trackPowerOutputHigh(mask, lane) ? HIGH : LOW);
     }
   }
   static uint8_t sensorMask() {
@@ -76,7 +74,7 @@ void Esp32Platform::configureCapture(bool diagnostics) {
 
 void setup() {
   for (byte lane = 0; lane < LaneCount; ++lane) {
-    digitalWrite(trackPowerCutPins[lane], TrackPowerCutActiveLevel);
+    digitalWrite(trackPowerCutPins[lane], LOW);
     pinMode(trackPowerCutPins[lane], OUTPUT);
   }
   Serial.begin(115200);
