@@ -25,6 +25,9 @@ jobs:
       - name: Check self-contained sketch copies
         run: ./tools/Sync-ControllerCore.ps1 -Check
 
+      - name: Run shared controller tests with MSVC
+        run: ./tools/Test-ControllerCore.ps1
+
       - name: Build Windows solution
         run: dotnet build YATSSWin\YATSS.sln -c Release
 

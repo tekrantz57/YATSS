@@ -12,6 +12,7 @@ public sealed partial class Serial
     private bool _recoveryFailed;
     private bool _savingRecovery;
     private bool _reportWritten;
+    private RaceExportPlan? _exportPlan;
     private bool _eventDemo;
     private string? _recoveryError;
     private System.Threading.Timer? _recoveryTimer;
@@ -34,7 +35,7 @@ public sealed partial class Serial
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
-            Microsoft.Data.Sqlite.SqliteException or System.Text.Json.JsonException or ArgumentException)
+            Microsoft.Data.Sqlite.SqliteException or System.Text.Json.JsonException or ArgumentException or InvalidOperationException)
         {
             _recoveryFailed = true;
             _recoveryError = ex.Message;
@@ -78,7 +79,7 @@ public sealed partial class Serial
                 _pendingRecovery = null;
                 _recoveryArmed = true;
                 if (!SaveRecovery("Director restored unfinished event with power off")) return;
-                if (saved.Demo) StartDemoLapStream();
+                if (saved.Demo && _exportPlan == null) StartDemoLapStream();
                 _form.RestoreEventBoard(saved.Heat, _race.GetLaneSnapshots());
                 if (_qualifying.State != QualifyingState.Inactive)
                 {
@@ -92,13 +93,15 @@ public sealed partial class Serial
                 else if (_heatRace.State == HeatRaceState.Complete)
                 {
                     _betweenHeatsPaused = _heatRace.HasMoreHeats;
-                    if (CombinedDistanceActive && _heatRace.IsGroupEnd && _heatRace.GetFinalDistanceCandidates().Count > 0)
+                    if (_exportPlan != null && !_heatRace.HasMoreHeats) WriteFinalReport();
+                    else if (CombinedDistanceActive && _heatRace.IsGroupEnd && _heatRace.GetFinalDistanceCandidates().Count > 0)
                         ConfirmNextFinalDistance();
                     else if (!_heatRace.HasMoreHeats) ScheduleNextHeatIfNeeded();
                     else PublishHeatRaceStatus("Intermission paused");
                 }
                 else PublishHeatRaceStatus(GetCurrentHeatStatusName());
-                _form.SetStatusMessage("Event restored with power off. Review totals and car positions; press Space when ready. Unrecorded outage crossings are uncertain.");
+                if (_exportPlan == null)
+                    _form.SetStatusMessage("Event restored with power off. Review totals and car positions; press Space when ready. Unrecorded outage crossings are uncertain.");
             }
             catch (Exception ex) when (ex is IOException or ArgumentException or InvalidOperationException or
                 Microsoft.Data.Sqlite.SqliteException or System.Text.Json.JsonException)
@@ -119,7 +122,7 @@ public sealed partial class Serial
         _eventId = saved.EventId;
         _configuredFormat = saved.Heat.Format;
         _configuredRaceName = saved.Heat.RaceName;
-        _configuredHeatLengthMinutes = saved.Heat.HeatLengthMinutes;
+        _configuredHeatLengthSeconds = saved.Heat.HeatLengthSeconds;
         _configuredBetweenHeatsSeconds = saved.Heat.BetweenHeatsSeconds;
         _configuredActiveLaneCount = saved.Heat.ActiveLaneCount;
         _configuredTrackLengthFeet = saved.Heat.TrackLengthFeet;
@@ -127,6 +130,7 @@ public sealed partial class Serial
         _configuredRacers = saved.ConfiguredRacers;
         _qualifyingResults = saved.Heat.Qualifiers;
         _reportWritten = saved.ReportWritten;
+        _exportPlan = saved.ExportPlan;
         _eventDemo = saved.Demo;
         _qualifyingLaneSelectionPending = false;
         _demoLapTiming.ConfigureRacers(_configuredRacers);
@@ -145,7 +149,7 @@ public sealed partial class Serial
             _recovery.Save(new(RaceRecoveryStore.SchemaVersion, _eventId, DateTimeOffset.Now, reason,
                 _heatRace.CaptureRecovery(timestamp, prior?.Heat.HistoryVersion), _qualifying.CaptureRecovery(),
                 _race.Options, _race.CaptureRecovery(prior?.Lanes), _eventDemo, _reportWritten,
-                _configuredRacers.ToArray(), _form.SensorDebounceMilliseconds));
+                _configuredRacers.ToArray(), _form.SensorDebounceMilliseconds) { ExportPlan = _exportPlan });
             return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or
@@ -226,17 +230,22 @@ public sealed class RaceRecoveryChoiceForm : Form
         MaximizeBox = false; MinimizeBox = false;
         ClientSize = new Size(660, 300);
         Font = new Font("Segoe UI", 10F);
+        bool pendingExports = saved.ExportPlan != null && saved.Heat.State == HeatRaceState.Complete &&
+            saved.Heat.HeatNumber == saved.Heat.TotalHeats;
         string stage = saved.Qualifying.State != QualifyingState.Inactive ?
             $"Qualifying {Math.Min(saved.Qualifying.CurrentIndex + 1, saved.Qualifying.Racers.Length)}/{saved.Qualifying.Racers.Length}" :
             $"Heat {saved.Heat.HeatNumber}/{saved.Heat.TotalHeats}";
         string state = saved.Qualifying.State != QualifyingState.Inactive ? saved.Qualifying.State.ToString() :
-            $"{saved.Heat.State} - {YATSS.FormatClock(TimeSpan.FromMilliseconds(saved.Heat.HeatLengthMinutes * 60000L - saved.Heat.ElapsedMilliseconds))} remaining";
+            $"{saved.Heat.State} - {YATSS.FormatClock(TimeSpan.FromMilliseconds(saved.Heat.HeatLengthSeconds * 1000L - saved.Heat.ElapsedMilliseconds))} remaining";
+        string guidance = pendingExports
+            ? "The race is complete, but its exports were interrupted. Finish Exports retries the saved files without restarting racing. Track power stays off."
+            : "Resume keeps power off. Check totals and physical car positions before pressing Space. Crossings after the last save cannot be reconstructed. An interrupted qualifier must be rerun.";
         Label description = new() { Dock = DockStyle.Fill, Padding = new Padding(20), AutoSize = false,
-            Text = $"{saved.Heat.RaceName}\n\n{stage} - {state}\nLast saved: {saved.SavedAt.LocalDateTime:g}\n\nResume keeps power off. Check totals and physical car positions before pressing Space. Crossings after the last save cannot be reconstructed. An interrupted qualifier must be rerun." };
+            Text = $"{saved.Heat.RaceName}\n\n{stage} - {state}\nLast saved: {saved.SavedAt.LocalDateTime:g}\n\n{guidance}" };
         FlowLayoutPanel buttons = new() { Dock = DockStyle.Bottom, Height = 60, Padding = new Padding(12), FlowDirection = FlowDirection.RightToLeft };
         Button cancel = new() { Text = "Close YATSS", DialogResult = DialogResult.Cancel, AutoSize = true };
         Button discard = new() { Text = "Archive and Discard", DialogResult = DialogResult.No, AutoSize = true };
-        Button resume = new() { Text = "Resume Event", DialogResult = DialogResult.OK, AutoSize = true };
+        Button resume = new() { Text = pendingExports ? "Finish Exports" : "Resume Event", DialogResult = DialogResult.OK, AutoSize = true };
         buttons.Controls.AddRange(new Control[] { cancel, discard, resume });
         Controls.Add(description); Controls.Add(buttons);
         AcceptButton = resume; CancelButton = cancel;

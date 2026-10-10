@@ -50,7 +50,7 @@ namespace YATSS
         private int _startCountdownVersion;
         private bool _qualifyingLaneSelectionPending;
         private string _configuredRaceName = string.Empty;
-        private int _configuredHeatLengthMinutes;
+        private int _configuredHeatLengthSeconds;
         private int _configuredBetweenHeatsSeconds;
         private int _configuredActiveLaneCount = LapProtocolParser.LaneCount;
         private double _configuredTrackLengthFeet = LapRaceOptions.Default.TrackLengthFeet;
@@ -266,7 +266,7 @@ namespace YATSS
 
         public void ConfigureHeatRace(
             string raceName,
-            int heatLengthMinutes,
+            int heatLengthSeconds,
             int betweenHeatsSeconds,
             IReadOnlyList<string> racers,
             int activeLaneCount,
@@ -276,18 +276,19 @@ namespace YATSS
         {
             lock (_controlGate)
             {
-                ConfigureHeatRaceCore(raceName, heatLengthMinutes, betweenHeatsSeconds,
+                ConfigureHeatRaceCore(raceName, heatLengthSeconds, betweenHeatsSeconds,
                     racers, activeLaneCount, laneConfigurations, trackLengthFeet, format);
             }
         }
 
-        private void ConfigureHeatRaceCore(string raceName, int heatLengthMinutes, int betweenHeatsSeconds,
+        private void ConfigureHeatRaceCore(string raceName, int heatLengthSeconds, int betweenHeatsSeconds,
             IReadOnlyList<string> racers, int activeLaneCount,
             IReadOnlyList<LaneConfiguration> laneConfigurations, double trackLengthFeet, RaceFormat format)
         {
             if (!ArchiveActiveEvent("Replaced by a new event")) return;
             _eventId = Guid.NewGuid();
             _reportWritten = false;
+            _exportPlan = null;
             _eventDemo = DemoLapStreamActive;
             _recoveryArmed = true;
             ClearDistanceWorkflow();
@@ -300,7 +301,7 @@ namespace YATSS
             _race.Reset();
             _form.ResetBoardDisplay(clearRacers: false);
             _configuredRaceName = raceName;
-            _configuredHeatLengthMinutes = heatLengthMinutes;
+            _configuredHeatLengthSeconds = heatLengthSeconds;
             _configuredBetweenHeatsSeconds = betweenHeatsSeconds;
             _configuredRacers = racers.ToArray();
             _configuredActiveLaneCount = activeLaneCount;
@@ -309,7 +310,7 @@ namespace YATSS
             _qualifyingResults = Array.Empty<QualifyingResult>();
             _demoLapTiming.ConfigureRacers(_configuredRacers);
             _heatRace.Configure(
-                heatLengthMinutes,
+                heatLengthSeconds,
                 betweenHeatsSeconds,
                 racers,
                 activeLaneCount,
@@ -323,8 +324,8 @@ namespace YATSS
             PublishHeatRaceStatus("Ready");
             SetTrackPowerEnabled(false, null, format == RaceFormat.CombinedDistance ?
                 "Combined Distance requires qualifying. Select Mode > Qualifying." :
-                $"Heat 1 ready: {heatLengthMinutes} minute heat. Press Space to start.");
-            _log.Info($"heat race configured for {heatLengthMinutes} minute(s), {betweenHeatsSeconds} second(s) between heats");
+                $"Heat 1 ready: {heatLengthSeconds} second heat. Press Space to start.");
+            _log.Info($"heat race configured for {heatLengthSeconds} second(s), {betweenHeatsSeconds} second(s) between heats");
         }
 
         public void SetPracticeMode()
@@ -408,6 +409,7 @@ namespace YATSS
         private void HandleSpaceBarCore()
         {
             if (!EventChangesAllowed) { _form.SetStatusMessage("Race recovery needs attention; track power remains off"); return; }
+            if (_rerunRequest != Guid.Empty) return;
             if (_distanceApprovalPending) { _form.SetStatusMessage("Director distance confirmation required"); return; }
             if (CombinedDistanceActive && !QualifyingActive && _qualifyingResults.Count == 0)
             { _form.SetStatusMessage("Select Mode > Qualifying before starting Combined Distance."); return; }
@@ -526,7 +528,7 @@ namespace YATSS
             _qualifyingResults = Array.Empty<QualifyingResult>();
             _race.Reset();
             _heatRace.Configure(
-                _configuredHeatLengthMinutes,
+                _configuredHeatLengthSeconds,
                 _configuredBetweenHeatsSeconds,
                 _configuredRacers,
                 _configuredActiveLaneCount,
@@ -1022,7 +1024,7 @@ namespace YATSS
             _form.HideStartCountdown();
         }
 
-        private bool CanRunController() => EventChangesAllowed && (DemoLapStreamActive || _controllerSession.PowerAllowed);
+        private bool CanRunController() => _rerunRequest == Guid.Empty && EventChangesAllowed && (DemoLapStreamActive || _controllerSession.PowerAllowed);
 
         private bool IsCountdownCurrent(int countdownVersion)
         {
@@ -2057,7 +2059,7 @@ namespace YATSS
                         _qualifyingLaneSelectionPending = false;
                         _race.Reset();
                         _heatRace.Configure(
-                            _configuredHeatLengthMinutes,
+                            _configuredHeatLengthSeconds,
                             _configuredBetweenHeatsSeconds,
                             _configuredRacers,
                             _configuredActiveLaneCount,
@@ -2332,6 +2334,7 @@ namespace YATSS
 
         private void ClearDistanceWorkflow()
         {
+            _rerunRequest = Guid.Empty;
             _raceConfigurationVersion++;
             _distanceApprovalPending = false;
             _configuredFormat = RaceFormat.HeatRace;
@@ -2372,11 +2375,16 @@ namespace YATSS
 
         private void WriteFinalReport()
         {
-            if (!SaveRecovery("Final results ready for export")) return;
             HeatRaceReport report = _heatRace.CreateReport();
-            _raceReports.AnnouncePodium(report);
-            _reportWritten = _raceReports.Write(report);
-            SaveRecovery(_reportWritten ? "Final report exported" : "Final report export requires retry");
+            bool firstAttempt = _exportPlan == null;
+            _exportPlan ??= _raceReports.CreatePlan(_eventId);
+            _reportWritten = false;
+            if (!SaveRecovery("Final results and export plan ready")) return;
+            if (firstAttempt) _raceReports.AnnouncePodium(report);
+            RaceExportPaths? paths = _raceReports.Write(report, _exportPlan);
+            _reportWritten = paths != null;
+            if (!SaveRecovery(_reportWritten ? "Final report exported" : "Final report export requires retry")) return;
+            if (paths != null) _form.ShowHeatRaceReport(paths.Html);
             PublishDistanceStandings();
         }
 

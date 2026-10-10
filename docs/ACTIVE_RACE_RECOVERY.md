@@ -1,5 +1,10 @@
 # Active event recovery
 
+Heat duration is saved in whole seconds, including non-minute durations such
+as 30 or 90 seconds. Journal schema 2 automatically reads schema 1's minute-based
+duration as seconds, preserving elapsed time and lap history. Recovery never
+interprets an old three-minute heat as three seconds.
+
 Implemented October 9, 2026. This is separate from settings-database backups
 and from reconnecting a controller while YATSS remains running.
 
@@ -11,6 +16,10 @@ closing YATSS, a crash, or a restart, the next launch offers:
 - **Resume Event**: restore the event with track power off.
 - **Archive and Discard**: retain an internal archive and return to practice.
 - **Close YATSS**: leave the saved event untouched for another launch.
+
+For a completed race with a saved pending export plan, **Finish Exports**
+replaces Resume Event. It retries the report and enabled data files with power
+off, without a new countdown or demo-lap stream.
 
 Review totals and actual car positions before pressing Space. A recovered
 running heat is paused with its saved remaining active time. Reconnect and
@@ -31,8 +40,9 @@ without a lap time; it cannot earn a fast-lap award.
 
 Race settings, racers, current/waiting lanes, groups, rotations, lap histories,
 carried totals, corrections, remaining active heat time, qualifying results,
-approved distances, director tie orders, and final-report/export completion are
-saved. Demo events are supported; their generator restarts without starting the
+approved distances, director tie orders, final-report/export completion, and
+the export plan (event ID, timestamp, directory, JSON/CSV choices) are saved.
+Demo events are supported; their generator restarts without starting the
 race. Ordinary practice is not journaled.
 
 Crossings and director decisions commit before visible acknowledgment. Active
@@ -62,9 +72,16 @@ reliable backup. Settings backup/restore does not include this journal.
 
 Successfully exported completed events are archived on next launch. Resetting
 or abandoning an event archives it before replacement. Archives have no browser
-or automatic retention policy yet. A crash during export can require retry and
-leave an additional report copy; file generation is not exactly-once. This first
-version has no full-current-heat rollback/rerun command.
+or automatic retention policy yet. Interrupted exports retry at the original
+event-specific filenames with atomic file replacement and a completion receipt.
+Choose Finish Exports after correcting an export failure; a completed event only
+finishes its exports, never restarts racing. A crash after file publication but
+before the journal completion flag causes a safe retry, not another report copy.
+The bundle is not an indivisible multi-file transaction. See
+[Race Reports and Data Exports](RACE_DATA_EXPORT.md) for guarantees and limits.
+Stopped current heats can be voided and rerun before final exports begin.
+Starting totals and full duration return, and the discarded attempt is saved
+in a separate audit. See [Current-heat reruns](HEAT_RERUNS.md) for the workflow.
 
 ## Verification
 

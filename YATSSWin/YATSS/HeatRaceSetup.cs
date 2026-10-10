@@ -6,7 +6,7 @@ namespace YATSS
         private readonly ListBox _selectedRacers = new();
         private readonly DataGridView _laneGrid = new();
         private readonly Label _queueLabel = new();
-        private readonly NumericUpDown _heatLengthMinutes = new();
+        private readonly NumericUpDown _heatLengthSeconds = new();
         private readonly NumericUpDown _betweenHeatsSeconds = new();
         private readonly TextBox _raceName = new();
         private readonly ComboBox _format = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 180 };
@@ -21,7 +21,7 @@ namespace YATSS
         private readonly Color[] _laneColors;
         private bool _loadingRacers;
 
-        public int HeatLengthMinutes => (int)_heatLengthMinutes.Value;
+        public int HeatLengthSeconds => (int)_heatLengthSeconds.Value;
         public int BetweenHeatsSeconds => (int)_betweenHeatsSeconds.Value;
         public string RaceName => _raceName.Text.Trim();
         public IReadOnlyList<string> SelectedRacers => _selectedNames.ToArray();
@@ -148,7 +148,7 @@ namespace YATSS
                 Padding = new Padding(8)
             };
             heatLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38F));
-            heatLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42F));
+            heatLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 68F));
             heatLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 70F));
             heatLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 30F));
             heatGroup.Controls.Add(heatLayout);
@@ -178,29 +178,30 @@ namespace YATSS
             {
                 Dock = DockStyle.Fill,
                 FlowDirection = FlowDirection.LeftToRight,
-                WrapContents = false
+                WrapContents = true
             };
             heatLayout.Controls.Add(heatSettings, 0, 1);
 
             Label heatLengthLabel = new()
             {
-                Text = "Heat length (minutes)",
+                Text = "Heat length (seconds)",
                 AutoSize = true,
                 Margin = new Padding(0, 6, 8, 0)
             };
             heatSettings.Controls.Add(heatLengthLabel);
 
-            _heatLengthMinutes.Minimum = 1;
-            _heatLengthMinutes.Maximum = HeatRaceController.MaximumHeatLengthMinutes;
-            _heatLengthMinutes.Value = 3;
-            _heatLengthMinutes.Width = 64;
-            heatSettings.Controls.Add(_heatLengthMinutes);
+            _heatLengthSeconds.Minimum = 1;
+            _heatLengthSeconds.Maximum = HeatRaceController.MaximumHeatLengthSeconds;
+            _heatLengthSeconds.Value = 180;
+            _heatLengthSeconds.Width = 80;
+            heatSettings.Controls.Add(_heatLengthSeconds);
+            heatSettings.SetFlowBreak(_heatLengthSeconds, true);
 
             Label betweenHeatsLabel = new()
             {
                 Text = "Between heats (seconds)",
                 AutoSize = true,
-                Margin = new Padding(18, 6, 8, 0)
+                Margin = new Padding(0, 6, 8, 0)
             };
             heatSettings.Controls.Add(betweenHeatsLabel);
 
@@ -299,13 +300,13 @@ namespace YATSS
         {
             HeatRaceSetupSettings settings = AppDatabase.LoadHeatRaceSettings(
                 new HeatRaceSetupSettings(
-                    (int)_heatLengthMinutes.Value,
+                    (int)_heatLengthSeconds.Value,
                     (int)_betweenHeatsSeconds.Value,
                     string.Empty));
-            _heatLengthMinutes.Value = Math.Clamp(
-                settings.HeatLengthMinutes,
-                (int)_heatLengthMinutes.Minimum,
-                (int)_heatLengthMinutes.Maximum);
+            _heatLengthSeconds.Value = Math.Clamp(
+                settings.HeatLengthSeconds,
+                (int)_heatLengthSeconds.Minimum,
+                (int)_heatLengthSeconds.Maximum);
             _betweenHeatsSeconds.Value = Math.Clamp(
                 settings.BetweenHeatsSeconds,
                 (int)_betweenHeatsSeconds.Minimum,
@@ -316,7 +317,7 @@ namespace YATSS
         private void SaveSettings()
         {
             AppDatabase.SaveHeatRaceSettings(new HeatRaceSetupSettings(
-                HeatLengthMinutes,
+                HeatLengthSeconds,
                 BetweenHeatsSeconds,
                 RaceName));
         }

@@ -20,6 +20,25 @@ communication, and track-power behavior.
 - [ ] Verify final exports and startup archive behavior, and Close YATSS leaves
   unfinished recovery untouched. See [Active event recovery](ACTIVE_RACE_RECOVERY.md).
 
+## Current-heat rerun checks
+
+- [ ] In a demo race, pause a later heat, make a correction, then choose
+  Mode > Rerun Current Heat. Cancel: totals remain and automatic start stays paused.
+- [ ] Confirm with a reason: previous heats and qualifying credit stay intact;
+  current laps/corrections disappear; lane assignments do not change; full
+  duration returns. Verify power off and explicit Space/countdown restart.
+- [ ] Repeat from completed-heat intermission and rerun twice. Verify numbered
+  audits, clean lap statistics and correct first-crossing behavior.
+- [ ] Restart after rollback: Ready, full duration, restored totals and audit.
+- [ ] Check Combined Distance: earlier groups' approvals remain; current-group
+  finish approvals require confirmation again after its rerun.
+- [ ] Verify HTML/JSON/CSV audit and absence of discarded laps from official
+  results. Check disabled menu in practice, qualifying, running heats,
+  countdowns, approval dialogs and after final exports start.
+- [ ] Check confirmation layout and cancellation under Windows and ARM64 Wine.
+  See [Current-heat reruns](HEAT_RERUNS.md). Physical car positioning remains
+  a director responsibility.
+
 ## Prerequisites
 
 - A clean Windows account, Windows Sandbox, or another Windows computer is
@@ -75,7 +94,9 @@ Record each item as pass or fail:
 - [ ] `Automatic`, `Windows SAPI`, `Piper`, `eSpeak NG helper`, and `None` are
   available in the speech-engine selector; changing engines refreshes the
   voice list and selects an available voice.
-- [ ] Heat length accepts values through 1,440 minutes.
+- [ ] Heat length accepts 1 through 86,400 seconds (24 hours); default is 180.
+- [ ] Run 30- and 90-second heats; verify expiration, track-call pause/resume,
+  saved setup after reopening, recovery time remaining, and report duration.
 - [ ] A 24-hour heat displays `24:00:00` before it starts.
 - [ ] Closing YATSS leaves no YATSS process running.
 
@@ -127,12 +148,16 @@ Expected report location:
 
 For one completed race, confirm creation of:
 
-- [ ] `HeatRace_yyyyMMdd_HHmmss.html`
-- [ ] `HeatRace_yyyyMMdd_HHmmss.json`
-- [ ] `HeatRace_yyyyMMdd_HHmmss_results.csv`
-- [ ] `HeatRace_yyyyMMdd_HHmmss_laps.csv`
-- [ ] `HeatRace_yyyyMMdd_HHmmss_qualifying.csv`
-- [ ] `HeatRace_yyyyMMdd_HHmmss_adjustments.csv`
+- [ ] `HeatRace_yyyyMMdd_HHmmss_<event-id>.html`
+- [ ] `HeatRace_yyyyMMdd_HHmmss_<event-id>.json`
+- [ ] `HeatRace_yyyyMMdd_HHmmss_<event-id>_results.csv`
+- [ ] `HeatRace_yyyyMMdd_HHmmss_<event-id>_laps.csv`
+- [ ] `HeatRace_yyyyMMdd_HHmmss_<event-id>_qualifying.csv`
+- [ ] `HeatRace_yyyyMMdd_HHmmss_<event-id>_adjustments.csv`
+- [ ] Matching `.yatss-export` completion receipt, with no `.yatss-tmp` remnants.
+- [ ] Simulate interrupted/blocked exports in an isolated demo. After fixing
+  access, restart and Finish Exports; verify the same filenames, no restarted
+  heat, retained export choices, and no additional report copy.
 
 Open the HTML report and inspect it. Validate the machine-readable files with:
 

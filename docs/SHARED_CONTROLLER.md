@@ -102,13 +102,39 @@ sections. Run on Windows with Visual Studio's C++ build tools:
 ./tools/Test-ControllerCore.ps1 -Compiler C:/path/to/g++.exe
 ```
 
+The Windows launcher selects a Visual Studio installation that actually has
+the MSVC C++ tools registered, not simply the newest IDE. If none is available,
+use Visual Studio Installer > Modify > Desktop development with C++, with the
+MSVC x64/x86 tools and a Windows SDK selected. Compiler executables without the
+standard-library headers and SDK are not a working installation. The launcher
+reports that condition before attempting compilation.
+
 ```bash
 bash tools/test-controller-core-linux.sh
 ```
 
-CI checks generated copies, runs native tests, and compiles Nano ESP32, C5
+CI checks generated copies, runs native tests with both GCC on Linux and MSVC
+on Windows, and compiles Nano ESP32, C5
 N16R8, C6 N4/N8, and UNO Q against pinned board-core versions. A compile is not
 a hardware test. Bench-test all sensors/outputs, high-speed capture,
 diagnostic transitions, resets, watchdog trips, and repeated reconnects on the
 refactored firmware before venue use. Earlier UNO Q sensor/overnight results
 describe the previous firmware, not a completed bench test of this refactor.
+
+### October 10, 2026 verification
+
+GitHub [run 37996620059](https://github.com/tekrantz57/YATSS/actions/runs/37996620059)
+passed all seven jobs for commit `291ceb5`: Windows solution/tests, Linux native
+controller behavior, generated-source checks, and all five firmware builds.
+The latest local Windows solution and test suite also pass, including the new
+second-based heat durations. Those uncommitted changes have not run on GitHub.
+
+The added Windows/MSVC native-test step still needs its first GitHub run after
+push. The local Visual Studio C++ setup was repaired by adding MSVC x64/x86
+tools and Windows SDK 10.0.26100. The native launcher now compiles cleanly with
+`/W4 /WX` and passes all 6,328 checks locally, including normally open relay
+mapping for every lane-power mask. C++ tools are a development/test requirement,
+not a requirement for users running the Windows application.
+The installer returned success-with-restart-required (3010); no restart was
+performed. Native tests passed before restarting, but Windows should be
+restarted when convenient to finish the installation.

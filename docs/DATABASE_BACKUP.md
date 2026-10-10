@@ -49,6 +49,10 @@ backups are retained. If today's backup already exists, YATSS verifies it
 instead of replacing it. A verification or write failure displays a warning but
 does not prevent the app from running.
 
+Settings schema 5 stores heat length in seconds. Opening an older database
+converts saved whole-minute heat lengths to seconds (3 minutes becomes 180),
+preserving intermission settings. The conversion runs only once.
+
 Before a database schema upgrade, YATSS also creates and verifies a timestamped
 copy in the Automatic folder. These safety copies use names such as:
 

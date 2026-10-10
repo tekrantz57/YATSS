@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace YATSS;
 
@@ -7,10 +8,11 @@ namespace YATSS;
 // day's lap history on every crossing. This database is not the settings DB.
 public sealed class RaceRecoveryStore : IDisposable
 {
-    public const int SchemaVersion = 1;
+    public const int SchemaVersion = 2;
     private readonly FileStream _lease;
     private readonly SqliteConnection _connection;
     private readonly List<HeatRaceLapRecord> _heatLaps = new();
+    private readonly List<HeatRaceRerun> _reruns = new();
     private readonly List<LaneLapRecord>[] _laneLaps = Enumerable.Range(0, 8).Select(_ => new List<LaneLapRecord>()).ToArray();
     private RaceRecoveryFrame? _metadata;
     private int _sinceCheckpoint;
@@ -32,11 +34,12 @@ public sealed class RaceRecoveryStore : IDisposable
                 PRAGMA journal_mode=WAL;
                 PRAGMA synchronous=FULL;
                 CREATE TABLE IF NOT EXISTS recovery_version (version INTEGER NOT NULL);
-                INSERT INTO recovery_version SELECT 1 WHERE NOT EXISTS (SELECT 1 FROM recovery_version);
+                INSERT INTO recovery_version SELECT 2 WHERE NOT EXISTS (SELECT 1 FROM recovery_version);
                 """;
             command.ExecuteNonQuery();
             command.CommandText = "SELECT version FROM recovery_version";
-            if (Convert.ToInt32(command.ExecuteScalar()) != SchemaVersion)
+            int version = Convert.ToInt32(command.ExecuteScalar());
+            if (version is < 1 or > SchemaVersion)
                 throw new InvalidDataException("Unsupported active-race journal version; preserve the file for recovery.");
             command.CommandText = """
                 CREATE TABLE IF NOT EXISTS checkpoint (id INTEGER PRIMARY KEY CHECK(id=1), payload TEXT NOT NULL);
@@ -57,11 +60,29 @@ public sealed class RaceRecoveryStore : IDisposable
         }
     }
 
-    private static RaceRecoveryFrame Deserialize(string json) =>
-        JsonSerializer.Deserialize<RaceRecoveryFrame>(json) ?? throw new InvalidDataException("Empty race journal record.");
+    private static RaceRecoveryFrame Deserialize(string json)
+    {
+        JsonNode node = JsonNode.Parse(json) ?? throw new InvalidDataException("Empty race journal record.");
+        if (node["SchemaVersion"]?.GetValue<int>() == 1)
+        {
+            JsonNode heat = node["Heat"] ?? throw new InvalidDataException("Missing saved heat.");
+            int minutes = heat["HeatLengthMinutes"]?.GetValue<int>()
+                ?? throw new InvalidDataException("Missing saved heat duration.");
+            if (minutes is < 1 or > 1440)
+                throw new InvalidDataException("Invalid saved heat duration.");
+            heat["HeatLengthSeconds"] = minutes * 60;
+            heat.AsObject().Remove("HeatLengthMinutes");
+            node["SchemaVersion"] = SchemaVersion;
+        }
+        return node.Deserialize<RaceRecoveryFrame>() ?? throw new InvalidDataException("Empty race journal record.");
+    }
 
     private void Validate(RaceRecoveryFrame frame)
     {
+        if (frame.ExportPlan is { } plan && (plan.EventId != frame.EventId ||
+            plan.Options == null || string.IsNullOrWhiteSpace(plan.OutputDirectory) ||
+            !Path.IsPathFullyQualified(plan.OutputDirectory)))
+            throw new InvalidDataException("Invalid saved race export plan.");
         if (frame.SchemaVersion != SchemaVersion || frame.EventId == Guid.Empty || frame.Heat == null ||
             frame.Qualifying == null || frame.Options == null || frame.Lanes == null || frame.Lanes.Length != 8 ||
             frame.ConfiguredRacers == null || frame.Qualifying.Racers == null || frame.Qualifying.Results == null ||
@@ -85,6 +106,7 @@ public sealed class RaceRecoveryStore : IDisposable
     {
         Validate(frame);
         if (frame.Heat.Laps != null) { _heatLaps.Clear(); _heatLaps.AddRange(frame.Heat.Laps); }
+        if (frame.Heat.Reruns != null) { _reruns.Clear(); _reruns.AddRange(frame.Heat.Reruns); }
         foreach (LaneRecovery lane in frame.Lanes)
         {
             List<LaneLapRecord> history = _laneLaps[lane.Snapshot.LaneIndex];
@@ -99,7 +121,7 @@ public sealed class RaceRecoveryStore : IDisposable
         if (_metadata == null) return null;
         return _metadata with
         {
-            Heat = _metadata.Heat with { Laps = _heatLaps.ToArray() },
+            Heat = _metadata.Heat with { Laps = _heatLaps.ToArray(), Reruns = _reruns.ToArray() },
             Lanes = _metadata.Lanes.Select(lane => lane with
             {
                 StartIndex = 0,
@@ -114,7 +136,7 @@ public sealed class RaceRecoveryStore : IDisposable
         using SqliteTransaction transaction = _connection.BeginTransaction();
         using SqliteCommand command = _connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = "INSERT INTO journal(payload) VALUES ($payload)";
+        command.CommandText = "UPDATE recovery_version SET version = 2; INSERT INTO journal(payload) VALUES ($payload)";
         command.Parameters.AddWithValue("$payload", JsonSerializer.Serialize(frame));
         command.ExecuteNonQuery();
         transaction.Commit();
@@ -152,6 +174,7 @@ public sealed class RaceRecoveryStore : IDisposable
         command.ExecuteNonQuery();
         transaction.Commit();
         _metadata = null; _sinceCheckpoint = 0; _heatLaps.Clear();
+        _reruns.Clear();
         foreach (var laps in _laneLaps) laps.Clear();
     }
 

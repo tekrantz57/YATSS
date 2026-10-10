@@ -32,6 +32,7 @@ namespace YATSS
         private readonly ToolStripMenuItem _openDatabaseFolderMenuItem = new("Open Database Folder");
         private readonly ToolStripMenuItem _openBackupFolderMenuItem = new("Open Backup Folder");
         private readonly ToolStripMenuItem _updateControllerFirmwareMenuItem = new("Update Controller Firmware...");
+        private readonly ToolStripMenuItem _rerunHeatMenu = new("Rerun Current Heat...") { Enabled = false };
         private readonly Image _selectedModeIndicator = CreateModeIndicator(selected: true);
         private readonly Image _unselectedModeIndicator = CreateModeIndicator(selected: false);
         private const string EmptyRacerName = "          ";
@@ -549,6 +550,21 @@ namespace YATSS
                 if (_latestDistanceStandings != null) UpdateDistanceStandings(_latestDistanceStandings);
             };
             modeToolStripMenuItem.DropDownItems.Add(_liveStandingsMenu);
+            modeToolStripMenuItem.DropDownItems.Add(new ToolStripSeparator());
+            modeToolStripMenuItem.DropDownItems.Add(_rerunHeatMenu);
+            modeToolStripMenuItem.DropDownOpening += (_, _) => _rerunHeatMenu.Enabled = s != null && s.CanRerunCurrentHeat;
+            _rerunHeatMenu.Click += (_, _) =>
+            {
+                Guid request = s.BeginHeatRerunConfirmation();
+                if (request == Guid.Empty) return;
+                using HeatRerunChoiceForm choice = new();
+                try
+                {
+                    s.FinishHeatRerunConfirmation(request,
+                        choice.ShowDialog(this) == DialogResult.OK ? choice.Reason : null);
+                }
+                finally { s.FinishHeatRerunConfirmation(request, null); }
+            };
         }
 
         private static Bitmap CreateModeIndicator(bool selected)
@@ -924,7 +940,7 @@ namespace YATSS
                 SetHeatRaceMode();
                 s.ConfigureHeatRace(
                     heatRaceSetup.RaceName,
-                    heatRaceSetup.HeatLengthMinutes,
+                    heatRaceSetup.HeatLengthSeconds,
                     heatRaceSetup.BetweenHeatsSeconds,
                     heatRaceSetup.SelectedRacers,
                     ActiveLaneCount,
@@ -960,7 +976,7 @@ namespace YATSS
 
             CloseControllerDiagnostics();
             const string demoRaceName = "Demo Race";
-            const int demoHeatLengthMinutes = 1;
+            const int demoHeatLengthSeconds = 60;
             const int demoBetweenHeatsSeconds = 5;
             string[] demoRacers = CreateDemoRacerNames();
 
@@ -968,7 +984,7 @@ namespace YATSS
             SetHeatRaceMode();
             s.ConfigureHeatRace(
                 demoRaceName,
-                demoHeatLengthMinutes,
+                demoHeatLengthSeconds,
                 demoBetweenHeatsSeconds,
                 demoRacers,
                 ActiveLaneCount,
@@ -1672,14 +1688,23 @@ namespace YATSS
         {
             RunOnUiThread(() =>
             {
-                if (PlatformEnvironment.IsWine)
+                try
                 {
-                    HeatRaceReportWriter.Open(path);
-                    return;
+                    if (PlatformEnvironment.IsWine)
+                    {
+                        HeatRaceReportWriter.Open(path);
+                        return;
+                    }
+                    HeatRaceReportForm reportForm = new(path);
+                    reportForm.Show(this);
                 }
-
-                HeatRaceReportForm reportForm = new(path);
-                reportForm.Show(this);
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+                    InvalidOperationException or ArgumentException or System.ComponentModel.Win32Exception)
+                {
+                    SetStatusMessage($"Race exports saved; report viewer could not open: {path}");
+                    MessageBox.Show(this, $"The race report and enabled data exports were saved, but the report viewer could not open.\n\n{path}\n\n{ex.Message}",
+                        "Report Saved", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
             });
         }
 

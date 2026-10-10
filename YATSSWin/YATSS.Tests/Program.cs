@@ -16,9 +16,14 @@ static void Assert(bool condition, string message)
 }
 
 if (args.Contains("--recovery-crash-fixture")) { RecoveryTests.CrashFixture(args[1]); return; }
+if (args.Contains("--export-crash-fixture")) { ExportRecoveryTests.CrashFixture(args[1], int.Parse(args[2])); return; }
 if (args.Contains("--recovery-ui")) { RecoveryTests.RunUi(); return; }
 if (args.Contains("--distance-ui")) { DistanceUiTests.Run(); return; }
+if (args.Contains("--rerun-ui-check")) { RerunTests.CheckUi(args[1]); return; }
 RecoveryTests.Run();
+HeatDurationTests.Run();
+RerunTests.Run();
+ExportRecoveryTests.Run();
 bool originalSpeechEnabled = SpeechAnnouncer.Enabled;
 DistanceTests.Run();
 SpeechBackendMode originalSpeechBackend = SpeechAnnouncer.BackendMode;
@@ -628,7 +633,7 @@ Assert(wrappedTime.LapMilliseconds == 2001, "timestamp wrap should preserve elap
 
 HeatRaceController heat = new();
 string[] racers = { "R0", "R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8" };
-heat.Configure(1, 15, racers);
+heat.Configure(60, 15, racers);
 Assert(heat.State == HeatRaceState.Ready, "configured heat should be ready");
 Assert(heat.BetweenHeatsSeconds == 15, "between-heats seconds should be configured");
 Assert(heat.HeatNumber == 1, "configured heat should start at heat 1");
@@ -668,7 +673,7 @@ Assert(secondHeat.LaneLapCounts[2] == 10, "red racer's lap total should rotate t
 Assert(secondHeat.LaneLapCounts[1] == 13, "orange racer's lap total should rotate to white");
 
 HeatRaceController shortFieldHeat = new();
-shortFieldHeat.Configure(1, 0, new[] { "A", "B", "C" });
+shortFieldHeat.Configure(60, 0, new[] { "A", "B", "C" });
 HeatRaceSnapshot shortField = shortFieldHeat.GetSnapshot(0);
 Assert(shortField.LaneRacers[0] == "A", "three racers should start red first");
 Assert(shortField.LaneRacers[1] == "B", "three racers should start white second");
@@ -688,13 +693,13 @@ Assert(!secondHeatFirstEdge.FastestLapEligible, "first lane edge after heat 1 sh
 Assert(secondHeatFirstEdge.FirstLapMilliseconds == 1000, "successive heat first lap should use active time since heat start");
 
 HeatRaceController staleTimestampHeat = new();
-staleTimestampHeat.Configure(1, 0, new[] { "A", "B" });
+staleTimestampHeat.Configure(60, 0, new[] { "A", "B" });
 Assert(staleTimestampHeat.Start(10000), "stale timestamp heat should start");
 Assert(!staleTimestampHeat.IsExpired(9000), "older timestamp should not expire a running heat");
 Assert(staleTimestampHeat.GetRemaining(9000) == TimeSpan.FromMinutes(1), "older timestamp should not consume heat time");
 
 HeatRaceController rolloverHeat = new();
-rolloverHeat.Configure(1, 0, new[] { "A", "B" });
+rolloverHeat.Configure(60, 0, new[] { "A", "B" });
 Assert(rolloverHeat.Start(uint.MaxValue - 499), "rollover heat should start near the controller timestamp boundary");
 Assert(
     rolloverHeat.GetRemaining(500) == TimeSpan.FromMilliseconds(59000),
@@ -716,7 +721,7 @@ Assert(controllerSession.AuthorizeResume() && controllerSession.PowerAllowed,
     "the operator must explicitly authorize the first start");
 
 HeatRaceController interruptedHeat = new();
-interruptedHeat.Configure(1, 15, new[] { "A", "B" });
+interruptedHeat.Configure(60, 15, new[] { "A", "B" });
 interruptedHeat.Start(100000);
 LapRace interruptedLaps = new(new LapRaceOptions(1000, 600000, 155));
 interruptedLaps.Process(interruptedHeat.PrepareEdge(new LapEdge(0, 1, 100500)).Edge);
@@ -827,15 +832,15 @@ finally
 }
 
 HeatRaceController enduroHeat = new();
-enduroHeat.Configure(HeatRaceController.MaximumHeatLengthMinutes, 0, new[] { "A", "B" });
-Assert(enduroHeat.HeatLengthMinutes == 1440, "heat race should allow a 24-hour heat");
+enduroHeat.Configure(HeatRaceController.MaximumHeatLengthSeconds, 0, new[] { "A", "B" });
+Assert(enduroHeat.HeatLengthSeconds == 86400, "heat race should allow a 24-hour heat");
 Assert(enduroHeat.Start(1000), "24-hour heat should start");
 Assert(!enduroHeat.IsExpired(86400999), "24-hour heat should not expire one millisecond early");
 Assert(enduroHeat.IsExpired(86401000), "24-hour heat should expire at exactly 24 hours");
 
 HeatRaceController overlongHeat = new();
-overlongHeat.Configure(HeatRaceController.MaximumHeatLengthMinutes + 1, 0, new[] { "A", "B" });
-Assert(overlongHeat.HeatLengthMinutes == 1440, "heat length should clamp to the supported 24-hour maximum");
+overlongHeat.Configure(HeatRaceController.MaximumHeatLengthSeconds + 1, 0, new[] { "A", "B" });
+Assert(overlongHeat.HeatLengthSeconds == 86400, "heat length should clamp to the supported 24-hour maximum");
 
 System.Reflection.MethodInfo formatClock = typeof(HeatRaceController).Assembly
     .GetType("YATSS.YATSS")!
@@ -845,7 +850,7 @@ Assert(
     "24-hour heat should display 24:00:00 instead of wrapping to zero hours");
 
 HeatRaceController fourLaneHeat = new();
-fourLaneHeat.Configure(1, 0, new[] { "A", "B", "C", "D", "E" }, activeLaneCount: 4);
+fourLaneHeat.Configure(60, 0, new[] { "A", "B", "C", "D", "E" }, activeLaneCount: 4);
 Assert(fourLaneHeat.TotalHeats == 5, "four-lane race with five racers should run five heats");
 HeatRaceSnapshot fourLaneFirstHeat = fourLaneHeat.GetSnapshot(0);
 Assert(fourLaneFirstHeat.LaneRacers.Take(4).SequenceEqual(new[] { "A", "B", "C", "D" }), "four-lane first heat should fill its four physical lanes");
@@ -863,7 +868,7 @@ Assert(fourLaneSecondHeat.OnDeckRacer == "B", "white racer should rotate out");
 
 HeatRaceController largeFieldHeat = new();
 string[] largeFieldRacers = Enumerable.Range(1, 10).Select(index => $"R{index}").ToArray();
-largeFieldHeat.Configure(1, 0, largeFieldRacers, activeLaneCount: 8);
+largeFieldHeat.Configure(60, 0, largeFieldRacers, activeLaneCount: 8);
 Assert(largeFieldHeat.TotalHeats == 10, "ten-racer race should run ten heats");
 Assert(largeFieldHeat.CreateReport().LaneNames.Count == 8, "report should keep lane metadata to physical lanes");
 Dictionary<string, int> expectedLargeFieldTotals = new(StringComparer.OrdinalIgnoreCase);
@@ -911,13 +916,13 @@ LaneConfiguration[] customLanes = LaneConfiguration.CreateDefaults().ToArray();
 customLanes[0] = new LaneConfiguration("Aqua", System.Drawing.Color.Aqua.ToArgb());
 customLanes[1] = new LaneConfiguration("Pink", System.Drawing.Color.HotPink.ToArgb());
 HeatRaceController customLaneHeat = new();
-customLaneHeat.Configure(1, 0, new[] { "A", "B" }, activeLaneCount: 4, laneConfigurations: customLanes);
+customLaneHeat.Configure(60, 0, new[] { "A", "B" }, activeLaneCount: 4, laneConfigurations: customLanes);
 HeatRaceReport customLaneReport = customLaneHeat.CreateReport();
 Assert(customLaneReport.LaneNames[0] == "Aqua", "report should use configured lane names");
 Assert(customLaneReport.LaneColorArgb[1] == System.Drawing.Color.HotPink.ToArgb(), "report should use configured lane colors");
 
 HeatRaceController correctedHeat = new();
-correctedHeat.Configure(1, 0, new[] { "Corrected", "Leader", "Waiting" }, activeLaneCount: 2);
+correctedHeat.Configure(60, 0, new[] { "Corrected", "Leader", "Waiting" }, activeLaneCount: 2);
 Assert(correctedHeat.Start(0), "correction regression heat should start");
 HeatRaceSnapshot correctionSnapshot = correctedHeat.GetSnapshot(0);
 int[] correctionTotals = correctionSnapshot.LaneRacers.Select(_ => 10).ToArray();
@@ -1061,7 +1066,7 @@ finally
 
 HeatRaceController reportHeat = new();
 reportHeat.Configure(
-    1,
+    60,
     0,
     new[] { "Ada", "Grace" },
     raceName: "Thursday Night",
@@ -1099,7 +1104,7 @@ HeatRaceReport report = reportHeat.CreateReport();
 Assert(report.RaceName == "Thursday Night", "report should include race name");
 Assert(report.TrackLengthFeet == 123.5, "report should include configured track length");
 Assert(report.QualifyingResults[0].RacerName == "Ada", "report should include qualifying order");
-Assert(report.HeatLengthMinutes == 1, "report should include heat length");
+Assert(report.HeatLengthSeconds == 60, "report should include heat length in seconds");
 Assert(report.BetweenHeatsSeconds == 0, "report should include between-heat seconds");
 Assert(report.Notes.Contains("Manual lap adjustments", StringComparison.OrdinalIgnoreCase), "report should include manual adjustment note");
 Assert(report.Racers[0].RacerName == "Ada", "report should sort finish order by total laps");

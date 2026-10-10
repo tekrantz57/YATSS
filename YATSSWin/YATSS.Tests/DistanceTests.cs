@@ -69,7 +69,7 @@ internal static class DistanceTests
         }
         HeatRaceController heat = new();
         LapRace race = new();
-        heat.Configure(1, 5, qualifiers.Select(result => result.RacerName).ToArray(), laneCount,
+        heat.Configure(60, 5, qualifiers.Select(result => result.RacerName).ToArray(), laneCount,
             raceName: "Distance <test>", qualifyingResults: qualifiers, format: RaceFormat.CombinedDistance, groups: groups);
         Check(heat.TotalHeats == groups.Count * laneCount, "each group has a full lane rotation");
         Dictionary<string, HashSet<int>> visited = qualifiers.ToDictionary(result => result.RacerName, _ => new HashSet<int>());
@@ -131,7 +131,10 @@ internal static class DistanceTests
         string directory = Path.Combine(Path.GetTempPath(), "YATSS.Tests", "distance-" + Guid.NewGuid());
         try
         {
-            RaceExportPaths paths = RaceArchiveWriter.Write(report, directory);
+            RaceExportPlan exportPlan = new(Guid.NewGuid(), DateTimeOffset.Now, Path.GetFullPath(directory), new());
+            RaceExportPaths paths = RaceArchiveWriter.Write(report, exportPlan: exportPlan);
+            Check(RaceArchiveWriter.Write(report, exportPlan: exportPlan) == paths, "distance export retry reuses paths");
+            Check(Directory.GetFiles(directory).Length == 9, "distance bundle retains eight artifacts and one receipt");
             using JsonDocument json = JsonDocument.Parse(File.ReadAllText(paths.Json!));
             Check(json.RootElement.GetProperty("race").GetProperty("distanceStandings").GetArrayLength() == racerCount, "JSON includes standings");
             Check(File.ReadAllText(paths.Html).Contains("Official Combined Distance"), "HTML distance results");

@@ -86,6 +86,12 @@ Settings backups do not include this journal. See
 [Active event recovery](../docs/ACTIVE_RACE_RECOVERY.md) for storage failures,
 outage-crossing uncertainty, pending approvals, and first-version limits.
 
+**Mode > Rerun Current Heat...** discards a stopped current heat attempt,
+restores its starting totals and full duration, and retains an audit. Earlier
+heats, qualifying credit and lane assignments stay intact. Power stays off;
+restore cars to their heat-start positions and press Space explicitly. See
+[Current-heat reruns](../docs/HEAT_RERUNS.md) for eligibility and export limits.
+
 ## Controller Diagnostics
 
 `File > Controller Diagnostics` opens a live eight-lane wiring view when the
@@ -179,6 +185,14 @@ The Next button on an unmodified Logitech R500s presenter sends Right Arrow;
 YATSS accepts that button as the same race-control command as Space. The
 presenter's Back and laser buttons have no race-control function.
 
+Heat Race setup uses whole seconds for heat length, just like intermissions:
+30 is half a minute, 90 is a minute and a half, and 180 is three minutes.
+Heat lengths range from 1 to 86,400 seconds (24 hours), with a default of 180.
+Combined Distance uses the same field for each racing segment. Demo Race still
+uses 60-second heats. Stopped time does not consume the configured duration.
+Saved minute-based settings and unfinished events are converted automatically
+without changing their duration. HTML, JSON, and results CSV record heat seconds.
+
 After a race, the app always writes a human-readable HTML report under:
 
 ```text
@@ -187,6 +201,11 @@ After a race, the app always writes a human-readable HTML report under:
 
 The `Race Reports` section in Configure independently enables a versioned JSON
 archive and normalized CSV exports. Both optional exports default to enabled.
+Event-specific filenames and saved export choices let interrupted exports retry
+without duplicate report copies. Files are staged before atomic replacement;
+a `.yatss-export` completion receipt is written last. If an export fails, fix
+storage/access, restart, and Finish Exports to finish the completed race's exports
+with power off. See [Race Reports and Data Exports](../docs/RACE_DATA_EXPORT.md).
 The JSON archive preserves race settings, lane metadata, qualifying sessions,
 accepted heat laps, results, standings, and manual lap adjustments. Numeric lap
 times remain in milliseconds so another program can format them without losing

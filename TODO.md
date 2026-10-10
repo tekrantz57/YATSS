@@ -8,8 +8,10 @@ substitute for physical sensor/relay testing or validation of newer code.
 
 1. Bench-validate normally open relay wiring, pulldowns, boot/reset behavior,
    watchdog cuts, and control-power loss/restoration before enabling track power.
-2. Confirm CI, including native controller tests; repair the local C++ toolchain
-   if local native tests are needed. All five board builds passed October 9.
+2. CI confirmed October 10: all seven jobs passed for `291ceb5`, including
+   Linux native tests and all five board builds. Local MSVC setup repaired;
+   all 6,328 controller checks pass. Verify the newly added Windows/MSVC CI
+   step and current changes after the next push.
 3. Bench-validate controller-loss and active-event recovery on Windows and Wine,
    including real sensor traffic, remaining time, and pending approvals.
 4. Validate sustained scoring/logging and the shared controller core on both
@@ -80,8 +82,17 @@ substitute for physical sensor/relay testing or validation of newer code.
   locked storage, ownership, compaction, corrections, rotations, approvals,
   interrupted qualifiers, and unsupported schemas.
 - See [Active event recovery](docs/ACTIVE_RACE_RECOVERY.md) for workflow and limits.
-- Consider archive browsing/retention, full-current-heat rollback, and
-  exactly-once exports after bench validation of this first version.
+- Implemented October 10: restart-safe exports use a journaled export plan,
+  stable event-specific paths, staged/flushed atomic file replacement, and a
+  last-published completion receipt. Tests force termination at every publish
+  boundary, exercise locked files, and verify retries, receipts, option retention,
+  and same-second event separation. No indivisible multi-file transaction claimed.
+- Implemented October 10: stopped current-heat rollback/rerun, reason and
+  discarded-attempt audit, full-duration restart, preserved prior heats and
+  qualifying credit, and journal/HTML/JSON/CSV coverage. Check dialog, cancellation
+  and explicit restart under Windows/Wine. See [Heat reruns](docs/HEAT_RERUNS.md).
+- Consider archive browsing/retention. Earlier-heat reopening and revising
+  already exported races are intentionally outside the first rerun version.
 - Exercise recovery after forced app termination, Windows restart, controller
   reset, and power loss before relying on YATSS for long endurance races.
 
@@ -110,10 +121,18 @@ substitute for physical sensor/relay testing or validation of newer code.
   protocol/lap-race test runner.
 - Added October 4, 2026: common native firmware tests, generated-source drift
   checks, and pinned-core compile jobs for Nano ESP32, C5 N16R8, C6 N4/N8, and
-  UNO Q. Confirm the new jobs run successfully on GitHub after pushing.
+  UNO Q. Confirmed October 10: all seven jobs passed in
+  [run 37996620059](https://github.com/tekrantz57/YATSS/actions/runs/37996620059)
+  for commit `291ceb5`; no firmware compile jobs were skipped.
 - October 9: new relay-output tests cover all 256 masks. The local native test
   launcher could not find `cl`; the inspected toolset lacks headers. Do not
   count the successful Arduino builds as a successful native regression run.
+- October 10: Linux native regression run is confirmed green on GitHub.
+  Added native MSVC tests to the Windows job and made local compiler detection
+  require the registered C++ tools. Installed missing MSVC x64/x86 components
+  and Windows SDK 10.0.26100; the local native run now passes all 6,328 checks
+  with warnings treated as errors. The new MSVC CI step and today's changes
+  still need verification on GitHub after pushing.
 - Consider caching NuGet and Arduino board packages if workflow time becomes
   noticeable.
 
@@ -234,8 +253,9 @@ substitute for physical sensor/relay testing or validation of newer code.
 
 - Rules comparison recorded October 5, 2026: see
   [Timing and scoring rules comparison](docs/TIMING_SCORING_RULES_COMPARISON.md).
-  Revisit final tie-breaks, group balancing/run order, fractional-minute segment
-  durations, and assigned versus chosen initial lanes with the venue owner.
+  Revisit final tie-breaks, group balancing/run order, and assigned versus chosen
+  initial lanes with the venue owner. Second-based heat/segment durations were
+  implemented October 10, 2026; bench-test short segments with real sensors.
   Consider backup-lap qualifying ties, segment reruns, and penalty workflows
   before claiming sanctioned-format support. Current local policies are
   unchanged; current USRA rules still need verification.

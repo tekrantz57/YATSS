@@ -38,7 +38,7 @@ namespace YATSS
             });
         }
 
-        private static string BuildHtml(HeatRaceReport report)
+        internal static string BuildHtml(HeatRaceReport report)
         {
             int?[] fastestByLane = GetFastestByLane(report);
             StringBuilder html = new();
@@ -59,7 +59,7 @@ namespace YATSS
             {
                 AppendMetadataRow(html, "Race name", report.RaceName);
             }
-            AppendMetadataRow(html, "Heat length", $"{report.HeatLengthMinutes} minute(s)");
+            AppendMetadataRow(html, "Heat length", $"{report.HeatLengthSeconds} second(s)");
             AppendMetadataRow(html, "Between heats", $"{report.BetweenHeatsSeconds} second(s)");
             AppendMetadataRow(
                 html,
@@ -77,6 +77,7 @@ namespace YATSS
             AppendFastLaps(html, report, fastestByLane);
             AppendHeatDetails(html, report);
             AppendManualAdjustments(html, report);
+            AppendReruns(html, report);
             html.AppendLine("</body></html>");
             return html.ToString();
         }
@@ -198,6 +199,16 @@ namespace YATSS
                 html.AppendLine("</tr>");
             }
 
+            html.AppendLine("</tbody></table>");
+        }
+
+        private static void AppendReruns(StringBuilder html, HeatRaceReport report)
+        {
+            if (report.Reruns.Count == 0) return;
+            html.AppendLine("<h2>Voided Heat Attempts</h2><p>These attempts are excluded from official results.</p>");
+            html.AppendLine("<table><thead><tr><th>Heat</th><th>Attempt</th><th>Recorded</th><th>Elapsed (ms)</th><th>Reason</th></tr></thead><tbody>");
+            foreach (HeatRaceRerun rerun in report.Reruns)
+                html.AppendLine($"<tr><td>{rerun.HeatNumber}</td><td>{rerun.DiscardedAttempt}</td><td>{WebUtility.HtmlEncode(rerun.RecordedAt.ToString("g"))}</td><td>{rerun.DiscardedElapsedMilliseconds}</td><td>{WebUtility.HtmlEncode(rerun.Reason)}</td></tr>");
             html.AppendLine("</tbody></table>");
         }
 

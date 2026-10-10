@@ -3,7 +3,7 @@ using Microsoft.Data.Sqlite;
 namespace YATSS
 {
     internal sealed record HeatRaceSetupSettings(
-        int HeatLengthMinutes,
+        int HeatLengthSeconds,
         int BetweenHeatsSeconds,
         string RaceName);
     internal sealed record QualifyingSetupSettings(int LaneIndex, int DurationSeconds);
@@ -19,7 +19,7 @@ namespace YATSS
 
     internal static class AppDatabase
     {
-        private const int CurrentSchemaVersion = 4;
+        private const int CurrentSchemaVersion = 5;
         public const int DefaultSensorDebounceMilliseconds = 1800;
         public const int DefaultRawSensorLockoutMilliseconds = 0;
         private static readonly object SyncRoot = new();
@@ -445,7 +445,7 @@ namespace YATSS
         {
             using SqliteCommand command = Connection.CreateCommand();
             command.CommandText = @"
-                SELECT heat_length_minutes, between_heats_seconds
+                SELECT heat_length_seconds, between_heats_seconds
                 FROM heat_race_settings
                 WHERE id = 1";
 
@@ -455,25 +455,25 @@ namespace YATSS
                 return defaults;
             }
 
-            int heatLengthMinutes = reader.IsDBNull(0) ? defaults.HeatLengthMinutes : reader.GetInt32(0);
+            int heatLengthSeconds = reader.IsDBNull(0) ? defaults.HeatLengthSeconds : reader.GetInt32(0);
             int betweenHeatsSeconds = reader.IsDBNull(1) ? defaults.BetweenHeatsSeconds : reader.GetInt32(1);
             reader.Close();
             using SqliteCommand raceNameCommand = Connection.CreateCommand();
             raceNameCommand.CommandText = @"SELECT race_name FROM heat_race_identity WHERE id = 1";
             string raceName = raceNameCommand.ExecuteScalar()?.ToString()?.Trim() ?? defaults.RaceName;
-            return new HeatRaceSetupSettings(heatLengthMinutes, betweenHeatsSeconds, raceName);
+            return new HeatRaceSetupSettings(heatLengthSeconds, betweenHeatsSeconds, raceName);
         }
 
         public static void SaveHeatRaceSettings(HeatRaceSetupSettings settings)
         {
             using SqliteCommand command = Connection.CreateCommand();
             command.CommandText = @"
-                INSERT INTO heat_race_settings (id, heat_length_minutes, between_heats_seconds)
-                VALUES (1, $heatLengthMinutes, $betweenHeatsSeconds)
+                INSERT INTO heat_race_settings (id, heat_length_seconds, between_heats_seconds)
+                VALUES (1, $heatLengthSeconds, $betweenHeatsSeconds)
                 ON CONFLICT(id) DO UPDATE SET
-                    heat_length_minutes = excluded.heat_length_minutes,
+                    heat_length_seconds = excluded.heat_length_seconds,
                     between_heats_seconds = excluded.between_heats_seconds";
-            command.Parameters.AddWithValue("$heatLengthMinutes", settings.HeatLengthMinutes);
+            command.Parameters.AddWithValue("$heatLengthSeconds", settings.HeatLengthSeconds);
             command.Parameters.AddWithValue("$betweenHeatsSeconds", settings.BetweenHeatsSeconds);
             command.ExecuteNonQuery();
 
@@ -499,7 +499,7 @@ namespace YATSS
             ExecuteNonQuery(@"
                 CREATE TABLE IF NOT EXISTS heat_race_settings (
                     id INTEGER PRIMARY KEY CHECK (id = 1),
-                    heat_length_minutes INTEGER NOT NULL,
+                    heat_length_seconds INTEGER NOT NULL,
                     between_heats_seconds INTEGER NOT NULL
                 )");
             ExecuteNonQuery(@"
@@ -546,6 +546,7 @@ namespace YATSS
                     id INTEGER PRIMARY KEY CHECK (id = 1),
                     debounce_milliseconds INTEGER NOT NULL
                 )");
+            DatabaseMaintenance.UpgradeHeatDuration(Connection);
             EnsureAppVoiceAnnouncementsColumn();
             EnsureAppSpeechBackendColumn();
             EnsureAppLapBestSoundsColumn();

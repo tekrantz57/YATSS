@@ -32,12 +32,12 @@ References are to the 2026 rulebook, principally sections 1.13-1.15, 2.3,
 | Distance qualifying | Two 30-second turns; 15-second changeover. | One qualifying allocation, default 60 seconds; no scheduled driver changeover. |
 | Groups | Balance groups; strongest runs last. | Consecutive full groups, then remainder: ten racers form 8+2. Strongest group runs first. |
 | Initial lanes | Assign by rank, best on red. | Each group chooses lanes in qualifying order. This is an intentional local rule, not the Production starting-lane rule. |
-| Production duration | Eight 7.5-minute segments. | Eight segments on eight lanes, but setup and controller configuration accept whole minutes only. 7.5 minutes cannot be selected. |
+| Production duration | Eight 7.5-minute segments. | Eight segments on eight lanes; second-based configuration now permits 450-second segments (October 10). |
 | Combined formula | Qualifying plus racing plus final sections. | Agrees conceptually. Qualifying credit remains separate from actual first-segment lap count in reports. |
 | Production final ties | Racing distance decides. | Equal combined totals use best eligible race lap, then director-confirmed order. This can reverse the rulebook result. |
 | Sprint qualifying ties | Second-best lap decides. | Normal fastest-lap qualifying falls back to original order after equal best laps. Combined qualifying instead uses best lap after equal distance, then director order. |
 | Sprint progression | Heats, semifinals, final; previous-stage tie-breaks. | No automatic championship advancement or corresponding multistage tie resolution. Normal heat races use a rotation queue above lane capacity. |
-| Counter failure | Rerun the affected segment. | Communication faults pause/recover and permit manual corrections; no dedicated race-segment rollback/rerun workflow. |
+| Counter failure | Rerun the affected segment. | Director can void/rerun the stopped current heat before final exports begin (October 10). Earlier heats cannot be reopened; communication faults still pause/recover rather than automatically rerun. |
 | Qualifying track fault | Optional rerun forfeits original attempt. | Ordinary qualifying track calls pause/resume. Communication-loss interruption requires a rerun; no equivalent optional track-fault rerun workflow. |
 | Penalties | Defined penalties and disqualification. | Generic audited lap adjustments, not a dedicated penalty or disqualification workflow. |
 | Track sections | 100 equal sections. | Hundredths are supported; arbitrary track markings need a director-prepared conversion chart. Software cannot enforce physical section layout. |
@@ -65,7 +65,7 @@ Class-specific exceptions matter; these are not universal rules for every class.
 | Eurosport | Balanced preliminary groups and advancement to a final. | Neither championship workflow is implemented. |
 | Wing qualifying | Some classes have bye/retry provisions. | No dedicated bye/retry machinery or class-specific qualifying policy. |
 | Lane rotation | European eight-lane rotation. | Agrees for eight-lane full rotations; four-lane consolation formats are not a separate event mode. |
-| Counter corrections | Corrections and restart options. | Audited whole-lap corrections exist; dedicated segment rollback/restart is absent. |
+| Counter corrections | Corrections and restart options. | Audited whole-lap corrections and stopped current-heat reruns exist. This is not a complete implementation of class-specific restart rules. |
 | Penalties | Prescribed lap penalties/disqualification. | Generic adjustments do not constitute an integrated penalty system. |
 | Lane changes | Retain stopping position. | Combined Distance explicitly instructs equivalent-position transfers without intermediate fraction credit. Physical compliance is the director's responsibility. |
 
@@ -80,16 +80,20 @@ class; there is no single USRA preset in YATSS.
    until that decision is made; this review does not authorize a behavior change.
 2. Revisit group balancing and weakest-to-strongest run order. These differ from
    the currently agreed 8+2, strongest-first implementation.
-3. Consider fractional-minute or second-based segment durations, especially
-   450-second Production segments, with matching reports, persistence, and tests.
+3. Second-based segment durations implemented October 10, 2026, with timing,
+   report, persistence, and recovery tests including 450-second segments.
+   Bench-test 450-second Production segments with real sensors.
 4. Decide whether assigned initial lanes should be another policy alongside
    group-local choices. Keep Production and sprint-stage policies distinct.
-5. Consider backup-lap qualifying tie-breaks, dedicated segment reruns, and
+5. Consider backup-lap qualifying tie-breaks, broader segment-rerun policies, and
    penalties/disqualification before claiming support for sanctioned formats.
 6. Obtain current USRA rules and venue-specific amendments before treating the
    historical comparison as an implementation specification.
 
 Keep the name **Combined Distance Racing** and describe the actual local rules.
+YATSS is an independent open-source alternative, not an effort to replace
+ISRA's established software. Comparisons identify capabilities and differences,
+not endorsements or a requirement to duplicate another system.
 Do not advertise blanket ISRA/USRA compliance. Estimates and projections remain
 unofficial until the director confirms physical finishing position.
 

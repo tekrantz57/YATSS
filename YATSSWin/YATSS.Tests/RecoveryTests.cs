@@ -10,13 +10,13 @@ internal static class RecoveryTests
 
     private static RaceRecoveryFrame Frame(HeatRaceController heat, LapRace laps, QualifyingController qualifying,
         Guid id, RaceRecoveryStore store, uint timestamp, bool reportWritten = false) =>
-        new(1, id, DateTimeOffset.Now, "Test", heat.CaptureRecovery(timestamp, store.Cursor?.Heat.HistoryVersion),
+        new(RaceRecoveryStore.SchemaVersion, id, DateTimeOffset.Now, "Test", heat.CaptureRecovery(timestamp, store.Cursor?.Heat.HistoryVersion),
             qualifying.CaptureRecovery(), laps.Options, laps.CaptureRecovery(store.Cursor?.Lanes), false,
             reportWritten, new[] { "A", "B", "C" }, 1800);
 
     public static void CrashFixture(string path)
     {
-        HeatRaceController heat = new(); heat.Configure(1, 10, new[] { "A", "B" }, 2);
+        HeatRaceController heat = new(); heat.Configure(60, 10, new[] { "A", "B" }, 2);
         LapRace laps = new(new(100, 600000, 155));
         QualifyingController qualifying = new();
         heat.Start(1000);
@@ -39,9 +39,9 @@ internal static class RecoveryTests
         Thread thread = new(() =>
         {
             Application.EnableVisualStyles();
-            HeatRaceController heat = new(); heat.Configure(4, 60, new[] { "A", "B" }, raceName: "Saturday Enduro");
+            HeatRaceController heat = new(); heat.Configure(240, 60, new[] { "A", "B" }, raceName: "Saturday Enduro");
             heat.Start(1000); heat.Pause(104000);
-            RaceRecoveryFrame frame = new(1, Guid.NewGuid(), DateTimeOffset.Now, "UI test", heat.CaptureRecovery(104000),
+            RaceRecoveryFrame frame = new(RaceRecoveryStore.SchemaVersion, Guid.NewGuid(), DateTimeOffset.Now, "UI test", heat.CaptureRecovery(104000),
                 new QualifyingController().CaptureRecovery(), LapRaceOptions.Default, new LapRace().CaptureRecovery(),
                 true, false, new[] { "A", "B" }, 1800);
             using RaceRecoveryChoiceForm choice = new(frame);
@@ -57,7 +57,7 @@ internal static class RecoveryTests
         try
         {
             string path = Path.Combine(directory, "ActiveRace.db");
-            HeatRaceController heat = new(); heat.Configure(1, 10, new[] { "A", "B", "C" }, 2);
+            HeatRaceController heat = new(); heat.Configure(60, 10, new[] { "A", "B", "C" }, 2);
             LapRace laps = new(new(100, 600000, 155));
             QualifyingController qualifying = new();
             Guid id = Guid.NewGuid();
@@ -135,7 +135,7 @@ internal static class RecoveryTests
         interrupted.SetDistanceTieOrder(new[] { 1, 0 });
         var ranked = interrupted.GetDistanceResults();
         var groups = QualifyingController.BuildGroups(ranked, new[] { 0, 1 }, 2);
-        HeatRaceController heat = new(); heat.Configure(1, 0, groups[0], 2,
+        HeatRaceController heat = new(); heat.Configure(60, 0, groups[0], 2,
             qualifyingResults: ranked, format: RaceFormat.CombinedDistance, groups: groups);
         LapRace laps = new(new(100, 600000, 155));
         for (int segment = 0; segment < 2; segment++)
@@ -173,7 +173,7 @@ internal static class RecoveryTests
 
     private static void TestWriteFailure(string path)
     {
-        HeatRaceController heat = new(); heat.Configure(1, 0, new[] { "A", "B" }, 2);
+        HeatRaceController heat = new(); heat.Configure(60, 0, new[] { "A", "B" }, 2);
         LapRace laps = new(); QualifyingController qualifying = new(); Guid id = Guid.NewGuid();
         using RaceRecoveryStore store = new(path); store.Save(Frame(heat, laps, qualifying, id, store, 0));
         using SqliteConnection blocker = new(new SqliteConnectionStringBuilder { DataSource = path, Pooling = false }.ToString());

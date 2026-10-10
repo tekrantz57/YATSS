@@ -64,7 +64,7 @@ namespace YATSS
     public sealed record HeatRaceReport(
         DateTime CreatedLocal,
         string RaceName,
-        int HeatLengthMinutes,
+        int HeatLengthSeconds,
         int BetweenHeatsSeconds,
         double TrackLengthFeet,
         int TotalHeats,
@@ -81,11 +81,12 @@ namespace YATSS
         public IReadOnlyList<DistanceStanding> DistanceStandings { get; init; } = Array.Empty<DistanceStanding>();
         public IReadOnlyDictionary<int, DistanceApproval> FinalDistanceApprovals { get; init; } = new Dictionary<int, DistanceApproval>();
         public DateTimeOffset? FinalTieOrderRecordedAt { get; init; }
+        public IReadOnlyList<HeatRaceRerun> Reruns { get; init; } = Array.Empty<HeatRaceRerun>();
     }
 
     public sealed partial class HeatRaceController
     {
-        public const int MaximumHeatLengthMinutes = 24 * 60;
+        public const int MaximumHeatLengthSeconds = 24 * 60 * 60;
 
         private static readonly LaneConfiguration[] DefaultLaneConfigurations =
             LaneConfiguration.CreateDefaults().ToArray();
@@ -153,19 +154,19 @@ namespace YATSS
             }
         }
 
-        public int HeatLengthMinutes
+        public int HeatLengthSeconds
         {
             get
             {
                 lock (_gate)
                 {
-                    return (int)Math.Max(1, _heatLengthMilliseconds / 60000);
+                    return (int)Math.Max(1, _heatLengthMilliseconds / 1000);
                 }
             }
         }
 
         public void Configure(
-            int heatLengthMinutes,
+            int heatLengthSeconds,
             int betweenHeatsSeconds,
             IReadOnlyList<string> racers,
             int activeLaneCount = LapProtocolParser.LaneCount,
@@ -224,13 +225,14 @@ namespace YATSS
                     TotalHeats = laneCount * _groups.Count;
                 }
                 _finalApprovals.Clear();
+                _reruns.Clear();
                 _recoveryHistoryVersion++;
                 _directorTieOrder.Clear();
                 _finalTieOrderRecordedAt = null;
                 _heatLengthMilliseconds = Math.Clamp(
-                    heatLengthMinutes,
+                    heatLengthSeconds,
                     1,
-                    MaximumHeatLengthMinutes) * 60000L;
+                    MaximumHeatLengthSeconds) * 1000L;
                 _betweenHeatsSeconds = Math.Clamp(betweenHeatsSeconds, 0, 300);
                 _activeMillisecondsBeforeRun = 0;
                 _raceTimestampBase = 0;
@@ -251,6 +253,7 @@ namespace YATSS
             lock (_gate)
             {
                 State = HeatRaceState.Practice;
+                _reruns.Clear();
                 _recoveryHistoryVersion++;
                 Format = RaceFormat.HeatRace;
                 _groups = Array.Empty<IReadOnlyList<string>>();
@@ -603,7 +606,7 @@ namespace YATSS
                 HeatRaceReport report = new HeatRaceReport(
                     DateTime.Now,
                     _raceName,
-                    HeatLengthMinutes,
+                    HeatLengthSeconds,
                     BetweenHeatsSeconds,
                     _trackLengthFeet,
                     TotalHeats,
@@ -643,7 +646,7 @@ namespace YATSS
                         Notes = "Combined Distance: approved qualifying credit + counted race laps + approved final fraction. All distances are in laps."
                     };
                 }
-                return report;
+                return report with { Reruns = _reruns.ToArray() };
             }
         }
 

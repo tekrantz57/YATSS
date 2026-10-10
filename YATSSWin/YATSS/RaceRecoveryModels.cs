@@ -3,13 +3,16 @@ namespace YATSS;
 public sealed record RecoveryRacer(string Name, int LapCount);
 public sealed record HeatRecovery(
     HeatRaceState State, int HeatNumber, int TotalHeats, long ElapsedMilliseconds,
-    long TimestampBase, bool FirstHeat, int HeatLengthMinutes, int BetweenHeatsSeconds,
+    long TimestampBase, bool FirstHeat, int HeatLengthSeconds, int BetweenHeatsSeconds,
     int ActiveLaneCount, string RaceName, double TrackLengthFeet, RaceFormat Format,
     LaneConfiguration[] LaneConfigurations, QualifyingResult[] Qualifiers, string[][] Groups,
     RecoveryRacer[] Lanes, RecoveryRacer[] Waiting, bool[] Seen,
     HeatRaceLaneResult[] Results, HeatRaceLapRecord[]? Laps,
     HeatRaceManualAdjustment[] Adjustments, Dictionary<int, DistanceApproval> Approvals,
-    Dictionary<int, int> TieOrder, DateTimeOffset? TieRecordedAt, int HistoryVersion);
+    Dictionary<int, int> TieOrder, DateTimeOffset? TieRecordedAt, int HistoryVersion)
+{
+    public HeatRaceRerun[]? Reruns { get; init; } = Array.Empty<HeatRaceRerun>();
+}
 public sealed record QualifyingRecovery(QualifyingState State, string[] Racers,
     QualifyingResult[] Results, int CurrentIndex, int LaneIndex, int DurationSeconds);
 public sealed record LaneRecovery(int Epoch, int StartIndex, LapRaceLaneSnapshot Snapshot,
@@ -17,7 +20,10 @@ public sealed record LaneRecovery(int Epoch, int StartIndex, LapRaceLaneSnapshot
 public sealed record RaceRecoveryFrame(int SchemaVersion, Guid EventId, DateTimeOffset SavedAt,
     string Reason, HeatRecovery Heat, QualifyingRecovery Qualifying,
     LapRaceOptions Options, LaneRecovery[] Lanes, bool Demo, bool ReportWritten,
-    string[] ConfiguredRacers, int SensorDebounceMilliseconds);
+    string[] ConfiguredRacers, int SensorDebounceMilliseconds)
+{
+    public RaceExportPlan? ExportPlan { get; init; }
+}
 
 public sealed partial class HeatRaceController
 {
@@ -31,7 +37,7 @@ public sealed partial class HeatRaceController
             long elapsed = State == HeatRaceState.Complete ? _heatLengthMilliseconds :
                 Math.Clamp(_activeMillisecondsBeforeRun + runElapsed, 0, _heatLengthMilliseconds);
             return new(State, HeatNumber, TotalHeats, elapsed, _raceTimestampBase, _isFirstHeat,
-                HeatLengthMinutes, _betweenHeatsSeconds, _initialLaneIndexes.Length, _raceName,
+                HeatLengthSeconds, _betweenHeatsSeconds, _initialLaneIndexes.Length, _raceName,
                 _trackLengthFeet, Format,
                 _laneNames.Select((name, index) => new LaneConfiguration(name, _laneColorArgb[index])).ToArray(),
                 _qualifyingResults.ToArray(), _groups.Select(group => group.ToArray()).ToArray(),
@@ -40,7 +46,8 @@ public sealed partial class HeatRaceController
                 _laneSeenThisHeat.ToArray(), _laneResults.ToArray(),
                 savedHistoryVersion == _recoveryHistoryVersion ? null : _laps.ToArray(),
                 _manualAdjustments.ToArray(), new(_finalApprovals), new(_directorTieOrder),
-                _finalTieOrderRecordedAt, _recoveryHistoryVersion);
+                _finalTieOrderRecordedAt, _recoveryHistoryVersion)
+                { Reruns = savedHistoryVersion == _recoveryHistoryVersion ? null : _reruns.ToArray() };
         }
     }
 
@@ -48,13 +55,13 @@ public sealed partial class HeatRaceController
     {
         if (saved.ActiveLaneCount is < 2 or > 8 || saved.Lanes.Length != 8 || saved.Seen.Length != 8 ||
             saved.LaneConfigurations.Length != 8 || saved.HeatNumber < 1 || saved.HeatNumber > saved.TotalHeats ||
-            saved.HeatLengthMinutes is < 1 or > MaximumHeatLengthMinutes ||
-            saved.ElapsedMilliseconds < 0 || saved.ElapsedMilliseconds > saved.HeatLengthMinutes * 60000L ||
+            saved.HeatLengthSeconds is < 1 or > MaximumHeatLengthSeconds ||
+            saved.ElapsedMilliseconds < 0 || saved.ElapsedMilliseconds > saved.HeatLengthSeconds * 1000L ||
             saved.State == HeatRaceState.Practice || saved.Laps == null)
             throw new InvalidDataException("Invalid saved heat state.");
         lock (_gate)
         {
-            Configure(saved.HeatLengthMinutes, saved.BetweenHeatsSeconds,
+            Configure(saved.HeatLengthSeconds, saved.BetweenHeatsSeconds,
                 saved.Lanes.Select(racer => racer.Name).Concat(saved.Waiting.Select(racer => racer.Name)).ToArray(),
                 saved.ActiveLaneCount, saved.LaneConfigurations, saved.RaceName, saved.TrackLengthFeet,
                 saved.Qualifiers, saved.Format, saved.Groups.Length == 0 ? null : saved.Groups);
@@ -80,6 +87,7 @@ public sealed partial class HeatRaceController
             _directorTieOrder.Clear(); foreach (var pair in saved.TieOrder) _directorTieOrder.Add(pair.Key, pair.Value);
             _finalTieOrderRecordedAt = saved.TieRecordedAt;
             _recoveryHistoryVersion = saved.HistoryVersion;
+            _reruns.Clear(); _reruns.AddRange(saved.Reruns ?? throw new InvalidDataException("Missing rerun history."));
         }
     }
 }

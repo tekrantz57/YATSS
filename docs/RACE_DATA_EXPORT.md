@@ -4,6 +4,11 @@ YATSS creates race artifacts when the final heat completes. The HTML report is
 the primary human-readable result. Optional JSON and CSV exports preserve the
 same scoring data for spreadsheets, custom reports, websites, and other tools.
 
+Current-heat reruns retain discarded attempts in a separate audit: HTML summary,
+full JSON `race.reruns`, and an additional `_reruns.csv` when CSV is enabled and
+reruns exist. Ordinary results/laps/adjustments exclude voided attempts. See
+[Current-heat reruns](HEAT_RERUNS.md) for the reason, data and eligibility rules.
+
 For Combined Distance Racing, final artifacts wait for director confirmation
 of every finishing fraction and any exact tie order. See
 [Combined Distance Racing](COMBINED_DISTANCE.md) for its scoring and workflow.
@@ -29,24 +34,57 @@ Artifacts are written under:
 %USERPROFILE%\Documents\YATSS Race Reports
 ```
 
-Every artifact from one race shares a timestamped basename:
+Every artifact from one race shares a timestamped basename and unique event ID:
 
 ```text
-HeatRace_yyyyMMdd_HHmmss.html
-HeatRace_yyyyMMdd_HHmmss.json
-HeatRace_yyyyMMdd_HHmmss_results.csv
-HeatRace_yyyyMMdd_HHmmss_laps.csv
-HeatRace_yyyyMMdd_HHmmss_qualifying.csv
-HeatRace_yyyyMMdd_HHmmss_adjustments.csv
+HeatRace_yyyyMMdd_HHmmss_<event-id>.html
+HeatRace_yyyyMMdd_HHmmss_<event-id>.json
+HeatRace_yyyyMMdd_HHmmss_<event-id>_results.csv
+HeatRace_yyyyMMdd_HHmmss_<event-id>_laps.csv
+HeatRace_yyyyMMdd_HHmmss_<event-id>_qualifying.csv
+HeatRace_yyyyMMdd_HHmmss_<event-id>_adjustments.csv
 ```
 
-Only the HTML file is present when both optional exports are disabled. Disabling
+Only the HTML race artifact is present when both optional exports are disabled.
+A small `.yatss-export` completion receipt is also written for every event.
+It is internal bundle metadata, not an optional JSON race archive. Disabling
 JSON does not affect CSV, and disabling CSV does not affect JSON.
 
 Combined Distance uses the prefix `CombinedDistance_` instead of `HeatRace_`
 and adds `_distance.csv` and `_distance_confirmations.csv` when CSV is enabled.
 Those tables preserve the official combined scores and distance confirmation
 audit; the ordinary integer lap fields describe racing only.
+
+## Interrupted Exports
+
+Before writing, YATSS saves the event ID, report timestamp, absolute output
+directory, and JSON/CSV choices in the active-event journal. A retry keeps that
+plan even if Configure settings or the current date have changed. Different
+events finishing in the same second cannot overwrite each other.
+
+All enabled artifacts are staged alongside their destinations and flushed to
+disk before publication. Each final file is replaced atomically: readers see
+a complete old or new file, never a partially written destination. The bundle
+is not a filesystem-wide transaction; a crash between replacements can leave
+only some final files. The `.yatss-export` receipt is published last and lists
+the event ID, timestamp, artifact names, and SHA-256 hashes. It is removed before
+replacing an existing bundle so it cannot claim that a mixed bundle is complete.
+
+Completion is recorded in the journal only after every artifact and receipt
+has been published. The report viewer opens afterward; a viewer failure does
+not undo successful exports. If saving the completion flag fails, recovery
+repeats the export safely at the same filenames.
+
+On export failure, fix the storage/access problem, restart YATSS, and choose
+**Finish Exports** for the completed event. YATSS retries without starting a heat
+or requiring controller traffic. Final distance approvals/tie decisions already
+saved with an export plan are retained. Incomplete `.yatss-tmp` files left by a
+crash are overwritten/cleaned on retry. Do not manually move or delete the
+active-event journal to dismiss an export failure.
+
+The guarantee is one stable set of output names with safe retries, not an
+indivisible multi-file commit or a guarantee against storage-device failure.
+Existing settings backups do not include pending event exports or their journal.
 
 ## Scoring Boundaries
 
@@ -98,7 +136,7 @@ otherwise, and the file is UTF-8 without a byte-order mark.
 
 | Property | Meaning |
 | --- | --- |
-| `schemaVersion` | Integer contract version. Current development exports use `2`; earlier exports used `1`. |
+| `schemaVersion` | Integer contract version. Current development exports use `3`; earlier exports used `1` or `2`. |
 | `applicationVersion` | YATSS assembly version that produced the archive. |
 | `exportedAt` | ISO 8601 timestamp with UTC offset for archive creation. |
 | `race` | Complete race-report object described below. |
@@ -113,7 +151,7 @@ change is introduced.
 | --- | --- |
 | `createdLocal` | Local date and time used for the artifact basename. |
 | `raceName` | Configured race name; may be empty. |
-| `heatLengthMinutes` | Configured active duration of each heat. |
+| `heatLengthSeconds` | Configured active duration of each heat in whole seconds (1 through 86,400). Replaces `heatLengthMinutes` in schema 3. |
 | `betweenHeatsSeconds` | Configured intermission duration. |
 | `trackLengthFeet` | Configured physical track length. |
 | `totalHeats` | Number of scheduled heats. |
@@ -212,6 +250,7 @@ One row is written for each occupied lane in each heat.
 | `HeatLaps` | Official laps credited during the heat, including manual corrections. |
 | `TotalLaps` | Official cumulative total after the heat. |
 | `BestLapMilliseconds` | Fastest eligible measured lap in that heat/lane, or blank. |
+| `HeatLengthSeconds` | Configured heat duration in whole seconds; appended to the results CSV columns. |
 
 ### Laps CSV
 

@@ -16,6 +16,9 @@ namespace YATSS
         bool ExportJson = true,
         bool ExportCsv = true);
 
+    public sealed record RaceExportPlan(Guid EventId, DateTimeOffset CreatedAt,
+        string OutputDirectory, RaceExportOptions Options);
+
     public sealed record RaceExportPaths(
         string Html,
         string? Json,
@@ -26,15 +29,26 @@ namespace YATSS
 
     public static class RaceArchiveWriter
     {
-        public const int CurrentSchemaVersion = 2;
-
-        private static readonly UTF8Encoding Utf8NoBom = new(false);
+        public const int CurrentSchemaVersion = 3;
 
         public static RaceExportPaths Write(
             HeatRaceReport report,
             string? outputDirectory = null,
-            RaceExportOptions? exportOptions = null)
+            RaceExportOptions? exportOptions = null,
+            RaceExportPlan? exportPlan = null) => WriteCore(report, outputDirectory, exportOptions, exportPlan, null);
+
+        internal static RaceExportPaths WriteCore(HeatRaceReport report, string? outputDirectory,
+            RaceExportOptions? exportOptions, RaceExportPlan? exportPlan, Action<int>? published)
         {
+            if (exportPlan != null)
+            {
+                if (exportPlan.EventId == Guid.Empty || exportPlan.Options == null ||
+                    !Path.IsPathFullyQualified(exportPlan.OutputDirectory))
+                    throw new ArgumentException("Invalid saved race export plan.");
+                outputDirectory = exportPlan.OutputDirectory;
+                exportOptions = exportPlan.Options;
+                report = report with { CreatedLocal = exportPlan.CreatedAt.DateTime };
+            }
             RaceExportOptions options = exportOptions ?? new RaceExportOptions();
             string directory = string.IsNullOrWhiteSpace(outputDirectory)
                 ? HeatRaceReportWriter.GetReportDirectory()
@@ -42,6 +56,7 @@ namespace YATSS
             Directory.CreateDirectory(directory);
 
             string baseName = $"{(report.Format == RaceFormat.CombinedDistance ? "CombinedDistance" : "HeatRace")}_{report.CreatedLocal:yyyyMMdd_HHmmss}";
+            if (exportPlan != null) baseName += $"_{exportPlan.EventId:N}";
             RaceExportPaths paths = new(
                 Path.Combine(directory, $"{baseName}.html"),
                 options.ExportJson ? Path.Combine(directory, $"{baseName}.json") : null,
@@ -50,42 +65,62 @@ namespace YATSS
                 options.ExportCsv ? Path.Combine(directory, $"{baseName}_qualifying.csv") : null,
                 options.ExportCsv ? Path.Combine(directory, $"{baseName}_adjustments.csv") : null);
 
-            HeatRaceReportWriter.Write(report, paths.Html);
+            List<(string Path, Func<string> Render)> artifacts = new()
+            {
+                (paths.Html, () => HeatRaceReportWriter.BuildHtml(report))
+            };
             if (paths.Json != null)
             {
-                WriteJson(report, paths.Json);
+                artifacts.Add((paths.Json, () => BuildJson(report, exportPlan?.CreatedAt ?? DateTimeOffset.Now)));
             }
 
             if (paths.ResultsCsv != null && paths.LapsCsv != null &&
                 paths.QualifyingCsv != null && paths.AdjustmentsCsv != null)
             {
-                File.WriteAllText(paths.ResultsCsv, BuildResultsCsv(report), Utf8NoBom);
-                File.WriteAllText(paths.LapsCsv, BuildLapsCsv(report), Utf8NoBom);
-                File.WriteAllText(paths.QualifyingCsv, BuildQualifyingCsv(report), Utf8NoBom);
-                File.WriteAllText(paths.AdjustmentsCsv, BuildAdjustmentsCsv(report), Utf8NoBom);
+                artifacts.Add((paths.ResultsCsv, () => BuildResultsCsv(report)));
+                artifacts.Add((paths.LapsCsv, () => BuildLapsCsv(report)));
+                artifacts.Add((paths.QualifyingCsv, () => BuildQualifyingCsv(report)));
+                artifacts.Add((paths.AdjustmentsCsv, () => BuildAdjustmentsCsv(report)));
+                if (report.Reruns.Count > 0)
+                    artifacts.Add((Path.Combine(directory, $"{baseName}_reruns.csv"), () => BuildRerunsCsv(report)));
                 if (report.Format == RaceFormat.CombinedDistance)
                 {
-                    File.WriteAllText(Path.Combine(directory, $"{baseName}_distance.csv"), BuildDistanceCsv(report), Utf8NoBom);
-                    File.WriteAllText(Path.Combine(directory, $"{baseName}_distance_confirmations.csv"), BuildDistanceConfirmationsCsv(report), Utf8NoBom);
+                    artifacts.Add((Path.Combine(directory, $"{baseName}_distance.csv"), () => BuildDistanceCsv(report)));
+                    artifacts.Add((Path.Combine(directory, $"{baseName}_distance_confirmations.csv"), () => BuildDistanceConfirmationsCsv(report)));
                 }
             }
+            AtomicRaceExports.Write(artifacts, exportPlan,
+                exportPlan == null ? null : Path.Combine(directory, baseName + ".yatss-export"), published);
             return paths;
         }
 
-        private static void WriteJson(HeatRaceReport report, string path)
+        private static string BuildJson(HeatRaceReport report, DateTimeOffset exportedAt)
         {
             string applicationVersion = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "unknown";
             RaceArchive archive = new(
                 CurrentSchemaVersion,
                 applicationVersion,
-                DateTimeOffset.Now,
+                exportedAt,
                 report);
             JsonSerializerOptions options = new(JsonSerializerDefaults.Web)
             {
                 WriteIndented = true
             };
             options.Converters.Add(new JsonStringEnumConverter());
-            File.WriteAllText(path, JsonSerializer.Serialize(archive, options), Utf8NoBom);
+            return JsonSerializer.Serialize(archive, options);
+        }
+
+        private static string BuildRerunsCsv(HeatRaceReport report)
+        {
+            StringBuilder csv = new();
+            AppendRow(csv, "Heat", "DiscardedAttempt", "RecordedAt", "ElapsedMilliseconds", "Reason",
+                "VoidedLaneResultsJson", "VoidedLapsJson", "VoidedAdjustmentsJson", "VoidedDistanceApprovalsJson");
+            foreach (HeatRaceRerun rerun in report.Reruns)
+                AppendRow(csv, rerun.HeatNumber, rerun.DiscardedAttempt, rerun.RecordedAt.ToString("O"),
+                    rerun.DiscardedElapsedMilliseconds, rerun.Reason, JsonSerializer.Serialize(rerun.LaneResults),
+                    JsonSerializer.Serialize(rerun.Laps), JsonSerializer.Serialize(rerun.ManualAdjustments),
+                    JsonSerializer.Serialize(rerun.FinalDistanceApprovals));
+            return csv.ToString();
         }
 
         private static string BuildResultsCsv(HeatRaceReport report)
@@ -93,7 +128,7 @@ namespace YATSS
             StringBuilder csv = new();
             AppendRow(csv,
                 "RaceName", "CreatedLocal", "FinalPlace", "Heat", "LaneNumber", "LaneName",
-                "Racer", "HeatLaps", "TotalLaps", "BestLapMilliseconds");
+                "Racer", "HeatLaps", "TotalLaps", "BestLapMilliseconds", "HeatLengthSeconds");
             Dictionary<string, int> places = report.Racers
                 .Select((racer, index) => new { racer.RacerName, Place = index + 1 })
                 .ToDictionary(item => item.RacerName, item => item.Place, StringComparer.OrdinalIgnoreCase);
@@ -109,7 +144,8 @@ namespace YATSS
                     result.RacerName,
                     result.HeatLaps,
                     result.TotalLaps,
-                    result.BestLapMilliseconds);
+                    result.BestLapMilliseconds,
+                    report.HeatLengthSeconds);
             }
 
             return csv.ToString();

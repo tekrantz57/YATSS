@@ -12,6 +12,24 @@ namespace YATSS
 
     internal sealed class DatabaseMaintenance
     {
+        internal static void UpgradeHeatDuration(SqliteConnection connection)
+        {
+            using SqliteCommand command = connection.CreateCommand();
+            command.CommandText = "PRAGMA table_info(heat_race_settings)";
+            bool hasMinutes = false;
+            using (SqliteDataReader reader = command.ExecuteReader())
+                while (reader.Read()) hasMinutes |= reader.GetString(1) == "heat_length_minutes";
+            if (!hasMinutes) return;
+            using SqliteTransaction transaction = connection.BeginTransaction();
+            command.Transaction = transaction;
+            command.CommandText = """
+                ALTER TABLE heat_race_settings RENAME COLUMN heat_length_minutes TO heat_length_seconds;
+                UPDATE heat_race_settings SET heat_length_seconds = MIN(86400, MAX(1, heat_length_seconds * 60));
+                """;
+            command.ExecuteNonQuery();
+            transaction.Commit();
+        }
+
         private readonly string _databasePath;
         private readonly string _automaticBackupDirectory;
         private readonly int _currentSchemaVersion;
@@ -342,6 +360,15 @@ namespace YATSS
             if (schemaVersion >= 4)
             {
                 AddRequiredColumn(requirements, "app_settings", "lap_best_sounds_enabled");
+            }
+            if (schemaVersion >= 5)
+            {
+                int index = requirements.FindIndex(item => item.TableName == "heat_race_settings");
+                requirements[index] = requirements[index] with
+                {
+                    Columns = requirements[index].Columns.Select(column =>
+                        column == "heat_length_minutes" ? "heat_length_seconds" : column).ToArray()
+                };
             }
             return requirements;
         }

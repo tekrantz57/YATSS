@@ -69,8 +69,8 @@ describe that release's behavior.
 - Optional qualifying with track calls and active-time scoring.
 - Multi-heat races for more racers than lanes, including timed or manually
   paused intermissions.
-- Heat lengths from one minute through 24 hours.
-- HTML reports and configurable JSON and CSV exports.
+- Heat lengths from 1 second through 24 hours (86,400 seconds), entered in seconds.
+- HTML reports and configurable JSON and CSV exports, with restart-safe retries.
 - Manual and automatic database backups with verified restore.
 - Live controller diagnostics and track-power relay pulse tests.
 - In-app controller firmware installation for Waveshare ESP32-C5 N16R8,
@@ -236,6 +236,7 @@ board cores are already installed.
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 - [Controller connection loss and recovery](docs/CONTROLLER_RECOVERY.md)
 - [Active event recovery after closing or crashing YATSS](docs/ACTIVE_RACE_RECOVERY.md)
+- [Director-controlled current-heat reruns](docs/HEAT_RERUNS.md)
 - [0.20 Beta 2 release notes](docs/RELEASE_0.20.0-beta.2.md)
 - [0.10 Beta 1 release notes](docs/RELEASE_0.10.0-beta.1.md)
 - [Project backlog](TODO.md)

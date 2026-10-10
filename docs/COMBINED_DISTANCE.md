@@ -8,6 +8,8 @@ are current working decisions and may change with venue-owner input.
 
 1. Select `Mode > Heat Race...` and choose `Combined Distance` in the format
    dropdown. Select racers, segment length, intermission, and race name as usual.
+   Segment length is entered in whole seconds, from 1 to 86,400 (24 hours);
+   for example, 90 gives a minute-and-a-half segment. The default is 180.
 2. The qualifying setup opens next. Choose a lane and duration; this format
    defaults to 60 seconds. Cancelling this dialog leaves the event waiting for
    `Mode > Qualifying...`; racing cannot start without approved qualifying.
@@ -131,10 +133,12 @@ The HTML report contains official combined standings, race lap breakdown,
 qualifying history, lane best laps, ordinary lap adjustments, and distance
 confirmation records. Its title identifies Combined Distance.
 
-Existing JSON/CSV configuration still applies. JSON archive schema 2 adds a
+Existing JSON/CSV configuration still applies. JSON archive schema 2 added a
 named race format, distance standings, qualifying approvals and tie decisions,
 final approvals, and final tie-order timestamp. Schema 2 is distinct from the
-database schema and does not require a database migration.
+database schema. Current archive schema 3 retains these fields and replaces
+`heatLengthMinutes` with `heatLengthSeconds`. Results CSV also includes
+`HeatLengthSeconds`. See [Race Reports and Data Exports](RACE_DATA_EXPORT.md).
 
 When CSV is enabled, the existing results/laps/qualifying/adjustments files remain
 available, plus:
