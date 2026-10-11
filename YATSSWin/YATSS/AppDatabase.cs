@@ -442,8 +442,11 @@ namespace YATSS
         }
 
         public static HeatRaceSetupSettings LoadHeatRaceSettings(HeatRaceSetupSettings defaults)
+            => LoadHeatRaceSettings(Connection, defaults);
+
+        internal static HeatRaceSetupSettings LoadHeatRaceSettings(SqliteConnection connection, HeatRaceSetupSettings defaults)
         {
-            using SqliteCommand command = Connection.CreateCommand();
+            using SqliteCommand command = connection.CreateCommand();
             command.CommandText = @"
                 SELECT heat_length_seconds, between_heats_seconds
                 FROM heat_race_settings
@@ -458,7 +461,7 @@ namespace YATSS
             int heatLengthSeconds = reader.IsDBNull(0) ? defaults.HeatLengthSeconds : reader.GetInt32(0);
             int betweenHeatsSeconds = reader.IsDBNull(1) ? defaults.BetweenHeatsSeconds : reader.GetInt32(1);
             reader.Close();
-            using SqliteCommand raceNameCommand = Connection.CreateCommand();
+            using SqliteCommand raceNameCommand = connection.CreateCommand();
             raceNameCommand.CommandText = @"SELECT race_name FROM heat_race_identity WHERE id = 1";
             string raceName = raceNameCommand.ExecuteScalar()?.ToString()?.Trim() ?? defaults.RaceName;
             return new HeatRaceSetupSettings(heatLengthSeconds, betweenHeatsSeconds, raceName);

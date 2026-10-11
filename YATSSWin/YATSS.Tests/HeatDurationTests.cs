@@ -11,6 +11,26 @@ internal static class HeatDurationTests
 
     public static void Run()
     {
+        Check(HeatRaceSetup.DefaultBetweenHeatsSeconds == 60, "new heat setup defaults to a one-minute intermission");
+        using (SqliteConnection settings = new("Data Source=:memory:"))
+        {
+            settings.Open();
+            using SqliteCommand command = settings.CreateCommand();
+            command.CommandText = "CREATE TABLE heat_race_settings(id INTEGER PRIMARY KEY, heat_length_seconds INTEGER, between_heats_seconds INTEGER); CREATE TABLE heat_race_identity(id INTEGER PRIMARY KEY, race_name TEXT);";
+            command.ExecuteNonQuery();
+            HeatRaceSetupSettings defaults = new(180, HeatRaceSetup.DefaultBetweenHeatsSeconds, "");
+            Check(AppDatabase.LoadHeatRaceSettings(settings, defaults).BetweenHeatsSeconds == 60,
+                "no saved settings uses sixty seconds");
+            foreach (int seconds in new[] { 0, 15, 60, 120, 300 })
+            {
+                command.CommandText = "INSERT OR REPLACE INTO heat_race_settings VALUES(1,90,$seconds)";
+                command.Parameters.Clear(); command.Parameters.AddWithValue("$seconds", seconds);
+                command.ExecuteNonQuery();
+                HeatRaceSetupSettings loaded = AppDatabase.LoadHeatRaceSettings(settings, defaults);
+                Check(loaded.BetweenHeatsSeconds == seconds && loaded.HeatLengthSeconds == 90,
+                    "explicit saved intermission preserved: " + seconds);
+            }
+        }
         foreach (int seconds in new[] { 1, 30, 90, 180, 450, 86400 })
         {
             HeatRaceController heat = new();

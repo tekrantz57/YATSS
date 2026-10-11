@@ -10,6 +10,8 @@ are current working decisions and may change with venue-owner input.
    dropdown. Select racers, segment length, intermission, and race name as usual.
    Segment length is entered in whole seconds, from 1 to 86,400 (24 hours);
    for example, 90 gives a minute-and-a-half segment. The default is 180.
+   Intermission defaults to 60 seconds when no settings have been saved;
+   your previously saved intermission takes precedence, including zero.
 2. The qualifying setup opens next. Choose a lane and duration; this format
    defaults to 60 seconds. Cancelling this dialog leaves the event waiting for
    `Mode > Qualifying...`; racing cannot start without approved qualifying.

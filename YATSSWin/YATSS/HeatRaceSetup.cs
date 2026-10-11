@@ -2,6 +2,7 @@ namespace YATSS
 {
     public sealed class HeatRaceSetup : Form
     {
+        internal const int DefaultBetweenHeatsSeconds = 60;
         private readonly CheckedListBox _racerList = new();
         private readonly ListBox _selectedRacers = new();
         private readonly DataGridView _laneGrid = new();
@@ -207,7 +208,7 @@ namespace YATSS
 
             _betweenHeatsSeconds.Minimum = 0;
             _betweenHeatsSeconds.Maximum = 300;
-            _betweenHeatsSeconds.Value = 0;
+            _betweenHeatsSeconds.Value = DefaultBetweenHeatsSeconds;
             _betweenHeatsSeconds.Width = 64;
             heatSettings.Controls.Add(_betweenHeatsSeconds);
 

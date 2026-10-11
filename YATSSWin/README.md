@@ -188,6 +188,8 @@ presenter's Back and laser buttons have no race-control function.
 Heat Race setup uses whole seconds for heat length, just like intermissions:
 30 is half a minute, 90 is a minute and a half, and 180 is three minutes.
 Heat lengths range from 1 to 86,400 seconds (24 hours), with a default of 180.
+Intermission defaults to 60 seconds when no setup has been saved. Previously
+saved values, including zero, are retained for both race formats.
 Combined Distance uses the same field for each racing segment. Demo Race still
 uses 60-second heats. Stopped time does not consume the configured duration.
 Saved minute-based settings and unfinished events are converted automatically
