@@ -61,7 +61,7 @@ Class-specific exceptions matter; these are not universal rules for every class.
 | Topic | USRA 2018 reference | Current YATSS |
 | --- | --- | --- |
 | Qualifying ties | Backup lap times resolve ties. | Not used by normal qualifying ranking. |
-| Scale format | Separate mains seeded by qualifying. | Normal format uses a rotating queue when racers exceed lane count. Combined Distance has separate groups, but different scoring. |
+| Scale format | Separate mains seeded by qualifying. | Ordinary races now optionally use qualifying-ranked Independent Groups with whole-lap results. Rotation Queue remains available; this does not implement all class-specific main/advancement rules. |
 | Eurosport | Balanced preliminary groups and advancement to a final. | Neither championship workflow is implemented. |
 | Wing qualifying | Some classes have bye/retry provisions. | No dedicated bye/retry machinery or class-specific qualifying policy. |
 | Lane rotation | European eight-lane rotation. | Agrees for eight-lane full rotations; four-lane consolation formats are not a separate event mode. |

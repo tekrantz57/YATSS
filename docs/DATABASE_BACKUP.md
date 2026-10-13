@@ -49,7 +49,9 @@ backups are retained. If today's backup already exists, YATSS verifies it
 instead of replacing it. A verification or write failure displays a warning but
 does not prevent the app from running.
 
-Settings schema 5 stores heat length in seconds. Opening an older database
+Settings schema 6 also stores ordinary heat-race scheduling. Existing settings
+default to Rotation Queue while preserving duration/intermission values.
+Heat length is stored in seconds since schema 5. Opening an older database
 converts saved whole-minute heat lengths to seconds (3 minutes becomes 180),
 preserving intermission settings. The conversion runs only once.
 

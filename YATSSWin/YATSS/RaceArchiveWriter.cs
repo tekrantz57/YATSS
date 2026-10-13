@@ -128,7 +128,7 @@ namespace YATSS
             StringBuilder csv = new();
             AppendRow(csv,
                 "RaceName", "CreatedLocal", "FinalPlace", "Heat", "LaneNumber", "LaneName",
-                "Racer", "HeatLaps", "TotalLaps", "BestLapMilliseconds", "HeatLengthSeconds");
+                "Racer", "HeatLaps", "TotalLaps", "BestLapMilliseconds", "Scheduling", "Group", "HeatLengthSeconds");
             Dictionary<string, int> places = report.Racers
                 .Select((racer, index) => new { racer.RacerName, Place = index + 1 })
                 .ToDictionary(item => item.RacerName, item => item.Place, StringComparer.OrdinalIgnoreCase);
@@ -145,6 +145,8 @@ namespace YATSS
                     result.HeatLaps,
                     result.TotalLaps,
                     result.BestLapMilliseconds,
+                    report.Scheduling,
+                    report.Scheduling == HeatRaceScheduling.IndependentGroups ? (result.HeatNumber - 1) / report.LaneNames.Count + 1 : 1,
                     report.HeatLengthSeconds);
             }
 

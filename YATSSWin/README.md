@@ -93,6 +93,17 @@ The commissioning worksheet complements, rather than replaces, the longer
 developer publish smoke test. It records sensor/power checks and physical race
 verification. Neither a completed worksheet nor a demo is safety certification.
 
+## Independent Heat Groups
+
+Mode > Heat Race offers **Scheduling: Rotation Queue / Independent Groups**.
+The default queue remains available. Independent Groups requires fastest-lap
+qualifying, then separate lane choices for consecutive qualifying-ranked groups.
+Each group completes a full rotation before the next starts; group changes
+always wait for Space. Ten racers on eight lanes form 8+2 and run sixteen heats.
+Final results compare racing laps only; qualifying contributes no lap credit.
+Settings, recovery and exports retain the scheduling/group assignments. See
+[Independent heat groups](../docs/INDEPENDENT_HEAT_GROUPS.md) for counting and ties.
+
 ## Active Event Recovery
 
 Unfinished races and qualifying sessions are saved separately in

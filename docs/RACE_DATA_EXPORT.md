@@ -4,6 +4,11 @@ YATSS creates race artifacts when the final heat completes. The HTML report is
 the primary human-readable result. Optional JSON and CSV exports preserve the
 same scoring data for spreadsheets, custom reports, websites, and other tools.
 
+Ordinary heat races may use Independent Groups. HTML lists starting groups;
+JSON preserves `race.scheduling` and lane-ordered `race.groups`. Results CSV
+includes `Scheduling` and `Group` alongside the global Heat number. Qualifying
+does not add credit in ordinary races. See INDEPENDENT_HEAT_GROUPS.md.
+
 Current-heat reruns retain discarded attempts in a separate audit: HTML summary,
 full JSON `race.reruns`, and an additional `_reruns.csv` when CSV is enabled and
 reruns exist. Ordinary results/laps/adjustments exclude voided attempts. See

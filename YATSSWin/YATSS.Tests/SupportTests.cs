@@ -65,6 +65,15 @@ internal static class SupportTests
             Capture(setup, Path.Combine(directory, "distance-setup.png"));
             format.SelectedIndex = 0; Application.DoEvents();
             Check(Field<DataGridView>(setup, "_laneGrid").Visible && Field<GroupBox>(setup, "_selectedGroup").Text == "Rotation Queue", "ordinary queue restored when switching back");
+            var scheduling = Field<ComboBox>(setup, "_scheduling");
+            scheduling.SelectedIndex = 1; Application.DoEvents();
+            Check(setup.Format == RaceFormat.HeatRace && setup.Scheduling == HeatRaceScheduling.IndependentGroups &&
+                !Field<DataGridView>(setup, "_laneGrid").Visible, "ordinary independent group choice");
+            Capture(setup, Path.Combine(directory, "independent-heat-setup.png"));
+            format.SelectedIndex = 1; Application.DoEvents();
+            Check(!scheduling.Enabled, "distance grouping cannot be disabled");
+            format.SelectedIndex = 0; Application.DoEvents();
+            Check(scheduling.Enabled && setup.Scheduling == HeatRaceScheduling.IndependentGroups, "ordinary scheduling retained across format switches");
             setup.Close();
             using Form owner = new() { Size = new Size(600, 450) };
             MenuStrip strip = new();

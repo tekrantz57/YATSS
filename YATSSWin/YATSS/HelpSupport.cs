@@ -12,6 +12,7 @@ internal static class HelpSupport
         new("Quick Start and Demo", "QUICK_START.md", "docs/QUICK_START.md"),
         new("Race Formats and Operation", "WINDOWS_APP.md", "YATSSWin/README.md"),
         new("Combined Distance Racing", "COMBINED_DISTANCE.md", "docs/COMBINED_DISTANCE.md"),
+        new("Independent Heat Groups", "INDEPENDENT_HEAT_GROUPS.md", "docs/INDEPENDENT_HEAT_GROUPS.md"),
         new("Controller Boards and Pin Maps", "CONTROLLER_GUIDE.md", "YATSSMC/README.md"),
         new("Track-Power Wiring", "RELAY_WIRING.md", "docs/RELAY_WIRING.md"),
         new("Installer Commissioning Checklist", "COMMISSIONING_CHECKLIST.md", "docs/COMMISSIONING_CHECKLIST.md"),

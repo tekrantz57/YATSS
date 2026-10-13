@@ -16,14 +16,14 @@ internal static class HeatDurationTests
         {
             settings.Open();
             using SqliteCommand command = settings.CreateCommand();
-            command.CommandText = "CREATE TABLE heat_race_settings(id INTEGER PRIMARY KEY, heat_length_seconds INTEGER, between_heats_seconds INTEGER); CREATE TABLE heat_race_identity(id INTEGER PRIMARY KEY, race_name TEXT);";
+            command.CommandText = "CREATE TABLE heat_race_settings(id INTEGER PRIMARY KEY, heat_length_seconds INTEGER, between_heats_seconds INTEGER, scheduling INTEGER DEFAULT 0); CREATE TABLE heat_race_identity(id INTEGER PRIMARY KEY, race_name TEXT);";
             command.ExecuteNonQuery();
             HeatRaceSetupSettings defaults = new(180, HeatRaceSetup.DefaultBetweenHeatsSeconds, "");
             Check(AppDatabase.LoadHeatRaceSettings(settings, defaults).BetweenHeatsSeconds == 60,
                 "no saved settings uses sixty seconds");
             foreach (int seconds in new[] { 0, 15, 60, 120, 300 })
             {
-                command.CommandText = "INSERT OR REPLACE INTO heat_race_settings VALUES(1,90,$seconds)";
+                command.CommandText = "INSERT OR REPLACE INTO heat_race_settings(id,heat_length_seconds,between_heats_seconds) VALUES(1,90,$seconds)";
                 command.Parameters.Clear(); command.Parameters.AddWithValue("$seconds", seconds);
                 command.ExecuteNonQuery();
                 HeatRaceSetupSettings loaded = AppDatabase.LoadHeatRaceSettings(settings, defaults);

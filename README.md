@@ -231,6 +231,7 @@ racer names, personal paths or connection addresses; **Report a Bug** opens GitH
 - [Shared controller core and maintenance](docs/SHARED_CONTROLLER.md)
 - [Normally open relay wiring and bench checks](docs/RELAY_WIRING.md)
 - [Combined Distance Racing](docs/COMBINED_DISTANCE.md)
+- [Independent groups for ordinary heat races](docs/INDEPENDENT_HEAT_GROUPS.md)
 - [Controller firmware updates](docs/CONTROLLER_FIRMWARE_UPDATE.md)
 - [Arduino UNO Q integrated controller](docs/UNO_Q_CONTROLLER.md)
 - [Serial protocol](docs/SERIAL_PROTOCOL.md)

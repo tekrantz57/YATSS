@@ -17,7 +17,7 @@ substitute for physical sensor/relay testing or validation of newer code.
 4. Validate sustained scoring/logging and the shared controller core on both
    controller families; complete each board's hardware checklist below.
 5. Validate Combined Distance Racing and revisit its working rules with the
-   venue owner. Separate-group lane choices for ordinary heat races remain open.
+   venue owner. Validate the new ordinary Independent Groups option as well.
 6. Defer archive enhancements, UNO Q in-app flashing, and sector timing until
    the current hardware/scoring/recovery workflows are proven.
 
@@ -280,8 +280,12 @@ substitute for physical sensor/relay testing or validation of newer code.
 - Bench-test start-line pulses, full rotation, equivalent-position car moves,
   short-group power masks, track calls, and interrupted qualifiers under
   Windows and Wine. Active-race recovery is implemented; bench validation remains pending.
-- The separate-group lane-choice change for existing fastest-lap heat races
-  remains pending; that format's existing rotation-queue behavior is unchanged.
+- Implemented October 13: ordinary heat races offer Independent Groups alongside
+  the existing Rotation Queue. Fastest-lap qualifying, group-local lane choices,
+  strongest-first full groups plus remainder, full rotations, explicit group
+  starts, recovery and reports are supported. See
+  [Independent heat groups](docs/INDEPENDENT_HEAT_GROUPS.md). Bench verification
+  under Windows/Wine remains pending; group balancing/advancement are not added.
 
 - The implemented naming, hundredths precision, qualifying carry, first-crossing
   rules, no intermediate fractions, independent groups, confirmations, tie

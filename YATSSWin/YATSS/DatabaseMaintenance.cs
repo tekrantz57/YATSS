@@ -370,6 +370,7 @@ namespace YATSS
                         column == "heat_length_minutes" ? "heat_length_seconds" : column).ToArray()
                 };
             }
+            if (schemaVersion >= 6) AddRequiredColumn(requirements, "heat_race_settings", "scheduling");
             return requirements;
         }
 

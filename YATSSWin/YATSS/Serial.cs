@@ -59,6 +59,8 @@ namespace YATSS
             LaneConfiguration.CreateDefaults();
         private IReadOnlyList<QualifyingResult> _qualifyingResults = Array.Empty<QualifyingResult>();
         private RaceFormat _configuredFormat;
+        private HeatRaceScheduling _configuredScheduling;
+        public bool GroupedRaceActive => _configuredScheduling == HeatRaceScheduling.IndependentGroups && _heatRace.State != HeatRaceState.Practice;
         private bool _distanceApprovalPending;
         private volatile int _raceConfigurationVersion;
         public bool CombinedDistanceActive => _configuredFormat == RaceFormat.CombinedDistance && _heatRace.State != HeatRaceState.Practice;
@@ -272,18 +274,19 @@ namespace YATSS
             int activeLaneCount,
             IReadOnlyList<LaneConfiguration> laneConfigurations,
             double trackLengthFeet,
-            RaceFormat format = RaceFormat.HeatRace)
+            RaceFormat format = RaceFormat.HeatRace,
+            HeatRaceScheduling scheduling = HeatRaceScheduling.RotationQueue)
         {
             lock (_controlGate)
             {
                 ConfigureHeatRaceCore(raceName, heatLengthSeconds, betweenHeatsSeconds,
-                    racers, activeLaneCount, laneConfigurations, trackLengthFeet, format);
+                    racers, activeLaneCount, laneConfigurations, trackLengthFeet, format, scheduling);
             }
         }
 
         private void ConfigureHeatRaceCore(string raceName, int heatLengthSeconds, int betweenHeatsSeconds,
             IReadOnlyList<string> racers, int activeLaneCount,
-            IReadOnlyList<LaneConfiguration> laneConfigurations, double trackLengthFeet, RaceFormat format)
+            IReadOnlyList<LaneConfiguration> laneConfigurations, double trackLengthFeet, RaceFormat format, HeatRaceScheduling scheduling)
         {
             if (!ArchiveActiveEvent("Replaced by a new event")) return;
             _eventId = Guid.NewGuid();
@@ -293,6 +296,7 @@ namespace YATSS
             _recoveryArmed = true;
             ClearDistanceWorkflow();
             _configuredFormat = format;
+            _configuredScheduling = format == RaceFormat.CombinedDistance ? HeatRaceScheduling.IndependentGroups : scheduling;
             StopControllerDiagnostics();
             CancelStartCountdown();
             CancelBetweenHeatsTimer();
@@ -318,12 +322,12 @@ namespace YATSS
                 raceName,
                 trackLengthFeet,
                 _qualifyingResults,
-                format);
+                format, scheduling: _configuredScheduling);
             HeatRaceSnapshot snapshot = _heatRace.GetSnapshot(GetCurrentControllerTimestamp());
             _form.ResetHeatTimingDisplay(snapshot.LaneLapCounts);
             PublishHeatRaceStatus("Ready");
-            SetTrackPowerEnabled(false, null, format == RaceFormat.CombinedDistance ?
-                "Combined Distance requires qualifying. Select Mode > Qualifying." :
+            SetTrackPowerEnabled(false, null, GroupedRaceActive ?
+                "Independent groups require qualifying and lane choices. Select Mode > Qualifying." :
                 $"Heat 1 ready: {heatLengthSeconds} second heat. Press Space to start.");
             _log.Info($"heat race configured for {heatLengthSeconds} second(s), {betweenHeatsSeconds} second(s) between heats");
         }
@@ -411,8 +415,8 @@ namespace YATSS
             if (!EventChangesAllowed) { _form.SetStatusMessage("Race recovery needs attention; track power remains off"); return; }
             if (_rerunRequest != Guid.Empty) return;
             if (_distanceApprovalPending) { _form.SetStatusMessage("Director distance confirmation required"); return; }
-            if (CombinedDistanceActive && !QualifyingActive && _qualifyingResults.Count == 0)
-            { _form.SetStatusMessage("Select Mode > Qualifying before starting Combined Distance."); return; }
+            if (GroupedRaceActive && !QualifyingActive && !_heatRace.GroupsConfigured)
+            { _form.SetStatusMessage("Select Mode > Qualifying before starting independent groups."); return; }
             if (_diagnosticsActive)
             {
                 _form.SetStatusMessage("Close Controller Diagnostics before using race controls");
@@ -493,6 +497,11 @@ namespace YATSS
                 _form.SetStatusMessage("Configure a heat race before qualifying");
                 return;
             }
+            if (GroupedRaceActive && _heatRace.GroupsConfigured)
+            {
+                _form.SetStatusMessage("This event's groups are already qualified. Configure a new event to qualify again.");
+                return;
+            }
 
             CancelStartCountdown();
             CancelBetweenHeatsTimer();
@@ -536,7 +545,7 @@ namespace YATSS
                 _configuredRaceName,
                 _configuredTrackLengthFeet,
                 _qualifyingResults,
-                _configuredFormat);
+                _configuredFormat, scheduling: _configuredScheduling);
             HeatRaceSnapshot snapshot = _heatRace.GetSnapshot(GetCurrentControllerTimestamp());
             _form.ResetBoardDisplay(clearRacers: false);
             _form.SetLaneRacerNames(snapshot.LaneRacers);
@@ -1024,7 +1033,9 @@ namespace YATSS
             _form.HideStartCountdown();
         }
 
-        private bool CanRunController() => _rerunRequest == Guid.Empty && EventChangesAllowed && (DemoLapStreamActive || _controllerSession.PowerAllowed);
+        private bool CanRunController() => _rerunRequest == Guid.Empty && EventChangesAllowed &&
+            (!GroupedRaceActive || _heatRace.GroupsConfigured || _qualifying.State is QualifyingState.Ready or QualifyingState.Running or QualifyingState.Paused) &&
+            (DemoLapStreamActive || _controllerSession.PowerAllowed);
 
         private bool IsCountdownCurrent(int countdownVersion)
         {
@@ -2068,7 +2079,7 @@ namespace YATSS
                             _configuredTrackLengthFeet,
                             _qualifyingResults,
                             _configuredFormat,
-                            groups.Count > 0 ? groups : null);
+                            groups.Count > 0 ? groups : null, _configuredScheduling);
                         HeatRaceSnapshot snapshot = _heatRace.GetSnapshot(GetCurrentControllerTimestamp());
                         if (!SaveRecovery("Qualifying lane assignments confirmed")) return;
                         _form.ResetBoardDisplay(clearRacers: false);
@@ -2080,7 +2091,7 @@ namespace YATSS
                         _log.Info("qualifying lane selections complete; heat race reseeded");
                         PublishDistanceStandings();
                     }
-                }, CombinedDistanceActive, () => version == _raceConfigurationVersion && EventChangesAllowed,
+                }, GroupedRaceActive, () => version == _raceConfigurationVersion && EventChangesAllowed,
                     _configuredActiveLaneCount, _configuredLaneConfigurations);
             }
             if (CombinedDistanceActive)
@@ -2159,7 +2170,7 @@ namespace YATSS
                 return;
             }
 
-            if (CombinedDistanceActive && _heatRace.NextHeatStartsGroup)
+            if (GroupedRaceActive && _heatRace.NextHeatStartsGroup)
             {
                 _form.SetStatusMessage($"Group {_heatRace.GroupNumber} complete. Place Group {_heatRace.GroupNumber + 1} at the starting line; press Space when ready.");
                 return;
@@ -2328,7 +2339,7 @@ namespace YATSS
                 _heatRace.TotalHeats,
                 state,
                 remaining,
-                CombinedDistanceActive ? $"Group {_heatRace.GroupNumber}/{_heatRace.GroupCount}" : snapshot.OnDeckRacer);
+                GroupedRaceActive ? $"Group {_heatRace.GroupNumber}/{_heatRace.GroupCount}" : snapshot.OnDeckRacer);
             PublishDistanceStandings();
         }
 
@@ -2338,6 +2349,7 @@ namespace YATSS
             _raceConfigurationVersion++;
             _distanceApprovalPending = false;
             _configuredFormat = RaceFormat.HeatRace;
+            _configuredScheduling = HeatRaceScheduling.RotationQueue;
             _form.UpdateDistanceStandings(null);
         }
 

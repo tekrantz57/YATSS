@@ -947,11 +947,12 @@ namespace YATSS
                     ActiveLaneCount,
                     LaneConfigurations,
                     TrackLengthFeet,
-                    heatRaceSetup.Format);
+                    heatRaceSetup.Format, heatRaceSetup.Scheduling);
                 SetRaceTitle(heatRaceSetup.RaceName);
-                SetLaneRacerNames(heatRaceSetup.FirstHeatLaneRacers);
+                SetLaneRacerNames(heatRaceSetup.Scheduling == HeatRaceScheduling.IndependentGroups
+                    ? Enumerable.Repeat(string.Empty, LapProtocolParser.LaneCount).ToArray() : heatRaceSetup.FirstHeatLaneRacers);
                 SetQualifyingAvailable(true);
-                if (heatRaceSetup.Format == RaceFormat.CombinedDistance)
+                if (heatRaceSetup.Scheduling == HeatRaceScheduling.IndependentGroups)
                     qualifyingToolStripMenuItem_Click(sender, e);
             }
         }

@@ -12,6 +12,7 @@ public sealed record HeatRecovery(
     Dictionary<int, int> TieOrder, DateTimeOffset? TieRecordedAt, int HistoryVersion)
 {
     public HeatRaceRerun[]? Reruns { get; init; } = Array.Empty<HeatRaceRerun>();
+    public HeatRaceScheduling Scheduling { get; init; }
 }
 public sealed record QualifyingRecovery(QualifyingState State, string[] Racers,
     QualifyingResult[] Results, int CurrentIndex, int LaneIndex, int DurationSeconds);
@@ -47,7 +48,7 @@ public sealed partial class HeatRaceController
                 savedHistoryVersion == _recoveryHistoryVersion ? null : _laps.ToArray(),
                 _manualAdjustments.ToArray(), new(_finalApprovals), new(_directorTieOrder),
                 _finalTieOrderRecordedAt, _recoveryHistoryVersion)
-                { Reruns = savedHistoryVersion == _recoveryHistoryVersion ? null : _reruns.ToArray() };
+                { Reruns = savedHistoryVersion == _recoveryHistoryVersion ? null : _reruns.ToArray(), Scheduling = Scheduling };
         }
     }
 
@@ -64,7 +65,7 @@ public sealed partial class HeatRaceController
             Configure(saved.HeatLengthSeconds, saved.BetweenHeatsSeconds,
                 saved.Lanes.Select(racer => racer.Name).Concat(saved.Waiting.Select(racer => racer.Name)).ToArray(),
                 saved.ActiveLaneCount, saved.LaneConfigurations, saved.RaceName, saved.TrackLengthFeet,
-                saved.Qualifiers, saved.Format, saved.Groups.Length == 0 ? null : saved.Groups);
+                saved.Qualifiers, saved.Format, saved.Groups.Length == 0 ? null : saved.Groups, saved.Scheduling);
             HeatNumber = saved.HeatNumber;
             TotalHeats = saved.TotalHeats;
             _activeMillisecondsBeforeRun = saved.ElapsedMilliseconds;

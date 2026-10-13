@@ -12,7 +12,7 @@ public partial class YATSS
         SensorDebounceMilliseconds = saved.SensorDebounceMilliseconds;
         ApplyLaneColors(); ApplyActiveLaneLayout(); SetHeatRaceMode();
         SetRaceTitle(saved.Heat.RaceName);
-        SetQualifyingAvailable(saved.Heat.State == HeatRaceState.Ready && saved.Qualifying.State == QualifyingState.Inactive);
+        SetQualifyingAvailable(saved.Heat.State == HeatRaceState.Ready && saved.Qualifying.State == QualifyingState.Inactive && saved.Heat.Groups.Length == 0);
     }
 
     public void RestoreEventBoard(HeatRecovery heat, IReadOnlyList<LapRaceLaneSnapshot> lanes)

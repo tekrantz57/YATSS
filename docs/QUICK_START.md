@@ -27,6 +27,8 @@ exercise sensor capture, controller communication or track-power switching.
   are 180 seconds per heat and 60 seconds between heats; saved choices remain.
 - Heat Race uses ordinary lap totals and its rotating queue. Optional fastest-
   lap qualifying is available through Mode > Qualifying.
+  For separate ranked groups, choose Scheduling > Independent Groups in setup;
+  fastest-lap qualifying and independent lane choices are then required.
 - Combined Distance requires distance qualifying, finishing-fraction approval
   after each qualifier, and group-local lane choices. Its first group starts
   at the line with qualifying credit already displayed. Transfer cars to

@@ -54,6 +54,22 @@ communication, and track-power behavior.
   lane assignments; Heat Race restores its existing lane grid/rotation queue.
 - [ ] Repeat Help/viewer and setup layout checks under ARM64 Wine.
 
+## Independent Heat Group Checks
+
+- [ ] Select Heat Race / Independent Groups. Cancel qualifying setup: verify
+  no race start or power-on until qualifying and lane choices finish.
+- [ ] Qualify ten racers on eight lanes. Collect separate lane choices for
+  ranks 1-8 and 9-10; all lanes become available again for group two.
+- [ ] Verify 16 global heats, every racer visiting eight lanes, no waiting-queue
+  crossover, and unused lanes off. Group two waits for Space even with a timed
+  intermission and starts with zero racing laps/no qualifying credit.
+- [ ] Check downward corrections, current-heat reruns, restart during qualifying
+  and at a group boundary, and ordinary results across all groups.
+- [ ] Verify HTML groups, JSON scheduling/assignments and CSV Group metadata.
+- [ ] Switch back to Rotation Queue and verify existing scheduling; switch
+  to Combined Distance and verify its fixed grouping and distance approvals.
+- [ ] Repeat physical workflow/UI under Windows and ARM64 Wine.
+
 ## Prerequisites
 
 - A clean Windows account, Windows Sandbox, or another Windows computer is

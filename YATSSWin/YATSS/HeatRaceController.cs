@@ -82,6 +82,8 @@ namespace YATSS
         public IReadOnlyDictionary<int, DistanceApproval> FinalDistanceApprovals { get; init; } = new Dictionary<int, DistanceApproval>();
         public DateTimeOffset? FinalTieOrderRecordedAt { get; init; }
         public IReadOnlyList<HeatRaceRerun> Reruns { get; init; } = Array.Empty<HeatRaceRerun>();
+        public HeatRaceScheduling Scheduling { get; init; }
+        public IReadOnlyList<IReadOnlyList<string>> Groups { get; init; } = Array.Empty<IReadOnlyList<string>>();
     }
 
     public sealed partial class HeatRaceController
@@ -131,6 +133,8 @@ namespace YATSS
         private DateTimeOffset? _finalTieOrderRecordedAt;
         private int _recoveryHistoryVersion;
         public RaceFormat Format { get; private set; }
+        public HeatRaceScheduling Scheduling { get; private set; }
+        public bool GroupsConfigured => _groups.Count > 0;
         public int GroupNumber => _groups.Count == 0 ? 1 : (HeatNumber - 1) / _initialLaneIndexes.Length + 1;
         public int GroupCount => Math.Max(1, _groups.Count);
         public bool IsGroupEnd => _groups.Count > 0 && HeatNumber % _initialLaneIndexes.Length == 0;
@@ -175,8 +179,10 @@ namespace YATSS
             double trackLengthFeet = 155.0,
             IReadOnlyList<QualifyingResult>? qualifyingResults = null,
             RaceFormat format = RaceFormat.HeatRace,
-            IReadOnlyList<IReadOnlyList<string>>? groups = null)
+            IReadOnlyList<IReadOnlyList<string>>? groups = null,
+            HeatRaceScheduling scheduling = HeatRaceScheduling.RotationQueue)
         {
+            if (!Enum.IsDefined(scheduling)) throw new ArgumentOutOfRangeException(nameof(scheduling));
             lock (_gate)
             {
                 int laneCount = Math.Clamp(activeLaneCount, 2, LapProtocolParser.LaneCount);
@@ -202,19 +208,20 @@ namespace YATSS
                 _trackLengthFeet = Math.Clamp(trackLengthFeet, 1.0, 10000.0);
                 _qualifyingResults = qualifyingResults?.ToArray() ?? Array.Empty<QualifyingResult>();
                 Format = format;
+                Scheduling = format == RaceFormat.CombinedDistance ? HeatRaceScheduling.IndependentGroups : scheduling;
                 _groups = groups?.Select(group => (IReadOnlyList<string>)group.ToArray()).ToArray()
                     ?? Array.Empty<IReadOnlyList<string>>();
-                if (format == RaceFormat.CombinedDistance && _groups.Count > 0)
+                if (_groups.Count > 0)
                 {
-                    if (_groups.Any(group => group.Count != laneCount) ||
+                    if (Scheduling != HeatRaceScheduling.IndependentGroups || _groups.Any(group => group.Count != laneCount) ||
                         _groups.Count != (_qualifyingResults.Count + laneCount - 1) / laneCount ||
                         _qualifyingResults.Select(result => result.OriginalOrder).Distinct().Count() != _qualifyingResults.Count ||
-                        _qualifyingResults.Any(result => result.Distance == null) ||
+                        (format == RaceFormat.CombinedDistance && _qualifyingResults.Any(result => result.Distance == null)) ||
                         _groups.SelectMany(group => group).Where(name => !string.IsNullOrWhiteSpace(name)).Count() != _qualifyingResults.Count ||
                         !_groups.SelectMany(group => group).Where(name => !string.IsNullOrWhiteSpace(name)).OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
                             .SequenceEqual(_qualifyingResults.Select(result => result.RacerName).OrderBy(name => name, StringComparer.OrdinalIgnoreCase), StringComparer.OrdinalIgnoreCase) ||
                         _qualifyingResults.Select(result => result.RacerName).Distinct(StringComparer.OrdinalIgnoreCase).Count() != _qualifyingResults.Count)
-                        throw new ArgumentException("Combined Distance requires approved qualifying and complete group lane assignments.");
+                        throw new ArgumentException("Independent groups require ranked qualifying and complete group lane assignments; Combined Distance also requires distance approval.");
                     for (int group = 0; group < _groups.Count; group++)
                     {
                         string[] members = _groups[group].Where(name => !string.IsNullOrWhiteSpace(name)).OrderBy(name => name).ToArray();
@@ -242,7 +249,8 @@ namespace YATSS
                 _laneResults.Clear();
                 _laps.Clear();
                 _manualAdjustments.Clear();
-                SetInitialRacers(_groups.Count > 0 ? _groups[0] : racers);
+                SetInitialRacers(Scheduling == HeatRaceScheduling.IndependentGroups && _groups.Count == 0
+                    ? Array.Empty<string>() : _groups.Count > 0 ? _groups[0] : racers);
                 Array.Fill(_laneSeenThisHeat, false);
                 State = HeatRaceState.Ready;
             }
@@ -256,6 +264,7 @@ namespace YATSS
                 _reruns.Clear();
                 _recoveryHistoryVersion++;
                 Format = RaceFormat.HeatRace;
+                Scheduling = HeatRaceScheduling.RotationQueue;
                 _groups = Array.Empty<IReadOnlyList<string>>();
                 _activeMillisecondsBeforeRun = 0;
                 _raceTimestampBase = 0;
@@ -278,7 +287,7 @@ namespace YATSS
                 {
                     return false;
                 }
-                if (Format == RaceFormat.CombinedDistance && _groups.Count == 0) return false;
+                if (Scheduling == HeatRaceScheduling.IndependentGroups && _groups.Count == 0) return false;
 
                 _runStartedAt = controllerTimestamp;
                 _hasRunStartedAt = true;
@@ -646,7 +655,8 @@ namespace YATSS
                         Notes = "Combined Distance: approved qualifying credit + counted race laps + approved final fraction. All distances are in laps."
                     };
                 }
-                return report with { Reruns = _reruns.ToArray() };
+                return report with { Reruns = _reruns.ToArray(), Scheduling = Scheduling,
+                    Groups = _groups.Select(group => (IReadOnlyList<string>)group.ToArray()).ToArray() };
             }
         }
 

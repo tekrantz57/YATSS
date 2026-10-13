@@ -66,12 +66,22 @@ namespace YATSS
                 "Track length",
                 $"{report.TrackLengthFeet.ToString("0.00", CultureInfo.CurrentCulture)} ft");
             AppendMetadataRow(html, "Racers", report.Racers.Count.ToString(CultureInfo.InvariantCulture));
+            AppendMetadataRow(html, "Scheduling", report.Scheduling == HeatRaceScheduling.IndependentGroups ? "Independent Groups" : "Rotation Queue");
             html.AppendLine("</tbody></table>");
             if (!string.IsNullOrWhiteSpace(report.Notes))
             {
                 html.AppendLine($"<p class=\"muted\">{WebUtility.HtmlEncode(report.Notes)}</p>");
             }
             AppendQualifyingResults(html, report);
+            if (report.Groups.Count > 0)
+            {
+                html.AppendLine("<h2>Starting Groups</h2><table><thead><tr><th>Group</th><th>Starting Lane</th><th>Racer</th></tr></thead><tbody>");
+                for (int group = 0; group < report.Groups.Count; group++)
+                    for (int lane = 0; lane < report.Groups[group].Count; lane++)
+                        if (!string.IsNullOrWhiteSpace(report.Groups[group][lane]))
+                            html.AppendLine($"<tr><td>{group + 1}</td><td>{WebUtility.HtmlEncode(report.LaneNames[lane])}</td><td>{WebUtility.HtmlEncode(report.Groups[group][lane])}</td></tr>");
+                html.AppendLine("</tbody></table>");
+            }
             AppendDistanceResults(html, report);
             AppendFinishOrder(html, report);
             AppendFastLaps(html, report, fastestByLane);

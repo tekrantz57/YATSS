@@ -22,6 +22,7 @@ if (args.Contains("--distance-ui")) { DistanceUiTests.Run(); return; }
 if (args.Contains("--rerun-ui-check")) { RerunTests.CheckUi(args[1]); return; }
 if (args.Contains("--support-ui-check")) { SupportTests.CheckUi(args[1]); return; }
 SupportTests.Run();
+GroupedHeatTests.Run();
 RecoveryTests.Run();
 HeatDurationTests.Run();
 RerunTests.Run();

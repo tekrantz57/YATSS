@@ -107,6 +107,9 @@ normal verified start workflow and record each lane independently.
       reference. Check noise while motors operate.
 - [ ] Run a short heat race with at least one lane rotation and track call.
       Verify racer identity, carried totals, heat duration and intermission.
+- [ ] If using ordinary Independent Groups, verify fastest-lap seeding, each
+      group's lane choices/full rotation, empty lanes off and explicit Space
+      between groups. Qualifying must not add racing lap credit.
 - [ ] Verify a manual correction and current-heat rerun; prior heats remain,
       power stays off, cars return to their heat-start positions before Space.
 - [ ] If using Combined Distance, test qualifying credit, lane choices,

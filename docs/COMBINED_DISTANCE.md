@@ -23,8 +23,9 @@ are current working decisions and may change with venue-owner input.
 4. After each qualifier, confirm its finishing fraction. Once qualifying is
    complete, resolve any exact ties and choose starting lanes for every group.
 
-Existing `Heat Race` scoring and its rotating queue remain unchanged. Independent
-starting-lane choices for separate fastest-lap race groups remain a separate TODO.
+Existing `Heat Race` scoring and its rotating queue remain available. Ordinary
+fastest-lap races can now select Independent Groups with separate group lane
+choices; see [Independent heat groups](INDEPENDENT_HEAT_GROUPS.md).
 
 ## Official distance
 

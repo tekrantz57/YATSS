@@ -121,6 +121,7 @@ public sealed partial class Serial
         if (saved.Qualifying.State is QualifyingState.Running or QualifyingState.Paused) _race.Reset();
         _eventId = saved.EventId;
         _configuredFormat = saved.Heat.Format;
+        _configuredScheduling = _heatRace.Scheduling;
         _configuredRaceName = saved.Heat.RaceName;
         _configuredHeatLengthSeconds = saved.Heat.HeatLengthSeconds;
         _configuredBetweenHeatsSeconds = saved.Heat.BetweenHeatsSeconds;
