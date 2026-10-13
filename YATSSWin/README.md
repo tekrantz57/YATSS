@@ -74,6 +74,25 @@ While YATSS is running, the app asks Windows to keep the system and display
 awake so the race board does not sleep or blank during timing. Normal power
 management resumes when the app exits.
 
+## Help and Installation
+
+The Help menu opens locally packaged guides as selectable plain text; Markdown
+notation remains visible. Internet is not required to read them. Missing guides
+offer an online fallback. The menu includes Quick Start and Demo, race operation,
+Combined Distance, controller boards/pin maps, track-power wiring, an installer
+commissioning checklist, troubleshooting, reruns and report exports.
+
+Copy Version Information includes the app build, runtime, architecture, OS,
+simulated-input state and last identified controller firmware. Controller
+identity is not a live readiness guarantee. No racer names, private paths or
+connection addresses are included. Report a Bug opens GitHub; review any logs
+or screenshots for private data before attaching them. About YATSS includes
+version information, the MIT license and development/verification status.
+
+The commissioning worksheet complements, rather than replaces, the longer
+developer publish smoke test. It records sensor/power checks and physical race
+verification. Neither a completed worksheet nor a demo is safety certification.
+
 ## Active Event Recovery
 
 Unfinished races and qualifying sessions are saved separately in

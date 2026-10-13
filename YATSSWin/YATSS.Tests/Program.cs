@@ -20,6 +20,8 @@ if (args.Contains("--export-crash-fixture")) { ExportRecoveryTests.CrashFixture(
 if (args.Contains("--recovery-ui")) { RecoveryTests.RunUi(); return; }
 if (args.Contains("--distance-ui")) { DistanceUiTests.Run(); return; }
 if (args.Contains("--rerun-ui-check")) { RerunTests.CheckUi(args[1]); return; }
+if (args.Contains("--support-ui-check")) { SupportTests.CheckUi(args[1]); return; }
+SupportTests.Run();
 RecoveryTests.Run();
 HeatDurationTests.Run();
 RerunTests.Run();

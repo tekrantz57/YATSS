@@ -219,7 +219,14 @@ board cores are already installed.
 
 ## Documentation
 
+The app's **Help** menu opens packaged guides offline, including a quick start,
+installer checklist, race operation, pin maps, wiring and troubleshooting.
+**Copy Version Information** provides build/platform/controller details without
+racer names, personal paths or connection addresses; **Report a Bug** opens GitHub.
+
 - [Windows application](YATSSWin/README.md)
+- [Quick start and demo](docs/QUICK_START.md)
+- [Installer commissioning checklist](docs/COMMISSIONING_CHECKLIST.md)
 - [Controller sketch, pin maps, and wiring](YATSSMC/README.md)
 - [Shared controller core and maintenance](docs/SHARED_CONTROLLER.md)
 - [Normally open relay wiring and bench checks](docs/RELAY_WIRING.md)

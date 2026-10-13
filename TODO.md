@@ -21,6 +21,18 @@ substitute for physical sensor/relay testing or validation of newer code.
 6. Defer archive enhancements, UNO Q in-app flashing, and sector timing until
    the current hardware/scoring/recovery workflows are proven.
 
+## Installer Help and Discoverability
+
+- Implemented October 13, 2026: Help menu, offline packaged guides, quick start,
+  commissioning worksheet, bug-report link, copyable non-private version summary,
+  and About. Installer checks complement the developer smoke test, not certify
+  hardware safety or physical timing accuracy.
+- Race setup now labels Race format and gives it a full row. Combined Distance
+  displays qualifying order instead of provisional lanes/rotation queue.
+- Automated checks cover menu dispatch, version fields, offline viewer and guide
+  packaging; Windows layout checks cover both formats at minimum size. Verify
+  Wine viewer/clipboard/layout before venue use.
+
 ## Communication loss and controller clock resets
 
 - Implemented October 4, 2026: read/write failures, heartbeat loss, watchdog

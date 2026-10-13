@@ -15,6 +15,8 @@ namespace YATSS
         private readonly Button _okButton = new();
         private readonly Random _random = new();
         private readonly List<string> _selectedNames = new();
+        private readonly TableLayoutPanel _heatLayout = new();
+        private readonly GroupBox _selectedGroup = new() { Dock = DockStyle.Fill };
         private readonly int _activeLaneCount;
         private readonly IReadOnlyList<int> _initialLaneIndexes;
         private readonly IReadOnlyList<int> _rotationLaneIndexes;
@@ -31,6 +33,12 @@ namespace YATSS
         public HeatRaceSetup(
             int activeLaneCount,
             IReadOnlyList<LaneConfiguration> laneConfigurations)
+            : this(activeLaneCount, laneConfigurations, LoadRacerNames(),
+                AppDatabase.LoadHeatRaceSettings(new(180, DefaultBetweenHeatsSeconds, string.Empty)))
+        { }
+
+        internal HeatRaceSetup(int activeLaneCount, IReadOnlyList<LaneConfiguration> laneConfigurations,
+            IReadOnlyList<string> racerNames, HeatRaceSetupSettings settings)
         {
             _activeLaneCount = Math.Clamp(activeLaneCount, 2, LapProtocolParser.LaneCount);
             _initialLaneIndexes = HeatRaceController.GetInitialLaneIndexes(_activeLaneCount);
@@ -51,8 +59,8 @@ namespace YATSS
             Size = new Size(860, 560);
 
             BuildLayout();
-            LoadRacers();
-            LoadSettings();
+            foreach (string name in racerNames) _racerList.Items.Add(name, false);
+            LoadSettings(settings);
             UpdateSelection();
         }
 
@@ -85,7 +93,7 @@ namespace YATSS
                 Padding = new Padding(8)
             };
             racerLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-            racerLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
+            racerLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 80F));
             racerLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 80F));
             racersGroup.Controls.Add(racerLayout);
 
@@ -137,29 +145,30 @@ namespace YATSS
 
             GroupBox heatGroup = new()
             {
-                Text = "First Heat",
+                Text = "Race",
                 Dock = DockStyle.Fill
             };
             root.Controls.Add(heatGroup, 1, 0);
 
-            TableLayoutPanel heatLayout = new()
-            {
-                Dock = DockStyle.Fill,
-                RowCount = 4,
-                Padding = new Padding(8)
-            };
-            heatLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38F));
+            TableLayoutPanel heatLayout = _heatLayout;
+            heatLayout.Dock = DockStyle.Fill;
+            heatLayout.RowCount = 4;
+            heatLayout.Padding = new Padding(8);
+            heatLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 70F));
             heatLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 68F));
             heatLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 70F));
             heatLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 30F));
             heatGroup.Controls.Add(heatLayout);
 
-            FlowLayoutPanel raceIdentity = new()
+            TableLayoutPanel raceIdentity = new()
             {
                 Dock = DockStyle.Fill,
-                FlowDirection = FlowDirection.LeftToRight,
-                WrapContents = false
+                ColumnCount = 2, RowCount = 2
             };
+            raceIdentity.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 92));
+            raceIdentity.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            raceIdentity.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
+            raceIdentity.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
             heatLayout.Controls.Add(raceIdentity, 0, 0);
 
             raceIdentity.Controls.Add(new Label
@@ -168,12 +177,15 @@ namespace YATSS
                 AutoSize = true,
                 Margin = new Padding(0, 6, 8, 0)
             });
-            _raceName.Width = 190;
+            _raceName.Dock = DockStyle.Fill;
             _raceName.MaxLength = 80;
             raceIdentity.Controls.Add(_raceName);
             _format.Items.AddRange(new object[] { "Heat Race", "Combined Distance" });
             _format.SelectedIndex = 0;
-            raceIdentity.Controls.Add(_format);
+            raceIdentity.Controls.Add(new Label { Text = "Race format", AutoSize = true, Margin = new Padding(0, 6, 8, 0) }, 0, 1);
+            _format.Dock = DockStyle.Fill;
+            raceIdentity.Controls.Add(_format, 1, 1);
+            _format.SelectedIndexChanged += (_, _) => RenderSelection();
 
             FlowLayoutPanel heatSettings = new()
             {
@@ -215,11 +227,7 @@ namespace YATSS
             ConfigureLaneGrid();
             heatLayout.Controls.Add(_laneGrid, 0, 2);
 
-            GroupBox selectedGroup = new()
-            {
-                Text = "Rotation Queue",
-                Dock = DockStyle.Fill
-            };
+            GroupBox selectedGroup = _selectedGroup;
             heatLayout.Controls.Add(selectedGroup, 0, 3);
 
             _selectedRacers.Dock = DockStyle.Fill;
@@ -297,13 +305,8 @@ namespace YATSS
         private static List<string> LoadRacerNames()
             => AppDatabase.LoadRacerNames();
 
-        private void LoadSettings()
+        private void LoadSettings(HeatRaceSetupSettings settings)
         {
-            HeatRaceSetupSettings settings = AppDatabase.LoadHeatRaceSettings(
-                new HeatRaceSetupSettings(
-                    (int)_heatLengthSeconds.Value,
-                    (int)_betweenHeatsSeconds.Value,
-                    string.Empty));
             _heatLengthSeconds.Value = Math.Clamp(
                 settings.HeatLengthSeconds,
                 (int)_heatLengthSeconds.Minimum,
@@ -409,6 +412,11 @@ namespace YATSS
 
         private void RenderSelection()
         {
+            bool distance = Format == RaceFormat.CombinedDistance;
+            _laneGrid.Visible = !distance;
+            _selectedGroup.Text = distance ? "Qualifying Order" : "Rotation Queue";
+            _heatLayout.SetRow(_selectedGroup, distance ? 2 : 3);
+            _heatLayout.SetRowSpan(_selectedGroup, distance ? 2 : 1);
             _laneGrid.Rows.Clear();
             IReadOnlyList<string> laneRacers = FirstHeatLaneRacers;
             for (int lane = 0; lane < _activeLaneCount; lane++)
@@ -431,13 +439,15 @@ namespace YATSS
                 string prefix = i < _initialLaneIndexes.Count
                     ? _laneNames[_initialLaneIndexes[i]]
                     : "Waiting";
-                _selectedRacers.Items.Add($"{prefix}: {_selectedNames[i]}");
+                _selectedRacers.Items.Add(distance ? $"{i + 1}. {_selectedNames[i]}" : $"{prefix}: {_selectedNames[i]}");
             }
 
             int waiting = Math.Max(0, _selectedNames.Count - _activeLaneCount);
             string entryLane = _laneNames[_rotationLaneIndexes[0]];
             string rotateOutLane = _laneNames[_rotationLaneIndexes[_rotationLaneIndexes.Count - 1]];
-            _queueLabel.Text = waiting > 0
+            _queueLabel.Text = distance
+                ? $"{_selectedNames.Count} selected; {(_selectedNames.Count + _activeLaneCount - 1) / _activeLaneCount} qualifying-ranked group(s)."
+                : waiting > 0
                 ? $"{_selectedNames.Count} selected; {waiting} waiting. New racers enter on {entryLane} after {rotateOutLane} rotates out."
                 : $"{_selectedNames.Count} selected; no racers waiting. Racers cycle from {rotateOutLane} back to {entryLane}.";
             _okButton.Enabled = _selectedNames.Count >= 2;

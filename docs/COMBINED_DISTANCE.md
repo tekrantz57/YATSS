@@ -7,7 +7,9 @@ are current working decisions and may change with venue-owner input.
 ## Event setup
 
 1. Select `Mode > Heat Race...` and choose `Combined Distance` in the format
-   dropdown. Select racers, segment length, intermission, and race name as usual.
+   dropdown labelled `Race format`. Select racers, segment length, intermission,
+   and race name as usual. The setup shows qualifying order, not provisional
+   race lane assignments; group lanes are chosen after qualifying.
    Segment length is entered in whole seconds, from 1 to 86,400 (24 hours);
    for example, 90 gives a minute-and-a-half segment. The default is 180.
    Intermission defaults to 60 seconds when no settings have been saved;

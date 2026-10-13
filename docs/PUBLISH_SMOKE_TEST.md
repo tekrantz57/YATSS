@@ -39,6 +39,21 @@ communication, and track-power behavior.
   See [Current-heat reruns](HEAT_RERUNS.md). Physical car positioning remains
   a director responsibility.
 
+## Help and Setup Checks
+
+- [ ] From the copied published folder, disconnect internet and open every
+  Help guide. Verify the quick start, installer checklist, pin maps, wiring,
+  troubleshooting, reruns and exports are readable locally.
+- [ ] Copy Version Information and inspect app/controller identity, OS,
+  runtime and architecture. Verify it contains no racer names, personal paths
+  or connection addresses. Controller identity alone is not live readiness.
+- [ ] Test About, clipboard availability and Report a Bug. If a guide is
+  missing, confirm the online fallback can be declined without affecting racing.
+- [ ] At the minimum setup window size, verify Race name and Race format fit.
+  Switch formats: Combined Distance shows qualifying order without provisional
+  lane assignments; Heat Race restores its existing lane grid/rotation queue.
+- [ ] Repeat Help/viewer and setup layout checks under ARM64 Wine.
+
 ## Prerequisites
 
 - A clean Windows account, Windows Sandbox, or another Windows computer is

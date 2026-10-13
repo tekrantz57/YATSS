@@ -77,6 +77,7 @@ namespace YATSS
             ConfigureModeMenu();
             ConfigureDataMenu();
             ConfigureControllerMenu();
+            ConfigureHelpMenu();
             Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? Icon;
             KeyPreview = true;
             ConfigureBoardLayout();
