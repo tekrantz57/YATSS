@@ -7,7 +7,6 @@ namespace YATSS
 {
     internal static class HeatRaceReportWriter
     {
-        private const string ReportDirectoryName = "YATSS Race Reports";
 
         public static string Write(HeatRaceReport report)
         {
@@ -20,10 +19,7 @@ namespace YATSS
             return path;
         }
 
-        internal static string GetReportDirectory() =>
-            Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-                ReportDirectoryName);
+        internal static string GetReportDirectory() => ApplicationPaths.ReportDirectory;
 
         internal static void Write(HeatRaceReport report, string path)
         {

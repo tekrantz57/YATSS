@@ -195,7 +195,7 @@ internal static class RecoveryTests
         try
         {
             Task<string?> ready = child.StandardOutput.ReadLineAsync();
-            Check(ready.Wait(TimeSpan.FromSeconds(20)) && ready.Result == "RECOVERY_FIXTURE_READY", "crash fixture must initialize");
+            Check(ready.Wait(TestWorkspace.FixtureTimeout) && ready.Result == "RECOVERY_FIXTURE_READY", "crash fixture must initialize");
         }
         finally { if (!child.HasExited) child.Kill(entireProcessTree: true); child.WaitForExit(); }
         using RaceRecoveryStore store = new(path);

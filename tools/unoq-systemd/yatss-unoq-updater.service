@@ -1,0 +1,16 @@
+[Unit]
+Description=YATSS authenticated local UNO Q updater
+After=default.target
+
+[Service]
+Type=simple
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/bin/python3 %h/.local/bin/yatss-unoq-update-helper.py --app %h/ArduinoApps/YATSSUnoQ
+Restart=on-failure
+RestartSec=5
+UMask=0077
+TimeoutStopSec=900
+KillSignal=SIGINT
+
+[Install]
+WantedBy=default.target

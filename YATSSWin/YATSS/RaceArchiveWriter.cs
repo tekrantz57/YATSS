@@ -30,6 +30,9 @@ namespace YATSS
     public static class RaceArchiveWriter
     {
         public const int CurrentSchemaVersion = 3;
+        internal static string FileBaseName(RaceFormat format, DateTime createdLocal, Guid? eventId = null) =>
+            $"{(format == RaceFormat.CombinedDistance ? "CombinedDistance" : "HeatRace")}_{createdLocal:yyyyMMdd_HHmmss}" +
+            (eventId.HasValue ? $"_{eventId.Value:N}" : "");
 
         public static RaceExportPaths Write(
             HeatRaceReport report,
@@ -55,8 +58,7 @@ namespace YATSS
                 : Path.GetFullPath(outputDirectory);
             Directory.CreateDirectory(directory);
 
-            string baseName = $"{(report.Format == RaceFormat.CombinedDistance ? "CombinedDistance" : "HeatRace")}_{report.CreatedLocal:yyyyMMdd_HHmmss}";
-            if (exportPlan != null) baseName += $"_{exportPlan.EventId:N}";
+            string baseName = FileBaseName(report.Format, report.CreatedLocal, exportPlan?.EventId);
             RaceExportPaths paths = new(
                 Path.Combine(directory, $"{baseName}.html"),
                 options.ExportJson ? Path.Combine(directory, $"{baseName}.json") : null,

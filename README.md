@@ -95,6 +95,9 @@ require director review. Practice sessions are not journaled.
   sketch.
 - `YATSSUnoQ` is an experimental Arduino App Lab controller that uses the UNO
   Q's STM32U585 and presents it to YATSS over localhost TCP.
+- Local UNO Q firmware updates can be initiated from YATSS under Wine using
+  the optional authenticated [Linux update helper](docs/UNO_Q_UPDATES.md).
+  Initial App Lab provisioning and end-to-end update bench testing are still required.
 - `Controller` owns shared firmware logic and version identity; both sketches
   include synchronized self-contained copies for IDE, CLI, and App Lab builds.
 
@@ -234,13 +237,16 @@ racer names, personal paths or connection addresses; **Report a Bug** opens GitH
 - [Independent groups for ordinary heat races](docs/INDEPENDENT_HEAT_GROUPS.md)
 - [Controller firmware updates](docs/CONTROLLER_FIRMWARE_UPDATE.md)
 - [Arduino UNO Q integrated controller](docs/UNO_Q_CONTROLLER.md)
+- [UNO Q updates from YATSS: helper setup and recovery](docs/UNO_Q_UPDATES.md)
 - [Serial protocol](docs/SERIAL_PROTOCOL.md)
 - [Race reports and data exports](docs/RACE_DATA_EXPORT.md)
+- [Race archive browser and retention](docs/RACE_ARCHIVES.md)
 - [Database backup and restore](docs/DATABASE_BACKUP.md)
 - [Piper speech on Windows and Linux](docs/PIPER_SPEECH.md)
 - [Linux speech under Wine](docs/LINUX_SPEECH.md)
 - [Building the ARM64 Wine and UNO Q packages on Linux](docs/LINUX_BUILD.md)
 - [Windows publish smoke test](docs/PUBLISH_SMOKE_TEST.md)
+- [Packaged Windows/Wine software regression validation](docs/SOFTWARE_VALIDATION.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 - [Controller connection loss and recovery](docs/CONTROLLER_RECOVERY.md)
 - [Active event recovery after closing or crashing YATSS](docs/ACTIVE_RACE_RECOVERY.md)

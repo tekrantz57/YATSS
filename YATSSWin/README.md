@@ -76,6 +76,13 @@ management resumes when the app exits.
 
 ## Help and Installation
 
+Self-contained Windows/Wine regression ZIPs can be built with
+`tools/Build-ValidationPackage.ps1` from the repository root. Packaged launchers
+run isolated test areas and retain summaries, structured results and logs.
+See [Software validation](../docs/SOFTWARE_VALIDATION.md) for Wine prefix,
+architecture, startup and failure-reporting requirements. This is not a real
+hardware test or complete director UI acceptance run.
+
 The Help menu opens locally packaged guides as selectable plain text; Markdown
 notation remains visible. Internet is not required to read them. Missing guides
 offer an online fallback. The menu includes Quick Start and Demo, race operation,
@@ -103,6 +110,15 @@ always wait for Space. Ten racers on eight lanes form 8+2 and run sixteen heats.
 Final results compare racing laps only; qualifying contributes no lap credit.
 Settings, recovery and exports retain the scheduling/group assignments. See
 [Independent heat groups](../docs/INDEPENDENT_HEAT_GROUPS.md) for counting and ties.
+
+## Race Archives
+
+**Data > Race Archives...** browses saved events while stopped with power off.
+Inspect unfinished snapshots, reopen original reports, or regenerate completed
+reports into unique export-copy folders. Confirmed deletion supports individual
+archives or archives older than a selected date; active events and exported
+files are never deleted. No automatic retention deletion is enabled. See
+[Race archives and retention](../docs/RACE_ARCHIVES.md) for guarantees and limits.
 
 ## Active Event Recovery
 
@@ -155,6 +171,11 @@ uploader is not bundled in YATSS release ZIPs. Nano updates similarly reuse
 Arduino's installed `dfu-util.exe` or download Arduino's pinned official build
 after approval and SHA-256 verification. See
 [Controller firmware updates](../docs/CONTROLLER_FIRMWARE_UPDATE.md).
+
+UNO Q updates use the same menu command when YATSS runs locally under Wine on
+the UNO Q. Install the bundled authenticated Linux helper first; see
+[UNO Q setup and recovery](../docs/UNO_Q_UPDATES.md). Initial provisioning still
+uses App Lab. Remote Windows-to-UNO Q flashing is not supported in this version.
 
 ## Practice Mode
 

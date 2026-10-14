@@ -6,7 +6,7 @@ namespace YATSS;
 
 // Small durable deltas between occasional full checkpoints avoid rewriting a
 // day's lap history on every crossing. This database is not the settings DB.
-public sealed class RaceRecoveryStore : IDisposable
+public sealed partial class RaceRecoveryStore : IDisposable
 {
     public const int SchemaVersion = 2;
     private readonly FileStream _lease;
@@ -60,7 +60,7 @@ public sealed class RaceRecoveryStore : IDisposable
         }
     }
 
-    private static RaceRecoveryFrame Deserialize(string json)
+    internal static RaceRecoveryFrame Deserialize(string json)
     {
         JsonNode node = JsonNode.Parse(json) ?? throw new InvalidDataException("Empty race journal record.");
         if (node["SchemaVersion"]?.GetValue<int>() == 1)

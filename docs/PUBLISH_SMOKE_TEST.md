@@ -70,6 +70,20 @@ communication, and track-power behavior.
   to Combined Distance and verify its fixed grouping and distance approvals.
 - [ ] Repeat physical workflow/UI under Windows and ARM64 Wine.
 
+## Race Archive Checks
+
+- [ ] Finish a demo event and restart so it is archived. Open Data > Race
+  Archives with power off; inspect search, pages, details and the demo flag.
+- [ ] Reopen the original report, then move a copy away to verify the missing
+  original message. Export a new copy with JSON/CSV choices and compare totals,
+  qualifying, groups, corrections and rerun audits. Originals stay unchanged.
+- [ ] Archive an abandoned event and verify it cannot produce final results.
+- [ ] While paused in another event, browse and export older events. Verify
+  current totals/time/lanes are unchanged; closing does not resume automatically.
+- [ ] On disposable test data only, cancel deletion, then delete one archive
+  and a date-based batch. Active recovery and exported files must remain intact.
+- [ ] Verify unavailable controls while racing/counting down and repeat on Wine.
+
 ## Prerequisites
 
 - A clean Windows account, Windows Sandbox, or another Windows computer is

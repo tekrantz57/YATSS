@@ -414,6 +414,7 @@ namespace YATSS
         {
             if (!EventChangesAllowed) { _form.SetStatusMessage("Race recovery needs attention; track power remains off"); return; }
             if (_rerunRequest != Guid.Empty) return;
+            if (_archiveBrowsing) return;
             if (_distanceApprovalPending) { _form.SetStatusMessage("Director distance confirmation required"); return; }
             if (GroupedRaceActive && !QualifyingActive && !_heatRace.GroupsConfigured)
             { _form.SetStatusMessage("Select Mode > Qualifying before starting independent groups."); return; }
@@ -786,7 +787,8 @@ namespace YATSS
         public async Task<bool> WaitForControllerIdentityAsync(
             string boardProfile,
             string firmwareVersion,
-            TimeSpan timeout)
+            TimeSpan timeout,
+            bool requireReady = false)
         {
             DateTime deadline = DateTime.UtcNow + timeout;
             while (DateTime.UtcNow < deadline && !_stop.IsCancellationRequested)
@@ -794,7 +796,8 @@ namespace YATSS
                 ControllerIdentity? identity = Volatile.Read(ref _controllerIdentity);
                 if (identity != null &&
                     string.Equals(identity.BoardProfile, boardProfile, StringComparison.OrdinalIgnoreCase) &&
-                    string.Equals(identity.FirmwareVersion, firmwareVersion, StringComparison.OrdinalIgnoreCase))
+                    string.Equals(identity.FirmwareVersion, firmwareVersion, StringComparison.OrdinalIgnoreCase) &&
+                    (!requireReady || _controllerSession.IsReady))
                 {
                     return true;
                 }
@@ -1033,7 +1036,7 @@ namespace YATSS
             _form.HideStartCountdown();
         }
 
-        private bool CanRunController() => _rerunRequest == Guid.Empty && EventChangesAllowed &&
+        private bool CanRunController() => !_archiveBrowsing && _rerunRequest == Guid.Empty && EventChangesAllowed &&
             (!GroupedRaceActive || _heatRace.GroupsConfigured || _qualifying.State is QualifyingState.Ready or QualifyingState.Running or QualifyingState.Paused) &&
             (DemoLapStreamActive || _controllerSession.PowerAllowed);
 

@@ -19,7 +19,9 @@ internal static class HelpSupport
         new("Troubleshooting", "TROUBLESHOOTING.md", "docs/TROUBLESHOOTING.md"),
         new("Active Event Recovery", "ACTIVE_RACE_RECOVERY.md", "docs/ACTIVE_RACE_RECOVERY.md"),
         new("Current-Heat Reruns", "HEAT_RERUNS.md", "docs/HEAT_RERUNS.md"),
-        new("Reports and Data Exports", "RACE_DATA_EXPORT.md", "docs/RACE_DATA_EXPORT.md")
+        new("Reports and Data Exports", "RACE_DATA_EXPORT.md", "docs/RACE_DATA_EXPORT.md"),
+        new("Race Archives and Retention", "RACE_ARCHIVES.md", "docs/RACE_ARCHIVES.md"),
+        new("UNO Q Updates", "UNO_Q_UPDATES.md", "docs/UNO_Q_UPDATES.md")
     };
 
     internal static string DocumentPath(string directory, HelpDocument document) =>

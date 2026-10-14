@@ -45,6 +45,8 @@ jobs:
         run: g++ -std=c++17 -Wall -Wextra -Werror -pedantic tests/controller/main.cpp -o controller-tests
       - name: Test common behavior
         run: ./controller-tests
+      - name: Test UNO Q update helper without hardware
+        run: python3 -m unittest discover -s tools/tests -p test_unoq_update.py -v
 
   firmware:
     name: Firmware (${{ matrix.board.name }})

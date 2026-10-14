@@ -15,20 +15,32 @@ static void Assert(bool condition, string message)
     }
 }
 
+if (args.Length > 0 && args[0] == "--validation")
+{
+    if (args.Length is < 2 or > 3 || (args.Length == 3 && (!int.TryParse(args[2], out int seconds) || seconds is < 30 or > 3600)))
+        throw new ArgumentException("Usage: --validation <results-directory> [suite-timeout-seconds:30..3600]");
+    Environment.ExitCode = RegressionRunner.Run(args[1], args.Length == 3 ? int.Parse(args[2]) : 600);
+    return;
+}
+TestWorkspace.Initialize();
+if (args.Length == 2 && args[0] == "--regression-suite" && RegressionRunner.RunSuite(args[1])) return;
 if (args.Contains("--recovery-crash-fixture")) { RecoveryTests.CrashFixture(args[1]); return; }
 if (args.Contains("--export-crash-fixture")) { ExportRecoveryTests.CrashFixture(args[1], int.Parse(args[2])); return; }
 if (args.Contains("--recovery-ui")) { RecoveryTests.RunUi(); return; }
 if (args.Contains("--distance-ui")) { DistanceUiTests.Run(); return; }
 if (args.Contains("--rerun-ui-check")) { RerunTests.CheckUi(args[1]); return; }
 if (args.Contains("--support-ui-check")) { SupportTests.CheckUi(args[1]); return; }
-SupportTests.Run();
-GroupedHeatTests.Run();
-RecoveryTests.Run();
-HeatDurationTests.Run();
-RerunTests.Run();
-ExportRecoveryTests.Run();
+if (args.Contains("--archives-ui-check")) { ArchiveTests.CheckUi(args[1]); return; }
+if (!args.Contains("--regression-suite"))
+{
+    ValidationRunnerTests.Run();
+    ArchiveTests.Run();
+    UnoQUpdateTests.Run();
+    SupportTests.Run(); GroupedHeatTests.Run(); RecoveryTests.Run(); HeatDurationTests.Run();
+    RerunTests.Run(); ExportRecoveryTests.Run();
+}
 bool originalSpeechEnabled = SpeechAnnouncer.Enabled;
-DistanceTests.Run();
+if (!args.Contains("--regression-suite")) DistanceTests.Run();
 SpeechBackendMode originalSpeechBackend = SpeechAnnouncer.BackendMode;
 try
 {

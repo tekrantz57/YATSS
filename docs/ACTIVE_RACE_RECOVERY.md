@@ -71,8 +71,10 @@ do not delete them to dismiss an error. Copying a live database alone is not a
 reliable backup. Settings backup/restore does not include this journal.
 
 Successfully exported completed events are archived on next launch. Resetting
-or abandoning an event archives it before replacement. Archives have no browser
-or automatic retention policy yet. Interrupted exports retry at the original
+or abandoning an event archives it before replacement. Data > Race Archives
+now provides browsing, completed-report export copies and confirmed manual
+retention deletion; no automatic deletion is enabled. See RACE_ARCHIVES.md.
+Interrupted exports retry at the original
 event-specific filenames with atomic file replacement and a completion receipt.
 Choose Finish Exports after correcting an export failure; a completed event only
 finishes its exports, never restarts racing. A crash after file publication but

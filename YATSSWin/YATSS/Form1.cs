@@ -145,6 +145,7 @@ namespace YATSS
             {
                 _backupDatabaseMenuItem,
                 _restoreDatabaseMenuItem,
+                new ToolStripMenuItem("Race Archives...", null, (_, _) => OpenRaceArchives()),
                 new ToolStripSeparator(),
                 _openDatabaseFolderMenuItem,
                 _openBackupFolderMenuItem
@@ -156,6 +157,8 @@ namespace YATSS
             _restoreDatabaseMenuItem.Click += (_, _) => RestoreDatabase();
             _openDatabaseFolderMenuItem.Click += (_, _) => OpenDatabaseFolder();
             _openBackupFolderMenuItem.Click += (_, _) => OpenBackupFolder();
+            dataMenu.DropDownOpening += (_, _) => dataMenu.DropDownItems.OfType<ToolStripMenuItem>()
+                .Single(item => item.Text == "Race Archives...").Enabled = s != null && s.CanBrowseArchives;
         }
 
         private void ConfigureControllerMenu()
@@ -178,18 +181,7 @@ namespace YATSS
             ControllerIdentity? identity = s.CurrentControllerIdentity;
             if (ControllerFirmwareUpdatePolicy.RequiresUnoQAppLab(port, identity))
             {
-                const string unoQMessage =
-                    "Arduino UNO Q controller firmware is currently installed through Arduino App Lab, " +
-                    "not through YATSS. Import and run the bundled YATSS UNO Q App Lab package to compile " +
-                    "and flash the STM32 controller and deploy its Linux bridge. In-app UNO Q updating is " +
-                    "planned but is not yet implemented.";
-                SetStatusMessage("UNO Q firmware updates require Arduino App Lab");
-                MessageBox.Show(
-                    this,
-                    unoQMessage,
-                    "Arduino UNO Q Firmware",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information);
+                await UpdateUnoQAsync();
                 return;
             }
 

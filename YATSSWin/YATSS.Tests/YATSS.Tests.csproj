@@ -8,5 +8,8 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\YATSS\YATSS.csproj" />
+    <Content Include="..\..\tools\Run-YatssValidation.ps1" Link="Run-YatssValidation.ps1" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\tools\run-yatss-validation-wine.sh" Link="run-yatss-validation-wine.sh" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\docs\SOFTWARE_VALIDATION.md" Link="VALIDATION.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

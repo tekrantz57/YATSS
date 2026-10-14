@@ -2,7 +2,7 @@
 
 ## Current priorities
 
-Updated October 9, 2026. There are no production installations yet. Implemented
+Updated October 14, 2026. There are no production installations yet. Implemented
 items below retain their validation gaps; historical demo runs are not a
 substitute for physical sensor/relay testing or validation of newer code.
 
@@ -18,8 +18,25 @@ substitute for physical sensor/relay testing or validation of newer code.
    controller families; complete each board's hardware checklist below.
 5. Validate Combined Distance Racing and revisit its working rules with the
    venue owner. Validate the new ordinary Independent Groups option as well.
-6. Defer archive enhancements, UNO Q in-app flashing, and sector timing until
-   the current hardware/scoring/recovery workflows are proven.
+6. Bench-validate the newly implemented archive browser and local UNO Q update
+   helper; defer remote UNO Q flashing and sector timing until the current
+   hardware/scoring/recovery workflows are proven.
+
+## Packaged Software Regression
+
+Packaged software regression implemented October 14: self-contained x64/ARM64
+test-package builder, Windows/Wine launchers, separate suite processes,
+retained results/logs, failure/timeout reporting and isolated test data. See
+[Software validation](docs/SOFTWARE_VALIDATION.md).
+- Verified October 14: all nine packaged suites passed on native Windows x64
+  and UNO Q ARM64 Wine 10.0 (Debian), both using .NET 10.0.12 and build
+  `v0.20.0-beta.2-13-ged2ef62-dirty`. The Wine run completed in about 72 seconds.
+- Later October 14 Windows validation passed all eleven suites, including
+  archives and the UNO Q updater client. All nine mocked Python helper tests
+  passed as well. The earlier Wine run predates these two new suites; validate
+  their Wine UI and an actual UNO Q update separately.
+- Director UI acceptance, a fake TCP fault controller, sustained runs and
+  physical tests remain separate work; this result is not hardware certification.
 
 ## Installer Help and Discoverability
 
@@ -103,8 +120,12 @@ substitute for physical sensor/relay testing or validation of newer code.
   discarded-attempt audit, full-duration restart, preserved prior heats and
   qualifying credit, and journal/HTML/JSON/CSV coverage. Check dialog, cancellation
   and explicit restart under Windows/Wine. See [Heat reruns](docs/HEAT_RERUNS.md).
-- Consider archive browsing/retention. Earlier-heat reopening and revising
-  already exported races are intentionally outside the first rerun version.
+- Implemented October 14: Data > Race Archives browser, metadata/details,
+  completed-report reconstruction into unique export-copy folders, and confirmed
+  individual/date-based deletion. No active-event replacement, original-file
+  deletion or automatic retention. See [Race archives](docs/RACE_ARCHIVES.md).
+- Earlier-heat reopening and revising already exported races remain outside
+  the rerun/archive workflows. Verify archive UI and regenerated reports on Wine.
 - Exercise recovery after forced app termination, Windows restart, controller
   reset, and power loss before relying on YATSS for long endurance races.
 
@@ -215,10 +236,12 @@ substitute for physical sensor/relay testing or validation of newer code.
 - Verify repeated YATSS stop/restart TCP reconnects without restarting the App
   Lab controller application.
 - Bench-test the source-directory stale-app checks and journal output on UNO Q.
-- Add an UNO Q firmware-update path initiated by YATSS through a Linux-side
-  `arduino-app-cli` helper. It must stop and restart the App Lab runtime safely,
-  flash the STM32 sketch, redeploy the bridge, and verify the controller
-  identity; the existing controller TCP connection is not a flashing transport.
+- Implemented October 14: local UNO Q updates initiated by YATSS under Wine
+  through an authenticated loopback-only Linux helper, with source backup,
+  stop/install/start ordering, and identity/heartbeat/power-off verification.
+  See `docs/UNO_Q_UPDATES.md`. Bench-test an actual update with and without the
+  boot supervisor, compile failure, helper/YATSS disconnect, and recovery before
+  relying on it. Remote Windows updates and blank-MCU provisioning remain deferred.
 - Bench-test sensor inputs for lanes 2-8, track-power outputs, watchdog
   behavior, relay polarity, and high-speed edge capture with the onboard status
   matrix enabled before using the UNO Q controller on a physical track. Lane 1

@@ -5,6 +5,12 @@ the STM32U585 microcontroller built into the Arduino UNO Q. It allows the UNO Q
 to run both YATSS under Wine and the real-time lane controller without a
 separate ESP32.
 
+After initial App Lab provisioning, YATSS can initiate local controller updates
+through the optional [UNO Q update helper](UNO_Q_UPDATES.md). It updates the
+sketch and bridge together, retains previous source, and verifies identity,
+heartbeat, and power-off acknowledgement. End-to-end bench validation remains
+pending; do not treat mocked updater tests as physical flashing validation.
+
 The Arduino Router remains enabled. The MCU sketch exchanges protocol messages
 with the Python side through Arduino Bridge RPC. Python publishes the YATSS
 controller protocol on TCP port 45991. This avoids asking Wine to treat a Linux

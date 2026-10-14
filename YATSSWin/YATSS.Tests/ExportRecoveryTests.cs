@@ -113,7 +113,7 @@ internal static class ExportRecoveryTests
         try
         {
             Task<string?> ready = child.StandardOutput.ReadLineAsync();
-            Check(ready.Wait(TimeSpan.FromSeconds(20)) && ready.Result == "EXPORT_FIXTURE_READY", "child reaches export boundary " + boundary);
+            Check(ready.Wait(TestWorkspace.FixtureTimeout) && ready.Result == "EXPORT_FIXTURE_READY", "child reaches export boundary " + boundary);
         }
         finally { if (!child.HasExited) child.Kill(entireProcessTree: true); child.WaitForExit(); }
         foreach (string file in Directory.GetFiles(plan.OutputDirectory, "*.html"))
