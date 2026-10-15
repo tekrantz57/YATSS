@@ -23,6 +23,7 @@ if (args.Length > 0 && args[0] == "--validation")
     return;
 }
 TestWorkspace.Initialize();
+if (args.Length == 1 && args[0] == "--tcp-test-ui") { TcpSimulatorTests.RunUi(); return; }
 if (args.Length == 2 && args[0] == "--regression-suite" && RegressionRunner.RunSuite(args[1])) return;
 if (args.Contains("--recovery-crash-fixture")) { RecoveryTests.CrashFixture(args[1]); return; }
 if (args.Contains("--export-crash-fixture")) { ExportRecoveryTests.CrashFixture(args[1], int.Parse(args[2])); return; }
@@ -36,6 +37,8 @@ if (!args.Contains("--regression-suite"))
     ValidationRunnerTests.Run();
     ArchiveTests.Run();
     UnoQUpdateTests.Run();
+    TimingSessionTests.Run();
+    TcpSimulatorTests.Run();
     SupportTests.Run(); GroupedHeatTests.Run(); RecoveryTests.Run(); HeatDurationTests.Run();
     RerunTests.Run(); ExportRecoveryTests.Run();
 }

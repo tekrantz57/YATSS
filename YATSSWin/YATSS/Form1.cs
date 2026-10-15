@@ -38,6 +38,7 @@ namespace YATSS
         private const string EmptyRacerName = "          ";
         private const string DefaultWindowTitle = "YATSS";
         private string _versionedWindowTitle = DefaultWindowTitle;
+        private bool _usingSimulatedController;
         public string port = "";
         public int MinLapMilliseconds { get; private set; } = LapRaceOptions.Default.MinLapMilliseconds;
         public bool SoundOnTooFastLap { get; private set; } = true;
@@ -1643,8 +1644,10 @@ namespace YATSS
 
         public void SetStatusMessage(string message)
         {
-            RunOnUiThread(() => statusLabel.Text = message);
+            RunOnUiThread(() => statusLabel.Text = (_usingSimulatedController ? "TCP TEST CONTROLLER | " : "") + message);
         }
+
+        public void SetSimulatedControllerIndicator(bool simulated) => RunOnUiThread(() => _usingSimulatedController = simulated);
 
         public void ShowStartCountdownStep(int step, Func<bool>? stillValid = null)
         {

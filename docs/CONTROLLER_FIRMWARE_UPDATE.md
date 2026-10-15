@@ -10,6 +10,11 @@ the controller. This first version requires YATSS running locally under Wine
 on the UNO Q and one-time helper setup. See [UNO Q updates](UNO_Q_UPDATES.md).
 Initial provisioning still uses Arduino App Lab.
 
+The current app requires protocol-5 session-aware firmware for physical racing.
+Update the app and controller together. Bundled package selection uses the
+firmware version embedded in the app build, ignoring obsolete packages left in
+an existing application folder. UNO Q source and updater helper must also match.
+
 ## Operator Procedure
 
 Current firmware uses normally open relay contacts with HIGH meaning run and

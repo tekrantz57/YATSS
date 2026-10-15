@@ -34,11 +34,12 @@ public:
 
   void begin() {
     setPower(0);
+    newSession();
     hello();
   }
 
   void YATSS_ISR_ATTR capture(uint8_t lane, bool active, uint32_t now) {
-    if (lane >= LaneCount) return;
+    if (!sessionReady_ || lane >= LaneCount) return;
     const uint8_t bit = uint8_t(1u << lane);
     if (diagnostic_) {
       if (active) sensorMask_ |= bit;
@@ -74,10 +75,27 @@ public:
       send("ERR:BAD_CHECKSUM");
       return;
     }
+    char* marker = strrchr(body, ':');
+    bool tagged = marker && strlen(marker + 1) == 16;
+    bool matching = tagged && strcmp(marker + 1, session_) == 0;
+    if (tagged) *marker = '\0';
+    bool powerOff = strcmp(body, "TRACK_POWER:OFF") == 0 || strcmp(body, "TRACK_POWER:MASK:00") == 0;
+    bool canEnergize = strcmp(body, "TRACK_POWER:ON") == 0 ||
+        (startsWith(body, "TRACK_POWER:MASK:") && !powerOff) || startsWith(body, "DIAG:RELAY:PULSE:");
+    if (sessionReady_ && !powerOff && ((tagged && !matching) || (canEnergize && !matching))) {
+      send("ERR:STALE_SESSION");
+      return;
+    }
     uint32_t now = Platform::now();
+    if (!sessionReady_ && strcmp(body, "RESET") != 0 && strcmp(body, "PING") != 0 &&
+        strcmp(body, "TRACK_POWER:OFF") != 0 && strcmp(body, "TRACK_POWER:MASK:00") != 0) {
+      setPower(0);
+      send("ERR:SESSION_ENTROPY");
+      return;
+    }
     lastCommand_ = now;
     watchdogArmed_ = true;
-    communicationProblem_ = false;
+    communicationProblem_ = !sessionReady_;
     if (strcmp(body, "RESET") == 0) {
       pulseActive_ = false;
       setPower(0);
@@ -96,6 +114,7 @@ public:
       }
       Platform::configureCapture(false);
       send("HELLO:RESETTING");
+      newSession();
       Platform::reset(); // ESP32 reboots; UNO Q retains MCU uptime.
       hello();
     } else if (strcmp(body, "TRACK_POWER:OFF") == 0) {
@@ -205,6 +224,8 @@ private:
   volatile uint32_t dropped_ = 0, totalDropped_ = 0;
   volatile uint32_t debounce_ = 1800;
   volatile bool diagnostic_ = false;
+  volatile bool sessionReady_ = false;
+  char session_[17] = "0000000000000000";
   volatile uint32_t transitions_[LaneCount] = {}, accepted_[LaneCount] = {};
   volatile uint32_t diagnosticLast_[LaneCount] = {}, transitionTime_[LaneCount] = {};
   volatile bool diagnosticBaseline_[LaneCount] = {};
@@ -247,19 +268,37 @@ private:
     return checksum(body) == expected;
   }
   void send(const char* format, ...) {
-    char body[192];
+    char body[210];
     va_list arguments;
     va_start(arguments, format);
-    int length = vsnprintf(body, sizeof(body), format, arguments);
+    int length = vsnprintf(body, 192, format, arguments);
     va_end(arguments);
-    if (length < 0 || size_t(length) >= sizeof(body)) return;
-    char frame[196];
+    if (length < 0 || length >= 192) return;
+    snprintf(body + length, sizeof(body) - size_t(length), ":%s", session_);
+    char frame[214];
     snprintf(frame, sizeof(frame), "%s*%02X", body, (unsigned)checksum(body));
     Platform::sendFrame(frame);
   }
   void hello() {
-    send("HELLO:YATSSMC:4:8:%s:%s:%lu", Platform::profile(), YATSSMC_FIRMWARE_VERSION,
+    send("HELLO:YATSSMC:5:8:%s:%s:%lu", Platform::profile(), YATSSMC_FIRMWARE_VERSION,
          (unsigned long)Platform::flashBytes());
+  }
+  void newSession() {
+    sessionReady_ = false;
+    for (uint8_t attempt = 0; attempt < 4; ++attempt) {
+      uint32_t high = 0, low = 0;
+      if (!Platform::randomSession(high, low)) break;
+      char candidate[17];
+      snprintf(candidate, sizeof(candidate), "%08lX%08lX", (unsigned long)high, (unsigned long)low);
+      if ((high != 0 || low != 0) && strcmp(candidate, session_) != 0) {
+        memcpy(session_, candidate, sizeof(session_));
+        sessionReady_ = true;
+        return;
+      }
+    }
+    memcpy(session_, "0000000000000000", sizeof(session_));
+    communicationProblem_ = true;
+    send("ERR:SESSION_ENTROPY");
   }
   void setPower(uint8_t mask) {
     powerMask_ = mask;

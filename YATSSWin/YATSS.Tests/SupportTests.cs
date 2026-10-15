@@ -25,10 +25,31 @@ internal static class SupportTests
                 if (item is ToolStripMenuItem command) command.PerformClick();
             Check(actions.SequenceEqual(HelpSupport.Documents.Select(document => document.FileName).Concat(new[] { "bug", "copy", "about" })),
                 "menu actions dispatch to correct guides/commands");
-            using Form viewer = HelpSupport.CreateDocumentViewer("Offline", "# Offline\nNo network needed.", _ => throw new Exception("Unexpected network"));
+            const string contents = "# Offline\nNo network needed.\nsystemctl --user restart yatss-unoq-updater.service";
+            string? copied = null;
+            bool opened = false;
+            using Form viewer = HelpSupport.CreateDocumentViewer("Offline", contents, _ => throw new Exception("Unexpected network"),
+                () => opened = true, value => copied = value);
             Check(((RichTextBox)viewer.Controls[0]).ReadOnly && ((RichTextBox)viewer.Controls[0]).Text.Contains("No network needed"), "offline selectable viewer");
+            RichTextBox text = (RichTextBox)viewer.Controls[0];
+            var toolbar = viewer.Controls.OfType<ToolStrip>().Single();
+            var selection = (ToolStripButton)toolbar.Items[0];
+            Check(!selection.Enabled && !text.HideSelection, "copy selection disabled until selected; selection remains visible without focus");
+            text.Select(text.Text.IndexOf("systemctl", StringComparison.Ordinal), text.Text.Length - text.Text.IndexOf("systemctl", StringComparison.Ordinal));
+            Check(selection.Enabled, "selection enables copy control");
+            selection.PerformClick();
+            Check(copied == "systemctl --user restart yatss-unoq-updater.service", "copy selected command without altering its text");
+            toolbar.Items[1].PerformClick();
+            Check(copied == contents, "copy all includes unselected document contents");
+            toolbar.Items[3].PerformClick();
+            Check(opened, "open original uses the supplied local-document action");
+            text.Select(0, 0);
+            Check(!selection.Enabled, "clearing selection disables copy selection");
+            using Form noOriginal = HelpSupport.CreateDocumentViewer("Generated", "", _ => { });
+            var emptyToolbar = noOriginal.Controls.OfType<ToolStrip>().Single();
+            Check(!emptyToolbar.Items[3].Enabled, "unavailable source is not offered");
         });
-        Console.WriteLine("Help menu, offline guides, version privacy and document packaging tests passed.");
+        Console.WriteLine("Help menu, copy controls, original document access, offline guides, version privacy and packaging tests passed.");
     }
 
     private static T Field<T>(object form, string name) => (T)form.GetType().GetField(name, BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(form)!;
@@ -75,6 +96,18 @@ internal static class SupportTests
             format.SelectedIndex = 0; Application.DoEvents();
             Check(scheduling.Enabled && setup.Scheduling == HeatRaceScheduling.IndependentGroups, "ordinary scheduling retained across format switches");
             setup.Close();
+            using (Form guide = HelpSupport.CreateDocumentViewer("UNO Q Updates", "# UNO Q Updates\n\nsystemctl --user restart yatss-unoq-updater.service", _ => { }, () => { }))
+            {
+                guide.Size = guide.MinimumSize;
+                guide.Show(); Application.DoEvents();
+                var toolbar = guide.Controls.OfType<ToolStrip>().Single();
+                Check(toolbar.Items.Cast<ToolStripItem>().All(item => item.Bounds.Right <= toolbar.ClientSize.Width), "help commands fit minimum-size window");
+                var text = guide.Controls.OfType<RichTextBox>().Single();
+                text.SelectAll(); Application.DoEvents();
+                Check(text.Top >= toolbar.Bottom && text.Bottom <= guide.ClientSize.Height, "help text does not overlap toolbar");
+                Capture(guide, Path.Combine(directory, "help-copy-controls.png"));
+                guide.Close();
+            }
             using Form owner = new() { Size = new Size(600, 450) };
             MenuStrip strip = new();
             var menu = HelpSupport.CreateMenu(_ => { }, () => { }, () => { }, () => { });

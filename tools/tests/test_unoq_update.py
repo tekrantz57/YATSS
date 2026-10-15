@@ -64,15 +64,25 @@ class UpdateTests(unittest.TestCase):
                 self.sent.append(data)
             def recv(self, _size):
                 return self.responses
-        identity = helper.frame("HELLO:YATSSMC:4:8:" + helper.PROFILE + ":test:0")
-        heartbeat = helper.frame("HEARTBEAT:1234")
-        off = helper.frame("HELLO:TRACK_POWER:OFF")
+        session = ":1234567890ABCDEF"
+        identity = helper.frame("HELLO:YATSSMC:5:8:" + helper.PROFILE + ":test:0" + session)
+        heartbeat = helper.frame("HEARTBEAT:1234" + session)
+        off = helper.frame("HELLO:TRACK_POWER:OFF" + session)
         connection = Connection(identity + heartbeat + off)
         with patch.object(helper.socket, "create_connection", return_value=connection):
             helper.verify_controller("test", seconds=1)
         self.assertIn(helper.frame("TRACK_POWER:OFF"), connection.sent[0])
+        legacy = helper.frame("HELLO:YATSSMC:4:8:" + helper.PROFILE + ":old:0") + \
+            helper.frame("HEARTBEAT:1234") + helper.frame("HELLO:TRACK_POWER:OFF")
+        with patch.object(helper.socket, "create_connection", return_value=Connection(legacy)):
+            helper.verify_controller(seconds=1)
+        with patch.object(helper.socket, "create_connection", return_value=Connection(legacy)), \
+                self.assertRaisesRegex(ValueError, "not the supported"):
+            helper.verify_controller("test", seconds=1)
         for responses, version in ((identity + heartbeat, "test"), (identity + off, "test"),
-                                   (heartbeat + off, "test"), (identity + heartbeat + off, "wrong")):
+                                   (heartbeat + off, "test"), (identity + heartbeat + off, "wrong"),
+                                   (identity + off + helper.frame("HEARTBEAT:1234:1111111111111111") + heartbeat, "test"),
+                                   (identity + heartbeat + helper.frame("HELLO:TRACK_POWER:OFF:1111111111111111"), "test")):
             with patch.object(helper.socket, "create_connection", return_value=Connection(responses)), \
                     self.assertRaisesRegex(RuntimeError, "verification failed"):
                 helper.verify_controller(version, seconds=0.02)

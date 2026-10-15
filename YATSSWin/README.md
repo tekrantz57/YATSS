@@ -84,7 +84,13 @@ architecture, startup and failure-reporting requirements. This is not a real
 hardware test or complete director UI acceptance run.
 
 The Help menu opens locally packaged guides as selectable plain text; Markdown
-notation remains visible. Internet is not required to read them. Missing guides
+notation remains visible. Internet is not required to read them.
+Each guide has Copy Selection, Copy All and Open
+Original controls. Copy Selection is enabled when text is selected and preserves
+that selection when the toolbar takes focus. Copy All copies the complete plain
+text, including commands. Open Original opens the packaged Markdown file using
+the system's file association; an associated editor/viewer must be installed.
+Clipboard or open failures show a warning and leave the guide open. Missing guides
 offer an online fallback. The menu includes Quick Start and Demo, race operation,
 Combined Distance, controller boards/pin maps, track-power wiring, an installer
 commissioning checklist, troubleshooting, reruns and report exports.
@@ -176,6 +182,12 @@ UNO Q updates use the same menu command when YATSS runs locally under Wine on
 the UNO Q. Install the bundled authenticated Linux helper first; see
 [UNO Q setup and recovery](../docs/UNO_Q_UPDATES.md). Initial provisioning still
 uses App Lab. Remote Windows-to-UNO Q flashing is not supported in this version.
+
+Physical timing requires session-aware protocol-5 firmware on all boards. The
+app detects a new controller timing session even when the clock did not roll
+back, rejects retired-session messages, and leaves racing paused until the
+director explicitly resumes after readiness verification. Update the app and
+controller firmware together; see [recovery](../docs/CONTROLLER_RECOVERY.md).
 
 ## Practice Mode
 

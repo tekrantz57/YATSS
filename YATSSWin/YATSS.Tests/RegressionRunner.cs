@@ -9,7 +9,7 @@ internal sealed record ValidationResult(string Suite, string Status, int? ExitCo
 
 internal static class RegressionRunner
 {
-    internal static readonly string[] Suites = { "runner", "help", "archives", "unoq-update", "groups", "recovery", "duration", "reruns", "exports", "distance", "core" };
+    internal static readonly string[] Suites = { "runner", "help", "archives", "unoq-update", "sessions", "tcp", "groups", "recovery", "duration", "reruns", "exports", "distance", "core" };
 
     internal static bool RunSuite(string name)
     {
@@ -22,6 +22,8 @@ internal static class RegressionRunner
             case "help": SupportTests.Run(); break;
             case "archives": ArchiveTests.Run(); break;
             case "unoq-update": UnoQUpdateTests.Run(); break;
+            case "sessions": TimingSessionTests.Run(); break;
+            case "tcp": TcpSimulatorTests.Run(); break;
             case "groups": GroupedHeatTests.Run(); break;
             case "recovery": RecoveryTests.Run(); break;
             case "duration": HeatDurationTests.Run(); break;

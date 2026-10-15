@@ -5,19 +5,41 @@ identity defined once in `Controller/FirmwareVersion.h`. The header uses fixed
 storage and standard C++11-compatible types; it does not depend on Arduino,
 ESP-IDF, Zephyr, RouterBridge, or the Windows application.
 
+The separate .NET `YATSS.Protocol` project links the app's canonical
+`LapProtocol.cs` parser/checksum code for both the app and portable
+[TCP simulator](TCP_CONTROLLER_SIMULATOR.md). That simulator tests app transport
+and recovery; it does not replace the native C++ shared-core tests or emulate
+sensor ISR execution.
+
 ## Ownership
 
-The core owns protocol-v4 framing/checksums, command parsing, per-lane debounce,
+The core owns protocol-v5 framing/checksums, timing-session identity, command parsing, per-lane debounce,
 sequences, bounded edge queues, heartbeat deadlines, diagnostics, relay-pulse
 lifecycle, and the five-second host-command watchdog. It never counts laps.
 
 `YATSSMC/YATSSMC.ino` is the ESP32 adapter: Nano/C5/C6 pin profiles, active-low
 inputs and relay polarity, ESP32 critical sections, ISR placement in IRAM,
 serial transport, runtime flash capacity, and hardware restart.
+It obtains session randomness from the ESP32 hardware RNG, temporarily enabling
+its entropy source while RF and ADC subsystems are unused.
 
 `YATSSUnoQ/sketch/sketch.ino` is the UNO Q adapter: D2-D9 sensor inputs, existing
 relay outputs, Zephyr interrupt locking, RouterBridge transport, MCU flash
 identity, and the existing static status matrix. Python/TCP handling is unchanged.
+It obtains randomness from Zephyr `sys_csrand_get`; the pinned core enables the
+STM32 hardware entropy device and hardware-backed generator. Entropy failure
+leaves power off, suppresses sensor capture, and refuses energizing commands.
+Session generation runs in foreground code, never in a sensor ISR.
+
+The adapter APIs are documented by
+[Espressif's RNG guide](https://docs.espressif.com/projects/esp-idf/en/stable/esp32c6/api-reference/system/random.html)
+and [Zephyr's random API](https://docs.zephyrproject.org/latest/doxygen/html/group__random__api.html).
+The installed UNO Q core's configuration also enables the STM32 entropy driver
+and hardware-backed CSPRNG; compilation verifies the API is available to sketches.
+
+Every controller response carries its session, including acknowledgements and
+diagnostics. Session rotation does not change pins or timestamp capture. See
+[serial protocol](SERIAL_PROTOCOL.md) and [recovery](CONTROLLER_RECOVERY.md).
 
 Both adapters timestamp in their sensor ISR. The core captures and debounces
 edges and assigns sequences inside that protected ISR call. No allocation,

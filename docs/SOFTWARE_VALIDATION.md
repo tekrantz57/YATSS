@@ -1,7 +1,7 @@
 # Packaged Software Regression Validation
 
 Run existing automated YATSS tests on Windows or ARM64 Wine. This is not the
-actual-app director acceptance worksheet, a fake controller, a physical test,
+actual-app director acceptance worksheet, a physical test,
 or timing/safety certification. No real controller is connected or flashed.
 WinForms tests require a working graphical session under Wine.
 
@@ -54,6 +54,8 @@ establish Wine compatibility.
 Separate child processes run runner-reporting checks; Help and packaged guides;
 archive browsing/reconstruction/export-copy/retention checks;
 UNO Q update bundle/authentication/HTTP completion checks (no hardware flashing);
+controller timing-session identity, stale-message rejection, and reset/reconnect checks;
+real-app TCP simulator fault/recovery integration (no physical controller);
 independent groups; active-event recovery; heat durations/intermission settings;
 heat reruns; restart-safe exports; Combined Distance; and existing core
 protocol/scoring/statistics/logging/speech-policy/backup tests. A failure does
@@ -69,7 +71,7 @@ Before tests access AppDatabase, the regression executable sets and verifies a
 process-local test-data path. The normal app sets no override; its paths remain
 unchanged. Each suite has its own TestData folder and redirected TEMP/TMP. Crash
 fixtures inherit that workspace. Migration/backup tests use fixture files only.
-Normal YATSS.db, ActiveRace.db, reports and backups are not used.
+Normal YATSS.db, ActiveRace.db, reports, backups and serial logs are not used.
 
 The default output is `Results` beside the launcher. Each run creates a unique
 subfolder containing `summary.txt`, `results.json`, raw suite logs and test data.
@@ -115,7 +117,31 @@ mocked Python tests also passed on Windows. These additions have not yet been
 run through an actual UNO Q firmware update or its Wine update UI; the earlier
 nine-suite Wine result must not be presented as validation of those features.
 
+October 15 session-aware protocol verification passed twelve Windows suites,
+including `sessions`, plus nine mocked Python helper tests and 6,722 shared C++
+checks. The UNO Q sketch compiles against the pinned Zephyr core with hardware
+entropy. Physical resets, power cycles, and the Wine UI still need bench checks
+with matching app, firmware, and updater helper.
+All four ESP32 packages were rebuilt as `0.20.0-beta.2-session.1` and their
+manifest versions, image lengths, and SHA-256 hashes verified. The matching
+UNO Q App Lab import ZIP was regenerated. No controller was flashed.
+
 ## Run from Source
+
+October 15 TCP simulator addition: all thirteen Windows suites passed. Both the
+portable console and isolated real-app interactive launcher passed startup/exit
+smoke checks. This includes the qualifying pre-start-heartbeat underflow fix.
+The expanded package still needs an ARM64 Wine run. Separately, the user
+verified a successful local UNO Q update under Wine with returning heartbeats;
+that does not cover update failure/interruption scenarios.
+Later October 15, all thirteen suites passed again with explicit Help copy and
+original-file controls. Their dispatch and exact copied text are covered by
+automated checks; minimum-size Windows toolbar layout was captured and checked.
+Wine clipboard integration and Markdown file associations remain desktop checks.
+
+The thirteen-suite runner now includes `tcp`, which launches the real app
+against an isolated loopback controller. Interactive testing is available with
+`YATSS.Tests.exe --tcp-test-ui`; see [TCP test controller](TCP_CONTROLLER_SIMULATOR.md).
 
 ```powershell
 dotnet run --project YATSSWin/YATSS.Tests -c Release -- --validation ./artifacts/validation-results

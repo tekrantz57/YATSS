@@ -15,6 +15,12 @@ struct Hardware {
   static uint32_t clock;
   static uint8_t power, sensors;
   static unsigned locks, resets;
+  static uint32_t nonce;
+  static bool entropyFails;
+  static std::vector<std::string> sessions;
+  static bool randomSession(uint32_t& high, uint32_t& low) {
+    high = 0x12345678; low = ++nonce; return !entropyFails;
+  }
   static bool diagnostics;
   static std::vector<std::string> frames;
   static std::vector<uint8_t> powerHistory;
@@ -41,16 +47,22 @@ struct Hardware {
     unsigned expected = unsigned(std::stoul(text.substr(marker + 1), nullptr, 16));
     std::string body = text.substr(0, marker);
     check(expected == yatss::Controller<Hardware, 32>::checksum(body.c_str()), "output checksum must match");
+    check(body.size() > 17 && body[body.size() - 17] == ':', "every response carries its session");
+    sessions.push_back(body.substr(body.size() - 16));
+    body.resize(body.size() - 17);
     frames.push_back(body);
   }
   static void clear() {
     clock = 0; power = 0xFF; sensors = 0; locks = resets = 0; diagnostics = false;
-    frames.clear(); powerHistory.clear();
+    frames.clear(); powerHistory.clear(); sessions.clear(); entropyFails = false;
   }
 };
 uint32_t Hardware::clock = 0;
 uint8_t Hardware::power = 0, Hardware::sensors = 0;
 unsigned Hardware::locks = 0, Hardware::resets = 0;
+uint32_t Hardware::nonce = 0;
+bool Hardware::entropyFails = false;
+std::vector<std::string> Hardware::sessions;
 bool Hardware::diagnostics = false;
 std::vector<std::string> Hardware::frames;
 std::vector<uint8_t> Hardware::powerHistory;
@@ -59,6 +71,9 @@ static std::string encode(const std::string& body) {
   char suffix[4];
   snprintf(suffix, sizeof(suffix), "*%02X", unsigned(yatss::Controller<Hardware, 32>::checksum(body.c_str())));
   return body + suffix;
+}
+static std::string sessionCommand(const std::string& body) {
+  return encode(body + ":" + Hardware::sessions.back());
 }
 static bool seen(const std::string& body) {
   return std::find(Hardware::frames.begin(), Hardware::frames.end(), body) != Hardware::frames.end();
@@ -80,13 +95,16 @@ static void run() {
   }
   Hardware::clear();
   Core core;
-  auto command = [&](const std::string& body) { core.command(encode(body).c_str()); };
+  auto command = [&](const std::string& body) { core.command(sessionCommand(body).c_str()); };
   auto capture = [&](uint8_t lane, bool active, uint32_t now) {
     Hardware::lock(); core.capture(lane, active, now); Hardware::unlock();
   };
   core.begin();
   check(Hardware::power == 0 && !core.watchdogArmed(), "boot must cut all lanes without arming watchdog");
-  check(seen(std::string("HELLO:YATSSMC:4:8:HOST_TEST:") + YATSSMC_FIRMWARE_VERSION + ":8388608"), "hello identifies firmware and capacity");
+  check(seen(std::string("HELLO:YATSSMC:5:8:HOST_TEST:") + YATSSMC_FIRMWARE_VERSION + ":8388608"), "hello identifies firmware and capacity");
+  std::string initialSession = Hardware::sessions.back();
+  command("PING");
+  check(Hardware::sessions.back() == initialSession, "PING must retain timing session");
   check(Core::checksum("KEEPALIVE") == 0x4C, "existing keepalive checksum must stay unchanged");
   capture(0, true, 0);
   capture(0, true, 100); // A baseline at timestamp zero must still debounce.
@@ -181,6 +199,11 @@ static void run() {
   check(std::all_of(Hardware::powerHistory.begin() + powerChanges, Hardware::powerHistory.end(),
                    [](uint8_t mask) { return mask == 0; }), "watchdog must cancel overdue relay restoration before any power-on write");
   command("RESET");
+  check(Hardware::sessions.back() != initialSession, "logical reset must change session even without a reboot");
+  core.command(encode("TRACK_POWER:ON:" + initialSession).c_str());
+  check(Hardware::power == 0 && !core.watchdogArmed(), "old-session power enable must not energize or refresh watchdog");
+  core.command(encode("TRACK_POWER:ON").c_str());
+  check(Hardware::power == 0, "unbound power-enable command must be rejected");
   check(Hardware::resets == 1 && !core.watchdogArmed() && !core.problem() && Hardware::power == 0, "reset cuts power and resets controller session");
   capture(0, true, 19000);
   core.service();
@@ -197,7 +220,7 @@ static void run() {
   Hardware::clear();
   Core wrapping;
   Hardware::clock = UINT32_MAX - 1000;
-  auto wrapCommand = [&](const std::string& body) { wrapping.command(encode(body).c_str()); };
+  auto wrapCommand = [&](const std::string& body) { wrapping.command(sessionCommand(body).c_str()); };
   auto wrapCapture = [&](uint32_t now) { Hardware::lock(); wrapping.capture(0, true, now); Hardware::unlock(); };
   wrapping.begin();
   wrapCapture(UINT32_MAX - 1000);
@@ -228,11 +251,11 @@ static void run() {
   Core modes;
   modes.begin();
   Hardware::lock(); modes.capture(0, true, 0); Hardware::unlock();
-  modes.command(encode("DIAG:START").c_str());
+  modes.command(sessionCommand("DIAG:START").c_str());
   modes.service();
   check(countPrefix("EDGE:") == 0, "queued racing edges must not cross into diagnostics");
   Hardware::lock(); modes.capture(1, true, 100); Hardware::unlock();
-  modes.command(encode("DIAG:STOP").c_str());
+  modes.command(sessionCommand("DIAG:STOP").c_str());
   modes.service();
   check(countPrefix("DIAG:SENSOR:") == 0, "pending diagnostic display updates must not cross back into racing");
   Hardware::lock(); modes.capture(0, true, 101); Hardware::unlock();
@@ -247,6 +270,20 @@ static void run() {
   Hardware::clock = 1999;
   modes.service();
   check(countPrefix("HEARTBEAT:") == 1, "heartbeat interval must restart after publication");
+  std::string liveSession = Hardware::sessions.back();
+  check(Hardware::sessions.front() == liveSession, "heartbeat, diagnostics, and edges retain one session");
+  Hardware::clear();
+  Hardware::entropyFails = true;
+  Core failed;
+  failed.begin();
+  failed.command(encode("TRACK_POWER:ON").c_str());
+  failed.command(encode("DIAG:RELAY:PULSE:0:100").c_str());
+  Hardware::lock(); failed.capture(0, true, 100); Hardware::unlock();
+  failed.service();
+  check(Hardware::power == 0 && countPrefix("EDGE:") == 0, "entropy failure must fail closed");
+  failed.command(encode("PING").c_str());
+  check(failed.problem(), "PING must not clear an entropy failure warning");
+  check(seen("ERR:SESSION_ENTROPY"), "entropy failure must be visible");
 }
 
 int main() {

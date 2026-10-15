@@ -40,6 +40,10 @@ systemctl --user edit yatss-unoq-updater.service
 
 Use the actual absolute source path:
 
+For example, the tested App Lab import on georgena uses
+`/home/arduino/ArduinoApps/yatss-unoq-applab`, not the default folder name.
+The override lines below must be active lines, without a leading `#`.
+
 ```ini
 [Service]
 ExecStart=
@@ -52,6 +56,23 @@ Then restart the updater service. If the optional
 directory. See [controller startup](UNO_Q_CONTROLLER.md). The helper refuses
 an active supervisor pointing elsewhere rather than updating an unused copy.
 Do not open, edit, start, stop, or close App Lab during an update.
+
+If an arduino terminal reports a missing user bus, do not use
+`sudo systemctl --user`. In a session for that same user, set:
+
+```bash
+export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+```
+
+Then retry `systemctl --user edit`, reload with `systemctl --user daemon-reload`,
+and restart with `systemctl --user restart yatss-unoq-updater.service`.
+This assumes the arduino user manager already exists; it does not create one.
+
+User-verified October 15, 2026 on georgena: the local Wine update completed,
+YATSS reported **update verified; track power remains off**, and heartbeats
+returned. Interrupted updates, compile failures and supervisor recovery remain
+separate validation work.
 
 ## Update Procedure
 
@@ -68,7 +89,11 @@ Do not open, edit, start, stop, or close App Lab during an update.
    physical power and resuming manually.
 
 The bundled source version is read from the shared firmware version header.
-No new firmware protocol or pin mapping is introduced by this feature.
+Current firmware uses session-aware protocol 5; no pin mapping is changed.
+Deploy the matching app and updated helper along with the controller source.
+The helper can inspect an existing protocol-4 controller before updating, but
+verification of the installed firmware requires protocol 5 and a matching
+session on identity, heartbeat, and power-off acknowledgement.
 
 ## What The Helper Does
 

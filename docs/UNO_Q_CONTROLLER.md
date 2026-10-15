@@ -203,9 +203,11 @@ automatic recovery for a physical track.
 
 ## Status
 
-This first hardware-test implementation preserves YATSS protocol v4, including
+The current hardware-test implementation uses YATSS protocol v5, including
 lane edges, track-power masks, debounce configuration, diagnostics, keepalives,
-and the power-cut watchdog. Each active-low sensor input uses a GPIO `CHANGE`
+and the power-cut watchdog. Each response carries a timing-session identifier;
+logical RESET rotates it even though MCU uptime is retained. Update the app,
+sketch, and Linux updater helper together. Each active-low sensor input uses a GPIO `CHANGE`
 interrupt. The interrupt callback timestamps the transition, then the shared
 controller core applies debounce and sequences accepted edges into a fixed
 64-slot ring (63 usable entries). The normal MCU loop drains accepted edges and

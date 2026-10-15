@@ -15,30 +15,39 @@ checksum.
 ## Controller To Windows
 
 ```text
-HELLO:YATSSMC:4:<lane-count>:<board-profile>:<firmware-version>:<flash-bytes>*XX
+HELLO:YATSSMC:5:<lane-count>:<board-profile>:<firmware-version>:<flash-bytes>:<session>*XX
 ```
 
-Sent when the sketch starts or when Windows sends `PING`. Version `4` reports
+Sent when the sketch starts or when Windows sends `PING`. Version `5` reports
 the compile-time board profile, firmware version, and runtime-detected flash
 capacity so Windows can reject a mismatched firmware update. `YATSSMC`
 identifies the YATSS microcontroller firmware. Current board profiles are
 `ESP32_C5_WAVESHARE_WIFI6_N16R8`, `ESP32_C6_DEVKITC1`, and
-`ARDUINO_NANO_ESP32`.
+`ARDUINO_NANO_ESP32`, and `ARDUINO_UNO_Q_STM32U585`.
 
-Windows still accepts version 2 and 3 forms from older controllers. Version 2
-cannot identify the board; version 3 identifies the board but not its flash
-capacity. Firmware update uses physical confirmation or a read-only capacity
-probe when required.
+`session` is a nonzero 16-digit uppercase hexadecimal identifier generated from
+hardware-backed randomness at boot and on RESET. Every controller-to-app frame
+ends in `:<session>` before the checksum, which covers that suffix too. Examples
+below abbreviate the suffix only where explicitly stated. It remains unchanged
+across PING, heartbeat, USB reconnect, and Linux bridge restart. A logical UNO Q
+RESET changes the identifier even though MCU uptime is retained. If entropy
+generation fails, the controller emits `ERR:SESSION_ENTROPY`, uses the invalid
+all-zero identifier for diagnostics, and refuses to energize power.
+
+Physical racing requires protocol 5. The parser can still read untagged demo
+frames and older identity formats for inspection/tests, but these cannot establish
+physical-controller readiness. Initial firmware-update probes may identify an
+older controller before replacing it with the current firmware.
 
 ```text
-HEARTBEAT:<millis>*XX
+HEARTBEAT:<millis>:<session>*XX
 ```
 
 Sent about once per second. Windows uses this to detect stale serial
 communication and reconnect after known disconnects.
 
 ```text
-EDGE:<zero-based-lane>:<sequence>:<millis>*XX
+EDGE:<zero-based-lane>:<sequence>:<millis>:<session>*XX
 ```
 
 Sent when a sensor input sees a debounced falling edge. Lanes are zero-based:
@@ -59,7 +68,10 @@ ERR:WINDOWS_WATCHDOG:<millis>*XX
 ERR:UNKNOWN_COMMAND:<command>*XX
 ```
 
-Error frames are logged by Windows. `ERR:WINDOWS_WATCHDOG` means the controller
+All error examples above also carry `:<session>` immediately before `*XX`.
+`ERR:STALE_SESSION` means a tagged command named a retired/wrong session, or an
+energizing command omitted the current session. Rejected commands do not refresh
+the watchdog. Error frames are logged by Windows. `ERR:WINDOWS_WATCHDOG` means the controller
 received no valid Windows command for five seconds while track power was
 enabled, so it cut every lane. Windows uses the timestamp to pause a running
 heat or restart the current qualifying attempt.
@@ -67,6 +79,8 @@ heat or restart the current qualifying attempt.
 ### Diagnostic Frames
 
 Diagnostic messages are emitted only while a diagnostic session is active:
+Every diagnostic example below carries `:<session>` before `*XX`, just like
+power acknowledgements and other HELLO responses.
 
 ```text
 DIAG:SESSION:STARTED:<millis>*XX
@@ -85,12 +99,22 @@ overflow count since boot.
 
 ## Windows To Controller
 
+YATSS appends `:<session>` to state-changing commands once identity is known.
+In the examples below, that suffix is omitted for readability. It is mandatory
+for `TRACK_POWER:ON`, nonzero `TRACK_POWER:MASK`, and `DIAG:RELAY:PULSE`.
+The controller rejects incorrect tagged sessions. `PING`, `KEEPALIVE`,
+`TRACK_POWER:OFF`, and `TRACK_POWER:MASK:00` remain usable without a suffix;
+power-off commands are honored even if a supplied session is stale. This lets
+the app cut power after an unexpected reset before learning the new identity.
+The identifier prevents accidental stale traffic, not malicious control.
+
 ```text
 RESET*XX
 ```
 
-Requests a controller restart. The sketch sends `HELLO:RESETTING*XX`, flushes
-serial output, waits briefly, then restarts.
+Requests a timing-session restart. The sketch sends `HELLO:RESETTING:<old-session>*XX`,
+cuts power and clears queued timing state. ESP32 then reboots; UNO Q rotates the
+session and resets timing state without restarting RouterBridge or MCU uptime.
 
 ```text
 PING*XX

@@ -1,5 +1,7 @@
 // ESP32 adapter. Edit Controller/YatssController.h for common behavior.
 #include <Arduino.h>
+#include <esp_random.h>
+#include <bootloader_random.h>
 #define YATSS_ISR_ATTR IRAM_ATTR
 #include "src/YatssController/YatssController.h"
 
@@ -22,6 +24,13 @@ const byte trackPowerCutPins[LaneCount] = { D10, D11, D12, D13, A0, A1, A2, A3 }
 portMUX_TYPE queueMux = portMUX_INITIALIZER_UNLOCKED;
 
 struct Esp32Platform {
+  static bool randomSession(uint32_t& high, uint32_t& low) {
+    // No RF or ADC subsystem is used by this sketch.
+    bootloader_random_enable();
+    high = esp_random(); low = esp_random();
+    bootloader_random_disable();
+    return true;
+  }
   static uint32_t now() { return millis(); }
   static const char* profile() { return ControllerBoardProfile; }
   static uint32_t flashBytes() { return ESP.getFlashChipSize(); }

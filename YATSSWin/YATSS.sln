@@ -1,3 +1,4 @@
+﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.6.33829.357
@@ -5,6 +6,10 @@ MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "YATSS", "YATSS\YATSS.csproj", "{33636837-1268-4916-91ED-B77A28208969}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "YATSS.Tests", "YATSS.Tests\YATSS.Tests.csproj", "{B3E5BBB4-D01C-46DB-867A-67B7BFCC2508}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "YATSS.Protocol", "YATSS.Protocol\YATSS.Protocol.csproj", "{8A3F949E-CED1-4760-8C08-19E6DEC4DC74}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "YATSS.Simulator", "YATSS.Simulator\YATSS.Simulator.csproj", "{6624F9BA-1C95-4880-BBDB-02AABEEEE252}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -40,6 +45,30 @@ Global
 		{B3E5BBB4-D01C-46DB-867A-67B7BFCC2508}.Release|x64.Build.0 = Release|Any CPU
 		{B3E5BBB4-D01C-46DB-867A-67B7BFCC2508}.Release|x86.ActiveCfg = Release|Any CPU
 		{B3E5BBB4-D01C-46DB-867A-67B7BFCC2508}.Release|x86.Build.0 = Release|Any CPU
+		{8A3F949E-CED1-4760-8C08-19E6DEC4DC74}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8A3F949E-CED1-4760-8C08-19E6DEC4DC74}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8A3F949E-CED1-4760-8C08-19E6DEC4DC74}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{8A3F949E-CED1-4760-8C08-19E6DEC4DC74}.Debug|x64.Build.0 = Debug|Any CPU
+		{8A3F949E-CED1-4760-8C08-19E6DEC4DC74}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{8A3F949E-CED1-4760-8C08-19E6DEC4DC74}.Debug|x86.Build.0 = Debug|Any CPU
+		{8A3F949E-CED1-4760-8C08-19E6DEC4DC74}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8A3F949E-CED1-4760-8C08-19E6DEC4DC74}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8A3F949E-CED1-4760-8C08-19E6DEC4DC74}.Release|x64.ActiveCfg = Release|Any CPU
+		{8A3F949E-CED1-4760-8C08-19E6DEC4DC74}.Release|x64.Build.0 = Release|Any CPU
+		{8A3F949E-CED1-4760-8C08-19E6DEC4DC74}.Release|x86.ActiveCfg = Release|Any CPU
+		{8A3F949E-CED1-4760-8C08-19E6DEC4DC74}.Release|x86.Build.0 = Release|Any CPU
+		{6624F9BA-1C95-4880-BBDB-02AABEEEE252}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6624F9BA-1C95-4880-BBDB-02AABEEEE252}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6624F9BA-1C95-4880-BBDB-02AABEEEE252}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{6624F9BA-1C95-4880-BBDB-02AABEEEE252}.Debug|x64.Build.0 = Debug|Any CPU
+		{6624F9BA-1C95-4880-BBDB-02AABEEEE252}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{6624F9BA-1C95-4880-BBDB-02AABEEEE252}.Debug|x86.Build.0 = Debug|Any CPU
+		{6624F9BA-1C95-4880-BBDB-02AABEEEE252}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6624F9BA-1C95-4880-BBDB-02AABEEEE252}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6624F9BA-1C95-4880-BBDB-02AABEEEE252}.Release|x64.ActiveCfg = Release|Any CPU
+		{6624F9BA-1C95-4880-BBDB-02AABEEEE252}.Release|x64.Build.0 = Release|Any CPU
+		{6624F9BA-1C95-4880-BBDB-02AABEEEE252}.Release|x86.ActiveCfg = Release|Any CPU
+		{6624F9BA-1C95-4880-BBDB-02AABEEEE252}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

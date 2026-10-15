@@ -21,7 +21,8 @@ internal static class HelpSupport
         new("Current-Heat Reruns", "HEAT_RERUNS.md", "docs/HEAT_RERUNS.md"),
         new("Reports and Data Exports", "RACE_DATA_EXPORT.md", "docs/RACE_DATA_EXPORT.md"),
         new("Race Archives and Retention", "RACE_ARCHIVES.md", "docs/RACE_ARCHIVES.md"),
-        new("UNO Q Updates", "UNO_Q_UPDATES.md", "docs/UNO_Q_UPDATES.md")
+        new("UNO Q Updates", "UNO_Q_UPDATES.md", "docs/UNO_Q_UPDATES.md"),
+        new("TCP Test Controller", "TCP_CONTROLLER_SIMULATOR.md", "docs/TCP_CONTROLLER_SIMULATOR.md")
     };
 
     internal static string DocumentPath(string directory, HelpDocument document) =>
@@ -66,11 +67,12 @@ internal static class HelpSupport
             return;
         }
         using Form viewer = CreateDocumentViewer(document.Title, File.ReadAllText(path),
-            url => RunAction(owner, () => OpenWeb(url)));
+            url => RunAction(owner, () => OpenWeb(url)), () => OpenWeb(path));
         viewer.ShowDialog(owner);
     }
 
-    internal static Form CreateDocumentViewer(string title, string contents, Action<string> openLink)
+    internal static Form CreateDocumentViewer(string title, string contents, Action<string> openLink,
+        Action? openOriginal = null, Action<string>? copyText = null)
     {
         Form viewer = new()
         {
@@ -81,14 +83,29 @@ internal static class HelpSupport
         {
             Dock = DockStyle.Fill, ReadOnly = true, DetectUrls = true,
             BackColor = SystemColors.Window, Font = new Font("Segoe UI", 10),
-            Text = contents, BorderStyle = BorderStyle.None
+            Text = contents, BorderStyle = BorderStyle.None, HideSelection = false
         };
+        ToolStrip toolbar = new() { Dock = DockStyle.Top, GripStyle = ToolStripGripStyle.Hidden };
+        ToolStripButton copySelection = new("Copy Selection") { Enabled = false };
+        ToolStripButton copyAll = new("Copy All");
+        ToolStripButton original = new("Open Original") { Enabled = openOriginal != null };
+        void Copy(string value)
+        {
+            if (value.Length > 0)
+                RunAction(viewer, () => (copyText ?? Clipboard.SetText)(value));
+        }
+        copySelection.Click += (_, _) => Copy(text.SelectedText);
+        copyAll.Click += (_, _) => Copy(contents);
+        original.Click += (_, _) => { if (openOriginal != null) RunAction(viewer, openOriginal); };
+        text.SelectionChanged += (_, _) => copySelection.Enabled = text.SelectionLength > 0;
+        toolbar.Items.AddRange(new ToolStripItem[] { copySelection, copyAll, new ToolStripSeparator(), original });
         text.LinkClicked += (_, e) =>
         {
             if (Uri.TryCreate(e.LinkText, UriKind.Absolute, out Uri? uri) && uri.Scheme is "http" or "https")
                 openLink(uri.AbsoluteUri);
         };
         viewer.Controls.Add(text);
+        viewer.Controls.Add(toolbar);
         return viewer;
     }
 

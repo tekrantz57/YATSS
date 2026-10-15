@@ -21,7 +21,8 @@ internal static class TestWorkspace
         Environment.SetEnvironmentVariable("TMP", temporary);
         if (!AppDatabase.DatabasePath.Equals(Path.Combine(data, "YATSS.db"), StringComparison.OrdinalIgnoreCase) ||
             !AppDatabase.GetDefaultBackupDirectory().StartsWith(data + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
-            !HeatRaceReportWriter.GetReportDirectory().StartsWith(data + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            !HeatRaceReportWriter.GetReportDirectory().StartsWith(data + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+            !SerialLog.CurrentPath.StartsWith(data + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("Regression data isolation could not be established; refusing to test.");
     }
 }

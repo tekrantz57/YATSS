@@ -65,11 +65,27 @@ resumption counts without a lap duration and cannot set a fastest lap. The
 following complete lap is timed normally. This rule preserves existing lap
 history and clears obsolete sequence/baseline state after an MCU reboot.
 
-A backward heartbeat or `HELLO:RESETTING` establishes a fresh controller clock.
-Ordinary 32-bit millisecond wrap is handled as forward time. A reconnect to an
-MCU whose clock has kept running does not reset its clock. The current protocol
-does not carry a boot-session identifier, so a reboot that produces neither a
-reset notification nor a backward timestamp cannot be identified conclusively.
+Protocol 5 carries a random 64-bit **controller timing-session identifier** on
+every controller response. It changes at MCU startup and on `RESET`, including
+the UNO Q's logical reset that keeps MCU uptime and RouterBridge alive. A new
+identity pauses physical racing even if no reset message was received and the
+new timestamp is larger than the previous one. Identity, heartbeat, and power-off
+acknowledgement must all belong to the verified session before explicit resume.
+
+Session history is retained across USB/TCP reconnects for the lifetime of YATSS.
+A reconnect to the same session does not reset its clock; it still requires a
+fresh readiness handshake and director authorization. Replies from retired
+sessions are discarded before clock, readiness, diagnostics, or scoring updates.
+An unfamiliar session on an edge or heartbeat pauses racing and requests identity;
+only a valid protocol-5 identity can establish the new session.
+
+`HELLO:RESETTING` immediately retires the old session. Clock rollback remains an
+additional fault check, and ordinary 32-bit millisecond wrap remains forward time.
+Power-enable and relay-pulse commands carry the verified session, so delayed
+commands cannot energize a newly restarted controller. Discovery and power-off
+commands work without a session. This identifier is not authentication, persistent
+storage, or recovery of missed crossings. Update the app and firmware together;
+older physical firmware cannot authorize track power in this app.
 
 ## Simulated races
 

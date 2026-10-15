@@ -112,9 +112,15 @@ namespace YATSS
                 return Array.Empty<ControllerFirmwarePackage>();
             }
 
-            return Directory.GetFiles(firmwareDirectory, $"*{PackageExtension}")
+            string expectedVersion = typeof(ControllerFirmwarePackage).Assembly
+                .GetCustomAttributes(typeof(System.Reflection.AssemblyMetadataAttribute), false)
+                .Cast<System.Reflection.AssemblyMetadataAttribute>()
+                .Single(attribute => attribute.Key == "ControllerFirmwareVersion").Value
+                ?? throw new InvalidDataException("Bundled firmware version is missing");
+            return Directory.GetFiles(firmwareDirectory, $"*-{expectedVersion}{PackageExtension}")
                 .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
                 .Select(Load)
+                .Where(package => package.Manifest.FirmwareVersion == expectedVersion)
                 .ToArray();
         }
 

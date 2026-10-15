@@ -101,6 +101,12 @@ require director review. Practice sessions are not journaled.
 - `Controller` owns shared firmware logic and version identity; both sketches
   include synchronized self-contained copies for IDE, CLI, and App Lab builds.
 
+Protocol 5 identifies each controller timing session explicitly, detects resets
+without relying on clock rollback, and rejects retired-session messages and
+stale power-enable commands. App and firmware must be updated together; see
+[controller recovery](docs/CONTROLLER_RECOVERY.md). Physical reset/reconnect
+bench checks remain required.
+
 The controller timestamps debounced sensor edges and reports them over serial.
 The Windows app owns lap counting, heat-race state, qualifying, reports,
 logging, filtering, and track-power commands.
@@ -150,6 +156,8 @@ YATSSWin/
   YATSS/                            Windows Forms application
     Properties/PublishProfiles/     x64 and ARM64 publish definitions
   YATSS.Tests/                      lightweight integration test runner
+  YATSS.Protocol/                   portable shared app protocol parser
+  YATSS.Simulator/                  loopback TCP fault-test controller
 
 Controller/                         canonical cross-platform controller core and version
 tests/controller/                   native shared-controller behavior tests
@@ -238,6 +246,7 @@ racer names, personal paths or connection addresses; **Report a Bug** opens GitH
 - [Controller firmware updates](docs/CONTROLLER_FIRMWARE_UPDATE.md)
 - [Arduino UNO Q integrated controller](docs/UNO_Q_CONTROLLER.md)
 - [UNO Q updates from YATSS: helper setup and recovery](docs/UNO_Q_UPDATES.md)
+- [TCP test controller: isolated app tests and fault injection](docs/TCP_CONTROLLER_SIMULATOR.md)
 - [Serial protocol](docs/SERIAL_PROTOCOL.md)
 - [Race reports and data exports](docs/RACE_DATA_EXPORT.md)
 - [Race archive browser and retention](docs/RACE_ARCHIVES.md)

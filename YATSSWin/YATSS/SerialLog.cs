@@ -25,8 +25,7 @@ namespace YATSS
         private DateOnly? _retentionDate;
 
         public static string CurrentPath => GetPath(DefaultDirectory, DateTimeOffset.Now);
-        private static string DefaultDirectory => Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "YATSS", "logs");
+        private static string DefaultDirectory => Path.Combine(ApplicationPaths.DataDirectory, "logs");
         public string? Failure => Volatile.Read(ref _failure);
         public long DroppedEntries => Interlocked.Read(ref _dropped);
         public event Action<string>? Warning;

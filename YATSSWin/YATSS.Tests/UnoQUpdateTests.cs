@@ -17,6 +17,20 @@ internal static class UnoQUpdateTests
     {
         string source = Path.Combine(AppContext.BaseDirectory, "Linux", "UNOQ");
         var bundle = UnoQUpdateClient.Bundle(source);
+        var versionMetadata = typeof(ControllerFirmwarePackage).Assembly
+            .GetCustomAttributes(typeof(System.Reflection.AssemblyMetadataAttribute), false)
+            .Cast<System.Reflection.AssemblyMetadataAttribute>()
+            .Single(attribute => attribute.Key == "ControllerFirmwareVersion");
+        Check(versionMetadata.Value == bundle.Version, "App metadata and bundled controller source must use the same firmware version");
+        string staleRoot = Path.Combine(Path.GetTempPath(), "YATSS-fw-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(staleRoot, "Firmware"));
+            File.WriteAllText(Path.Combine(staleRoot, "Firmware", "old-obsolete.yatssfw"), "not a current package");
+            Check(ControllerFirmwarePackage.LoadBundledPackages(staleRoot).Count == 0,
+                "obsolete packages left in an app folder must not enter firmware selection");
+        }
+        finally { if (Directory.Exists(staleRoot)) Directory.Delete(staleRoot, recursive: true); }
         using (ZipArchive zip = new(new MemoryStream(bundle.Data)))
         {
             Check(zip.Entries.Count == 7, "UNO Q package must contain only six source files and its manifest");

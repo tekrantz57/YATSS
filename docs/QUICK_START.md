@@ -41,6 +41,9 @@ exercise sensor capture, controller communication or track-power switching.
 Help opens packaged guides offline, including race operation, Combined Distance,
 controller pin maps, wiring, commissioning, troubleshooting, reruns and exports.
 Guides display as selectable plain text; Markdown notation may remain visible.
+Use Copy Selection for highlighted text or Copy All for the complete guide.
+Open Original opens the packaged Markdown file in the system's associated
+editor/viewer, when configured. Copy/open errors leave the guide available.
 If a guide is missing, YATSS offers its online copy. Report a Bug requires
 internet access. Copy Version Information supplies build/platform/controller
 details without racer names, database paths or connection addresses.

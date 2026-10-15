@@ -340,6 +340,9 @@ namespace YATSS
         private uint GetElapsedMillisecondsCore(uint controllerTimestamp)
         {
             uint elapsed = unchecked(controllerTimestamp - _startedAt);
+            // A confirmed heartbeat may predate the estimated start timestamp.
+            // Match heat-race timing: treat backward time as zero, not a full wrap.
+            if (elapsed > int.MaxValue) return 0;
             ulong pausedMilliseconds = 0;
 
             foreach ((uint pauseStart, uint pauseEnd) in _pauseIntervals)

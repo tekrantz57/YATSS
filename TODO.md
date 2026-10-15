@@ -2,7 +2,7 @@
 
 ## Current priorities
 
-Updated October 14, 2026. There are no production installations yet. Implemented
+Updated October 15, 2026. There are no production installations yet. Implemented
 items below retain their validation gaps; historical demo runs are not a
 substitute for physical sensor/relay testing or validation of newer code.
 
@@ -10,7 +10,7 @@ substitute for physical sensor/relay testing or validation of newer code.
    watchdog cuts, and control-power loss/restoration before enabling track power.
 2. CI confirmed October 10: all seven jobs passed for `291ceb5`, including
    Linux native tests and all five board builds. Local MSVC setup repaired;
-   all 6,328 controller checks pass. Verify the newly added Windows/MSVC CI
+   all 6,722 controller checks pass. Verify the newly added Windows/MSVC CI
    step and current changes after the next push.
 3. Bench-validate controller-loss and active-event recovery on Windows and Wine,
    including real sensor traffic, remaining time, and pending approvals.
@@ -33,10 +33,39 @@ retained results/logs, failure/timeout reporting and isolated test data. See
   `v0.20.0-beta.2-13-ged2ef62-dirty`. The Wine run completed in about 72 seconds.
 - Later October 14 Windows validation passed all eleven suites, including
   archives and the UNO Q updater client. All nine mocked Python helper tests
-  passed as well. The earlier Wine run predates these two new suites; validate
-  their Wine UI and an actual UNO Q update separately.
-- Director UI acceptance, a fake TCP fault controller, sustained runs and
+  passed as well. The earlier Wine regression run predates these two new suites;
+  rerun the expanded package on Wine. The first actual local UNO Q update was
+  user-verified October 15, as recorded below.
+- Director UI acceptance, sustained runs and
   physical tests remain separate work; this result is not hardware certification.
+
+## TCP Controller Software Tests
+
+- Implemented October 15: portable loopback TCP test controller, distinct
+  simulator identity, virtual power only, console fault controls, and isolated
+  real-app interactive launcher. See [TCP simulator](docs/TCP_CONTROLLER_SIMULATOR.md).
+- All thirteen Windows regression suites pass, including real app scoring and
+  recovery through sockets: disconnects, silence, resets, stale sessions and
+  qualifying reruns. These tests caught and fixed qualifying elapsed-time
+  underflow when the last confirmed heartbeat predates the estimated start.
+  Normal clock wrap remains covered. Console and isolated UI launchers also
+  pass startup/shutdown smoke checks.
+- Run the expanded thirteen-suite package and interactive launcher on ARM64
+  Wine. Physical MCU, sensor, relay and RouterBridge checks remain separate.
+
+## Optional Windows Installer
+
+- Consider for the next public beta, after current testing; retain portable ZIP
+  downloads alongside an optional installer for the self-contained Windows app.
+- Include bundled firmware, Linux helpers and offline documentation, a Start
+  menu entry, optional desktop shortcut, clear version information and upgrades.
+- Preserve settings, databases, race reports and backups during upgrades and
+  uninstall. Any user-data removal must be a separate, explicit choice.
+- Do not automatically install USB drivers, flash controllers, or configure
+  Wine/Linux services; keep those deliberate setup steps separate.
+- Evaluate Inno Setup, verifying current licensing and build tooling before
+  adoption. Choose the installation layout with no existing installations to
+  migrate, and test clean install, upgrade and uninstall behavior.
 
 ## Installer Help and Discoverability
 
@@ -49,6 +78,11 @@ retained results/logs, failure/timeout reporting and isolated test data. See
 - Automated checks cover menu dispatch, version fields, offline viewer and guide
   packaging; Windows layout checks cover both formats at minimum size. Verify
   Wine viewer/clipboard/layout before venue use.
+- Implemented October 15: explicit Copy Selection and Copy All controls, visible
+  selection when focus moves to the toolbar, and Open Original for the packaged
+  Markdown file in the system's associated application. Clipboard/open failures
+  show a warning without closing the guide. Verify native clipboard and document
+  associations under Wine; these depend on the desktop environment.
 
 ## Communication loss and controller clock resets
 
@@ -63,8 +97,22 @@ retained results/logs, failure/timeout reporting and isolated test data. See
   uncertainty; do not time the first post-interruption crossing as a fast lap.
 - Implemented a fresh clock/sequence baseline on backward heartbeat timestamps
   or explicit reset notifications. Ordinary timestamp wrap and reconnect to an
-  MCU that kept running do not reset the clock. Consider a protocol boot-session
-  identifier later for resets that cannot be inferred from existing frames.
+  MCU that kept running do not reset the clock.
+- Implemented October 15: protocol-5 controller timing-session identifiers in
+  the shared core and app, regenerated at boot and logical RESET. Responses and
+  energizing commands are session-bound; retired-session frames are ignored,
+  unfamiliar sessions trigger verification, and resumes remain director-controlled.
+  Bench-test missed reset notices, same-session reconnects, UNO Q logical resets,
+  actual power cycles, and app/firmware/helper deployment together before track use.
+- Software verification October 15: all thirteen Windows regression suites,
+  nine mocked UNO Q helper tests, and 6,722 shared C++ checks pass. UNO Q
+  compiles with hardware-backed session randomness. These are not physical
+  reset/power-cycle or Wine UI validation of the new protocol.
+- Rebuilt firmware `0.20.0-beta.2-session.1` for Nano, C5/N16R8, C6/N4, and
+  C6/N8; verified all package image lengths and SHA-256 hashes. UNO Q source
+  compiles and its App Lab import ZIP was regenerated. Automated builds/tests
+  did not flash hardware; the user's subsequent successful UNO Q update is
+  recorded below.
 - Added regression coverage for readiness/explicit resume, lost watchdog
   notifications, heartbeat deadlines, confirmed-time pauses, retained lap
   history, post-reset sequence handling, timestamp wrap, qualifying reruns, and
@@ -239,9 +287,13 @@ retained results/logs, failure/timeout reporting and isolated test data. See
 - Implemented October 14: local UNO Q updates initiated by YATSS under Wine
   through an authenticated loopback-only Linux helper, with source backup,
   stop/install/start ordering, and identity/heartbeat/power-off verification.
-  See `docs/UNO_Q_UPDATES.md`. Bench-test an actual update with and without the
-  boot supervisor, compile failure, helper/YATSS disconnect, and recovery before
+  See `docs/UNO_Q_UPDATES.md`. Complete boot-supervisor variant checks, compile
+  failure, helper/YATSS disconnect, and recovery testing before
   relying on it. Remote Windows updates and blank-MCU provisioning remain deferred.
+- User-verified October 15 on georgena: local update from ARM64 Wine completed,
+  power remained off and heartbeats returned. The configured source directory
+  is `/home/arduino/ArduinoApps/yatss-unoq-applab`. Failure/interruption and
+  supervisor-specific recovery checks remain pending.
 - Bench-test sensor inputs for lanes 2-8, track-power outputs, watchdog
   behavior, relay polarity, and high-speed edge capture with the onboard status
   matrix enabled before using the UNO Q controller on a physical track. Lane 1
@@ -262,27 +314,21 @@ retained results/logs, failure/timeout reporting and isolated test data. See
 
 ## Starting-lane selection for separate racer groups
 
-- Combined Distance already implements independent group-local choices.
-  Extending that behavior to ordinary timed heat races is still proposed,
-  subject to venue-owner input and a decision on group/rotation scheduling.
-- Requested October 5, 2026: each group of eight or fewer racers (limited by
-  the active lane count) chooses its starting lanes independently. The best
-  qualifier within that group chooses first, followed by the remaining racers
-  in that group's qualifying order; each choice removes that lane from the
-  available choices for that group.
-- Apply this to existing timed heat races using fastest-lap qualifying order.
-  The current qualifying workflow offers lane choices only to the first
-  lane-count racers in the overall ranking and puts the remainder in the
-  rotation queue; it does not provide independent choices for separate groups.
-- Combined Distance uses director-approved qualifying distance, highest first;
-  keep that implemented group-local workflow covered by recovery/rotation tests.
-- Grouping agreed October 5, 2026: use consecutive qualifying ranks, 1-8,
-  9-16, and so on on an eight-lane track (use the active lane count on smaller
-  tracks). No director regrouping. For now, fill each group before starting
-  the next; ten racers form groups of eight and two, not five and five.
-- These are starting-lane choices, not new choices at every timed segment.
-  Keep subsequent lane rotation separate. Define how independent groups are
-  scheduled in relation to the existing rotation queue before implementation.
+- Implemented for Combined Distance and, October 13, for ordinary heat races
+  using the Independent Groups scheduling option. Ordinary Rotation Queue
+  remains available and offers starting choices only to its first lane-count
+  racers; this is a separate supported scheduling choice, not a missing feature.
+- Groups use consecutive qualifying ranks, strongest first, with full groups
+  followed by the remainder (eight and two for ten racers on eight lanes).
+  Each group chooses independently in qualifying order, removing selected lanes
+  from that group's available choices, then completes its full lane rotation.
+- Ordinary groups rank by fastest-lap qualifying; Combined Distance ranks by
+  director-approved qualifying distance. Choices are initial lanes, not new
+  choices at every segment. Each new group requires an explicit director start.
+- Keep recovery/rotation/report coverage and validate the director workflow on
+  Windows/Wine. Venue-owner review, alternative balancing and advancement remain
+  future work. See [Independent heat groups](docs/INDEPENDENT_HEAT_GROUPS.md)
+  and [Combined Distance Racing](docs/COMBINED_DISTANCE.md).
 
 ## Combined Distance Racing validation and follow-up
 

@@ -78,6 +78,8 @@ def verify_controller(version=None, seconds=15):
                 connection.settimeout(1)
                 received = b""
                 identity = heartbeat = off = False
+                session = None
+                retired = set()
                 next_send = 0
                 while time.monotonic() < deadline:
                     if time.monotonic() >= next_send:
@@ -98,11 +100,39 @@ def verify_controller(version=None, seconds=15):
                         if body is None:
                             continue
                         fields = body.split(":")
+                        candidate = fields[-1].upper() if re.fullmatch(r"[0-9a-fA-F]{16}", fields[-1]) else None
+                        if candidate in retired:
+                            continue
+                        if session is not None and candidate is not None and candidate != session:
+                            retired.add(session)
+                            session = None
+                            identity = heartbeat = off = False
                         if body.startswith("HELLO:YATSSMC:"):
-                            if len(fields) != 7 or fields[2:5] != ["4", "8", PROFILE]:
+                            # The pre-update probe can identify the existing v4 firmware;
+                            # an installed v5 package must verify session-tagged replies.
+                            legacy = version is None and len(fields) == 7 and fields[2:5] == ["4", "8", PROFILE]
+                            current = len(fields) == 8 and fields[2:5] == ["5", "8", PROFILE]
+                            if not legacy and not current:
                                 raise ValueError("Connected device is not the supported UNO Q controller")
+                            if current:
+                                candidate = fields[-1].upper()
+                                if not re.fullmatch(r"[0-9A-F]{16}", candidate) or candidate == "0" * 16:
+                                    raise ValueError("Invalid controller timing session")
+                                if candidate in retired:
+                                    continue
+                                if candidate != session:
+                                    if session is not None:
+                                        retired.add(session)
+                                    session = candidate
+                                    heartbeat = off = False
                             identity = version is None or fields[5] == version
-                        heartbeat |= body.startswith("HEARTBEAT:")
+                        if session is not None:
+                            if fields[-1].upper() != session:
+                                continue
+                            body = ":".join(fields[:-1])
+                        elif version is not None or candidate is not None:
+                            continue
+                        heartbeat |= re.fullmatch(r"HEARTBEAT:[0-9]{1,10}", body) is not None
                         off |= body in ("HELLO:TRACK_POWER:OFF", "HELLO:TRACK_POWER:MASK:00")
                         if identity and heartbeat and off:
                             return

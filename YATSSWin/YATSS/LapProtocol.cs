@@ -20,7 +20,8 @@ namespace YATSS
         int LaneCount,
         string BoardProfile,
         string FirmwareVersion,
-        long? FlashCapacityBytes = null)
+        long? FlashCapacityBytes = null,
+        string? SessionId = null)
     {
         public bool HasBoardProfile => !string.IsNullOrWhiteSpace(BoardProfile);
     }
@@ -59,7 +60,8 @@ namespace YATSS
         string RawLine,
         string Detail,
         ControllerDiagnostic? Diagnostic = null,
-        ControllerIdentity? ControllerIdentity = null)
+        ControllerIdentity? ControllerIdentity = null,
+        string? SessionId = null)
     {
         public static LapProtocolMessage Invalid(string rawLine, string detail) =>
             new(LapProtocolMessageKind.Invalid, null, null, rawLine, detail);
@@ -71,6 +73,7 @@ namespace YATSS
     public static class LapProtocolParser
     {
         public const int LaneCount = 8;
+        public const string SimulatorBoardProfile = "YATSS_SIMULATOR";
 
         public static string EncodeFrame(string body) =>
             $"{body}*{CalculateChecksum(body):X2}";
@@ -88,6 +91,30 @@ namespace YATSS
                 return LapProtocolMessage.Invalid(rawLine, checksumError);
             }
 
+            string? session = null;
+            int separator = body.LastIndexOf(':');
+            if (separator >= 0 && IsSessionId(body[(separator + 1)..]))
+            {
+                session = body[(separator + 1)..].ToUpperInvariant();
+                body = body[..separator];
+            }
+            LapProtocolMessage message = ParseBody(rawLine, body);
+            if (body.StartsWith("HELLO:YATSSMC:", StringComparison.OrdinalIgnoreCase) && message.ControllerIdentity == null)
+                return LapProtocolMessage.Invalid(rawLine, "invalid controller identity");
+            if (message.ControllerIdentity?.ProtocolVersion == 5 && session == null)
+                return LapProtocolMessage.Invalid(rawLine, "protocol 5 requires a nonzero 16-digit session identifier");
+            return message with
+            {
+                SessionId = session,
+                ControllerIdentity = message.ControllerIdentity is { } identity ? identity with { SessionId = session } : null
+            };
+        }
+
+        public static bool IsSessionId(string? value) => value is { Length: 16 } &&
+            value.All(Uri.IsHexDigit) && value.Any(character => character != '0');
+
+        private static LapProtocolMessage ParseBody(string rawLine, string body)
+        {
             string[] parts = body.Split(':', StringSplitOptions.TrimEntries);
             string command = parts[0].ToUpperInvariant();
 
@@ -110,7 +137,7 @@ namespace YATSS
                     return new LapProtocolMessage(LapProtocolMessageKind.Heartbeat, null, timestamp, rawLine, body);
                 }
 
-                return new LapProtocolMessage(LapProtocolMessageKind.Heartbeat, null, null, rawLine, body);
+                return LapProtocolMessage.Invalid(rawLine, "HEARTBEAT requires an unsigned timestamp");
             }
 
             if (command == "ERR")
@@ -171,6 +198,8 @@ namespace YATSS
             {
                 return null;
             }
+            if (protocolVersion == 5 && (parts.Length != 7 ||
+                string.IsNullOrWhiteSpace(parts[4]) || string.IsNullOrWhiteSpace(parts[5]))) return null;
 
             string boardProfile = parts.Length >= 5 ? parts[4].Trim().ToUpperInvariant() : string.Empty;
             string firmwareVersion = parts.Length >= 6 ? parts[5].Trim() : string.Empty;

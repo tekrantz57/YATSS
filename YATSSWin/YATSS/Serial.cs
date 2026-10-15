@@ -24,6 +24,7 @@ namespace YATSS
         private readonly ControllerSession _controllerSession = new();
         private bool _controllerFaultActive;
         private bool _controllerClockResetPending;
+        private readonly ControllerTimingSession _timingSession = new();
         private string _controllerRecoveryReason = "Waiting for controller";
         private TaskCompletionSource _reconnectNow = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private Task? _readerTask;
@@ -715,6 +716,11 @@ namespace YATSS
 
         public bool CanUpdateControllerFirmware(out string reason)
         {
+            if (CurrentControllerIdentity?.BoardProfile == LapProtocolParser.SimulatorBoardProfile)
+            {
+                reason = "The TCP test controller has no firmware to flash";
+                return false;
+            }
             if (_heatRace.State != HeatRaceState.Practice || _qualifying.State != QualifyingState.Inactive)
             {
                 reason = "Controller firmware can be updated only in Practice mode";
@@ -1115,7 +1121,7 @@ namespace YATSS
 
             try
             {
-                string frame = value.Contains('*') ? value : LapProtocolParser.EncodeFrame(value);
+                string frame = EncodeControllerCommand(commandBody, _timingSession.Id);
                 port.WriteLine(frame);
                 _log.Info($"TX {frame}");
                 return true;
@@ -1345,6 +1351,35 @@ namespace YATSS
 
             if (!isDemoLine)
             {
+                if (message.Kind != LapProtocolMessageKind.Invalid && message.Kind != LapProtocolMessageKind.Ignored)
+                {
+                    TimingSessionFrame sessionFrame = _timingSession.Observe(message);
+                    if (sessionFrame is TimingSessionFrame.Retired)
+                    {
+                        _log.Warn($"ignored retired controller session {message.SessionId}");
+                        return;
+                    }
+                    if (sessionFrame is TimingSessionFrame.Unknown or TimingSessionFrame.Unsupported)
+                    {
+                        if (sessionFrame == TimingSessionFrame.Unsupported && message.ControllerIdentity != null)
+                            Volatile.Write(ref _controllerIdentity, message.ControllerIdentity); // Inspection/update selection only.
+                        HandleControllerFault(sessionFrame == TimingSessionFrame.Unsupported
+                            ? "Controller requires session-aware firmware (protocol 5)"
+                            : "Controller timing session changed; verifying identity");
+                        if (message.Kind is LapProtocolMessageKind.Heartbeat or LapProtocolMessageKind.Edge)
+                            WriteLine("PING");
+                        return;
+                    }
+                    if (sessionFrame is TimingSessionFrame.Changed or TimingSessionFrame.Established)
+                    {
+                        if (sessionFrame == TimingSessionFrame.Changed)
+                            HandleControllerFault("Controller timing session restarted");
+                        _controllerClockResetPending = true;
+                        _controllerSession.RequireRecovery();
+                        _log.Info($"controller timing session {message.SessionId} ({sessionFrame})");
+                        WriteLine("TRACK_POWER:MASK:00");
+                    }
+                }
                 if (message.Detail is "HELLO:TRACK_POWER:MASK:00" or "HELLO:TRACK_POWER:OFF")
                 {
                     _controllerSession.ObservePowerOff();
@@ -1352,15 +1387,17 @@ namespace YATSS
                 if (message.Detail == "HELLO:RESETTING")
                 {
                     HandleControllerFault("Controller reset detected");
+                    _timingSession.RetireCurrent();
                     _controllerClockResetPending = true;
                 }
                 if (message.Detail.StartsWith("ERR:WINDOWS_WATCHDOG:", StringComparison.Ordinal))
                 {
                     HandleControllerFault("Controller watchdog cut track power");
                 }
-                if (message.ControllerIdentity is { ProtocolVersion: >= 2 and <= 4 } identity &&
+                if (message.ControllerIdentity is { ProtocolVersion: 5 } identity &&
                     identity.LaneCount >= _form.ActiveLaneCount)
                 {
+                    _form.SetSimulatedControllerIndicator(identity.BoardProfile == LapProtocolParser.SimulatorBoardProfile);
                     _controllerSession.ObserveIdentity();
                     Volatile.Write(ref _controllerIdentity, identity);
                 }

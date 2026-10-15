@@ -2,6 +2,7 @@
 #include <Arduino_RouterBridge.h>
 #include <Arduino_LED_Matrix.h>
 #include <zephyr/irq.h>
+#include <zephyr/random/random.h>
 #include "src/YatssController/YatssController.h"
 
 const byte LaneCount = 8;
@@ -10,6 +11,12 @@ const byte trackPowerCutPins[LaneCount] = { D10, D11, D12, D13, A0, A1, A2, A3 }
 Arduino_LED_Matrix statusMatrix;
 
 struct UnoQPlatform {
+  static bool randomSession(uint32_t& high, uint32_t& low) {
+    uint32_t words[2];
+    if (sys_csrand_get(words, sizeof(words)) != 0) return false;
+    high = words[0]; low = words[1];
+    return true;
+  }
   static unsigned int interruptKey;
   static uint32_t now() { return millis(); }
   static const char* profile() { return "ARDUINO_UNO_Q_STM32U585"; }
