@@ -7,28 +7,44 @@ race board handles lap scoring, qualifying, heat rotation, reports, backups,
 and operator workflow. An ESP32 or the integrated UNO Q microcontroller
 timestamps sensor edges and controls up to eight lane-power relays.
 
-[![YATSS running the second heat of a demo race](docs/images/yatss-demo-race-heat-2.png)](docs/images/yatss-demo-race-heat-2.png)
+> **Have a different microcontroller?** The supported-board list is a starting
+> point, not a limit. Additional controllers can be added with a board-specific
+> adapter to the shared controller core and appropriate hardware validation.
+> [Tell us which board you have](https://github.com/tekrantz57/YATSS/issues) if
+> hardware choice is holding you back. Unsupported boards are not yet plug-and-play.
 
-> **Public beta:** `v0.20.0-beta.2` is intended for evaluation, demo races, and
+> **New in 0.25: a Windows installer.** Self-contained setup includes the app,
+> firmware and offline guides; no separate .NET installation is needed. Portable
+> ZIPs remain available. See [downloads below](#download-and-try-it).
+>
+> **Public beta:** `v0.25.0-beta.3` is intended for evaluation, demo races, and
 > careful bench testing. YATSS has no production track installations yet.
+
+[![YATSS running the second heat of a demo race](docs/images/yatss-demo-race-heat-2.png)](docs/images/yatss-demo-race-heat-2.png)
 
 ## Download and Try It
 
-Download a Windows x64 ZIP from
+Download the Windows installer or a portable ZIP from
 [GitHub Releases](https://github.com/tekrantz57/YATSS/releases):
 
-- `YATSS-win-x64-v0.20.0-beta.2.zip` is self-contained and does not require a
+- `YATSS-v0.25.0-beta.3-win-x64-setup.exe` is the recommended native Windows
+  installer: per-user installation, Start-menu entry, optional desktop shortcut,
+  and uninstall that preserves race data. Close YATSS before updating/removing it.
+- `YATSS-v0.25.0-beta.3-win-arm64-setup.exe` is the experimental native Windows
+  ARM64 installer; native ARM64 installation validation remains pending.
+- `YATSS-win-x64-v0.25.0-beta.3.zip` is self-contained and does not require a
   separately installed .NET runtime.
-- `YATSS-win-x64-requires-dotnet10-v0.20.0-beta.2.zip` is smaller and requires
+- `YATSS-win-x64-requires-dotnet10-v0.25.0-beta.3.zip` is smaller and requires
   the x64 .NET 10 Desktop Runtime.
-- `YATSS-win-arm64-v0.20.0-beta.2-experimental.zip` is a self-contained,
+- `YATSS-win-arm64-v0.25.0-beta.3-experimental.zip` is a self-contained,
   experimental Windows ARM64 build.
-- `YATSS-UNOQ-AppLab-v0.20.0-beta.2.zip` contains the experimental integrated
+- `YATSS-UNOQ-AppLab-v0.25.0-beta.3.zip` contains the experimental integrated
   controller application for import into Arduino App Lab on an UNO Q.
 
-1. Verify the downloaded ZIP using its attached SHA-256 checksum.
-2. Extract the complete ZIP to a writable folder.
-3. Run `YATSSWin.exe`.
+1. Verify the download against `YATSS-v0.25.0-beta.3-SHA256.txt`.
+2. Run setup on native Windows, or extract the complete ZIP to a writable folder.
+   Use ZIPs, not the installers, under Wine.
+3. Launch YATSS from the Start menu or run `YATSSWin.exe` from the extracted ZIP.
 4. Select `Mode > Demo Race...`; it starts Simulated Lap Input automatically so
    the race can run without controller hardware.
 
@@ -57,13 +73,14 @@ the prerelease. Verify the GitHub source and checksum before running it.
 
 ## Capabilities
 
-Current development source also includes the first version of
+Version 0.25 includes the first version of
 [Combined Distance Racing](docs/COMBINED_DISTANCE.md), with distance qualifying,
 independent racer groups, director-approved finishing fractions, and a separate
 Live Standings window, plus [active event recovery](docs/ACTIVE_RACE_RECOVERY.md)
-and the [normally open relay setup](docs/RELAY_WIRING.md). These development
-changes are not included in the previously published beta; its release notes
-describe that release's behavior.
+and the [normally open relay setup](docs/RELAY_WIRING.md), plus independent
+ordinary heat groups, race archives, controller-session verification, a TCP test
+controller and copyable offline Help. See the
+[0.25 release notes](docs/RELEASE_0.25.0-beta.3.md) for changes and validation limits.
 
 - Practice timing and demo lap generation.
 - Optional qualifying with track calls and active-time scoring.
@@ -269,6 +286,7 @@ racer names, personal paths or connection addresses; **Report a Bug** opens GitH
 - [Active event recovery after closing or crashing YATSS](docs/ACTIVE_RACE_RECOVERY.md)
 - [Director-controlled current-heat reruns](docs/HEAT_RERUNS.md)
 - [0.20 Beta 2 release notes](docs/RELEASE_0.20.0-beta.2.md)
+- [0.25 Beta 3 release notes](docs/RELEASE_0.25.0-beta.3.md)
 - [0.10 Beta 1 release notes](docs/RELEASE_0.10.0-beta.1.md)
 - [Project backlog](TODO.md)
 

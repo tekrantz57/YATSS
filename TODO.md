@@ -8,10 +8,9 @@ substitute for physical sensor/relay testing or validation of newer code.
 
 1. Bench-validate normally open relay wiring, pulldowns, boot/reset behavior,
    watchdog cuts, and control-power loss/restoration before enabling track power.
-2. CI confirmed October 10: all seven jobs passed for `291ceb5`, including
-   Linux native tests and all five board builds. Local MSVC setup repaired;
-   all 6,722 controller checks pass. Verify the newly added Windows/MSVC CI
-   step and current changes after the next push.
+2. CI verified for `75528f1`: all seven jobs passed, including Windows/MSVC,
+   Linux native tests and all five board builds. Local MSVC setup is repaired;
+   all 6,722 controller checks pass. Confirm the release commit's workflow too.
 3. Bench-validate controller-loss and active-event recovery on Windows and Wine,
    including real sensor traffic, remaining time, and pending approvals.
 4. Validate sustained scoring/logging and the shared controller core on both
@@ -71,6 +70,20 @@ retained results/logs, failure/timeout reporting and isolated test data. See
   Verify interactive wizard, newer-version upgrade, installed-app operation and
   native Windows ARM64 behavior before a public installer release. Code signing
   is not configured. See [Windows installer](docs/WINDOWS_INSTALLER.md).
+
+## 0.25 Beta 3 Release
+
+- Versioned as `v0.25.0-beta.3`, with Windows installers, portable self-contained
+  x64/ARM64 ZIPs, a smaller .NET 10 required x64 ZIP, UNO Q App Lab source and
+  SHA-256 checksums. `tools/Build-Release.ps1` requires clean, exactly tagged
+  source and does not publish automatically. See
+  [release notes](docs/RELEASE_0.25.0-beta.3.md).
+- README now highlights setup and invites requests for additional microcontroller
+  adapters. Unsupported boards still require engineering and hardware validation;
+  no plug-and-play or sanctioned-compliance claim is made.
+- Installer signing, interactive/newer-version upgrade acceptance, native Windows
+  ARM64 installation and current Wine/hardware acceptance remain pending. Release
+  packaging does not turn earlier test results into physical certification.
 
 ## Installer Help and Discoverability
 
@@ -217,8 +230,10 @@ retained results/logs, failure/timeout reporting and isolated test data. See
   Added native MSVC tests to the Windows job and made local compiler detection
   require the registered C++ tools. Installed missing MSVC x64/x86 components
   and Windows SDK 10.0.26100; the local native run now passes all 6,328 checks
-  with warnings treated as errors. The new MSVC CI step and today's changes
-  still need verification on GitHub after pushing.
+  with warnings treated as errors. Later session-aware tests total 6,722 checks.
+- Verified October 16: all seven jobs, including the MSVC step, passed for
+  `75528f1` in [run 38808153506](https://github.com/tekrantz57/YATSS/actions/runs/38808153506).
+  Confirm each release commit's workflow independently.
 - Consider caching NuGet and Arduino board packages if workflow time becomes
   noticeable.
 

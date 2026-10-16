@@ -29,6 +29,7 @@ if (Test-Path -LiteralPath (Join-Path $root '.git')) {
     $description = & git -C $root describe --tags --always --long --dirty
     if ($LASTEXITCODE -ne 0) { throw 'Could not determine source build identity.' }
     $build = $description.Trim()
+    if (-not $build.EndsWith('-dirty')) { $build = $build -replace '-0-g[0-9a-f]+$', '' }
 }
 if ($build -notmatch '^[a-zA-Z0-9._-]+$') { throw 'Unsafe build identity for installer filename.' }
 $output = [IO.Path]::GetFullPath($OutputDirectory)
