@@ -10,6 +10,7 @@ internal static class HelpSupport
     internal static readonly HelpDocument[] Documents =
     {
         new("Quick Start and Demo", "QUICK_START.md", "docs/QUICK_START.md"),
+        new("Windows Installation", "WINDOWS_INSTALLER.md", "docs/WINDOWS_INSTALLER.md"),
         new("Race Formats and Operation", "WINDOWS_APP.md", "YATSSWin/README.md"),
         new("Combined Distance Racing", "COMBINED_DISTANCE.md", "docs/COMBINED_DISTANCE.md"),
         new("Independent Heat Groups", "INDEPENDENT_HEAT_GROUPS.md", "docs/INDEPENDENT_HEAT_GROUPS.md"),

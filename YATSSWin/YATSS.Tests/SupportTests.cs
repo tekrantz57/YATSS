@@ -8,6 +8,9 @@ internal static class SupportTests
 
     public static void Run()
     {
+        using (Mutex marker = new(false, global::YATSS.Program.InstallerMutexName))
+        using (Mutex visible = Mutex.OpenExisting(global::YATSS.Program.InstallerMutexName))
+            Check(!visible.SafeWaitHandle.IsInvalid, "running-app marker is visible to setup without taking ownership");
         string version = HelpSupport.VersionInformation("git-test-dirty", new(4, 8, "ESP32_C6_DEVKITC1", "test"), true);
         Check(version.Contains("git-test-dirty") && version.Contains("ESP32_C6_DEVKITC1") &&
             version.Contains("Simulated lap input: Yes") && version.Contains("Runtime:"), "version summary includes diagnostic identity");

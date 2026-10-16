@@ -76,6 +76,12 @@ management resumes when the app exits.
 
 ## Help and Installation
 
+The optional native Windows installer includes the self-contained app and
+bundled assets, adds per-user shortcuts and preserves race data on uninstall.
+No separate .NET install is needed. Continue using portable ZIPs under Wine.
+See [Windows installer](../docs/WINDOWS_INSTALLER.md) for build commands, update
+behavior, safety checks and current validation limits.
+
 Self-contained Windows/Wine regression ZIPs can be built with
 `tools/Build-ValidationPackage.ps1` from the repository root. Packaged launchers
 run isolated test areas and retain summaries, structured results and logs.

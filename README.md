@@ -148,6 +148,13 @@ port in YATSS. Directly entering `/dev/ttyUSB0` in the Windows application is
 not sufficient. Native Linux speech is available through the packaged
 loopback helper; see [Linux speech under Wine](docs/LINUX_SPEECH.md).
 
+## Windows Installer
+
+An optional per-user, self-contained Windows installer can be built with
+`tools/Build-Installer.ps1`. ZIP downloads remain available, particularly for
+Wine. Setup never installs drivers or flashes controllers, and uninstall retains
+race data. See [Windows installation and build guide](docs/WINDOWS_INSTALLER.md).
+
 ## Repository Layout
 
 ```text
@@ -161,6 +168,7 @@ YATSSWin/
 
 Controller/                         canonical cross-platform controller core and version
 tests/controller/                   native shared-controller behavior tests
+installer/                          Inno Setup definition for optional Windows setup
 
 YATSSMC/
   YATSSMC.ino                       ESP32 pin/ISR/serial adapter

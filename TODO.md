@@ -2,7 +2,7 @@
 
 ## Current priorities
 
-Updated October 15, 2026. There are no production installations yet. Implemented
+Updated October 16, 2026. There are no production installations yet. Implemented
 items below retain their validation gaps; historical demo runs are not a
 substitute for physical sensor/relay testing or validation of newer code.
 
@@ -55,17 +55,22 @@ retained results/logs, failure/timeout reporting and isolated test data. See
 
 ## Optional Windows Installer
 
-- Consider for the next public beta, after current testing; retain portable ZIP
-  downloads alongside an optional installer for the self-contained Windows app.
-- Include bundled firmware, Linux helpers and offline documentation, a Start
-  menu entry, optional desktop shortcut, clear version information and upgrades.
-- Preserve settings, databases, race reports and backups during upgrades and
-  uninstall. Any user-data removal must be a separate, explicit choice.
-- Do not automatically install USB drivers, flash controllers, or configure
-  Wine/Linux services; keep those deliberate setup steps separate.
-- Evaluate Inno Setup, verifying current licensing and build tooling before
-  adoption. Choose the installation layout with no existing installations to
-  migrate, and test clean install, upgrade and uninstall behavior.
+- Implemented October 16: optional per-user Inno Setup installer and repeatable
+  x64/ARM64 self-contained build script. ZIPs remain available; use ZIPs for Wine.
+  Bundled firmware, helpers and guides are copied, never executed by setup.
+- Start-menu entry, optional desktop shortcut, build version, stable upgrade
+  identity and uninstall are included. Data is not installed/removed; uninstall
+  preserves race settings, journals, reports, backups and unowned app-folder files.
+- Setup/uninstall refuses the running-app marker and does not automatically
+  close/restart YATSS. No drivers, controller flashing, runtime downloads or
+  Wine/Linux service configuration. No existing installations need migration.
+- Separate test identity supports install/reinstall/uninstall smoke checks.
+  Native x64 smoke checks passed October 16: running-app setup/uninstall refusal,
+  file replacement on reinstall, shortcuts/registration and preservation of
+  external test data and unowned files. Runtime license notices are bundled.
+  Verify interactive wizard, newer-version upgrade, installed-app operation and
+  native Windows ARM64 behavior before a public installer release. Code signing
+  is not configured. See [Windows installer](docs/WINDOWS_INSTALLER.md).
 
 ## Installer Help and Discoverability
 
