@@ -1,7 +1,9 @@
 # Active event recovery
 
 Heat duration is saved in whole seconds, including non-minute durations such
-as 30 or 90 seconds. Journal schema 2 automatically reads schema 1's minute-based
+as 30 or 90 seconds. Journal schema 3 also retains Lap Finish targets and frozen
+winning outcomes, with elapsed time not limited by a timed-heat duration.
+It automatically reads schema 1's minute-based
 duration as seconds, preserving elapsed time and lap history. Recovery never
 interprets an old three-minute heat as three seconds.
 

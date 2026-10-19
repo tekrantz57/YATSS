@@ -78,6 +78,9 @@ namespace YATSS
         string Notes)
     {
         public RaceFormat Format { get; init; }
+        public int LapTarget { get; init; }
+        public LapFinishOutcome? LapFinish { get; init; }
+        public IReadOnlyList<LapFinishStanding> LapFinishStandings { get; init; } = Array.Empty<LapFinishStanding>();
         public IReadOnlyList<DistanceStanding> DistanceStandings { get; init; } = Array.Empty<DistanceStanding>();
         public IReadOnlyDictionary<int, DistanceApproval> FinalDistanceApprovals { get; init; } = new Dictionary<int, DistanceApproval>();
         public DateTimeOffset? FinalTieOrderRecordedAt { get; init; }
@@ -180,9 +183,18 @@ namespace YATSS
             IReadOnlyList<QualifyingResult>? qualifyingResults = null,
             RaceFormat format = RaceFormat.HeatRace,
             IReadOnlyList<IReadOnlyList<string>>? groups = null,
-            HeatRaceScheduling scheduling = HeatRaceScheduling.RotationQueue)
+            HeatRaceScheduling scheduling = HeatRaceScheduling.RotationQueue,
+            int lapTarget = 20)
         {
             if (!Enum.IsDefined(scheduling)) throw new ArgumentOutOfRangeException(nameof(scheduling));
+            if (!Enum.IsDefined(format)) throw new ArgumentOutOfRangeException(nameof(format));
+            if (format == RaceFormat.LapFinish && (lapTarget is < 1 or > MaximumLapTarget ||
+                racers.Count(name => !string.IsNullOrWhiteSpace(name)) is < 2 ||
+                racers.Count(name => !string.IsNullOrWhiteSpace(name)) > Math.Clamp(activeLaneCount, 2, 8) ||
+                racers.Where(name => !string.IsNullOrWhiteSpace(name)).Select(name => name.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).Count() != racers.Count(name => !string.IsNullOrWhiteSpace(name)) ||
+                groups is { Count: > 0 } || qualifyingResults is { Count: > 0 } ||
+                scheduling != HeatRaceScheduling.RotationQueue))
+                throw new ArgumentException("Lap Finish requires a valid lap target and two to lane-count racers, without qualifying or groups.");
             lock (_gate)
             {
                 int laneCount = Math.Clamp(activeLaneCount, 2, LapProtocolParser.LaneCount);
@@ -208,6 +220,9 @@ namespace YATSS
                 _trackLengthFeet = Math.Clamp(trackLengthFeet, 1.0, 10000.0);
                 _qualifyingResults = qualifyingResults?.ToArray() ?? Array.Empty<QualifyingResult>();
                 Format = format;
+                LapTarget = format == RaceFormat.LapFinish ? lapTarget : 0;
+                LapFinish = null;
+                if (format == RaceFormat.LapFinish) TotalHeats = 1;
                 Scheduling = format == RaceFormat.CombinedDistance ? HeatRaceScheduling.IndependentGroups : scheduling;
                 _groups = groups?.Select(group => (IReadOnlyList<string>)group.ToArray()).ToArray()
                     ?? Array.Empty<IReadOnlyList<string>>();
@@ -264,6 +279,8 @@ namespace YATSS
                 _reruns.Clear();
                 _recoveryHistoryVersion++;
                 Format = RaceFormat.HeatRace;
+                LapTarget = 0;
+                LapFinish = null;
                 Scheduling = HeatRaceScheduling.RotationQueue;
                 _groups = Array.Empty<IReadOnlyList<string>>();
                 _activeMillisecondsBeforeRun = 0;
@@ -333,6 +350,7 @@ namespace YATSS
         {
             lock (_gate)
             {
+                if (Format == RaceFormat.LapFinish) return false;
                 if (State != HeatRaceState.Running && State != HeatRaceState.Paused)
                 {
                     return false;
@@ -377,7 +395,7 @@ namespace YATSS
         {
             lock (_gate)
             {
-                return State == HeatRaceState.Running &&
+                return Format != RaceFormat.LapFinish && State == HeatRaceState.Running &&
                     GetElapsedMillisecondsCore(controllerTimestamp) >= _heatLengthMilliseconds;
             }
         }
@@ -466,7 +484,7 @@ namespace YATSS
             {
                 lock (_gate)
                 {
-                    return State == HeatRaceState.Paused || State == HeatRaceState.Complete;
+                    return State == HeatRaceState.Paused || (State == HeatRaceState.Complete && Format != RaceFormat.LapFinish);
                 }
             }
         }
@@ -615,8 +633,8 @@ namespace YATSS
                 HeatRaceReport report = new HeatRaceReport(
                     DateTime.Now,
                     _raceName,
-                    HeatLengthSeconds,
-                    BetweenHeatsSeconds,
+                    Format == RaceFormat.LapFinish ? 0 : HeatLengthSeconds,
+                    Format == RaceFormat.LapFinish ? 0 : BetweenHeatsSeconds,
                     _trackLengthFeet,
                     TotalHeats,
                     _laneNames.Take(_initialLaneIndexes.Length).ToArray(),
@@ -655,6 +673,14 @@ namespace YATSS
                         Notes = "Combined Distance: approved qualifying credit + counted race laps + approved final fraction. All distances are in laps."
                     };
                 }
+                if (Format == RaceFormat.LapFinish)
+                {
+                    report = report with { Format = Format, LapTarget = LapTarget, LapFinish = LapFinish,
+                        Notes = "First accepted target-lap crossing wins; later crossings are excluded. Other places use laps, then last counted crossing; exact ties share a place." };
+                    var standings = RankLapFinish(report);
+                    report = report with { LapFinishStandings = standings,
+                        Racers = standings.Select(row => report.Racers.Single(racer => racer.RacerName == row.RacerName)).ToArray() };
+                }
                 return report with { Reruns = _reruns.ToArray(), Scheduling = Scheduling,
                     Groups = _groups.Select(group => (IReadOnlyList<string>)group.ToArray()).ToArray() };
             }
@@ -678,6 +704,7 @@ namespace YATSS
 
         private TimeSpan GetRemainingCore(uint controllerTimestamp)
         {
+            if (Format == RaceFormat.LapFinish) return TimeSpan.Zero;
             long elapsed = State == HeatRaceState.Running
                 ? GetElapsedMillisecondsCore(controllerTimestamp)
                 : _activeMillisecondsBeforeRun;

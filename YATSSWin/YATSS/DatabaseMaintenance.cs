@@ -371,6 +371,11 @@ namespace YATSS
                 };
             }
             if (schemaVersion >= 6) AddRequiredColumn(requirements, "heat_race_settings", "scheduling");
+            if (schemaVersion >= 7)
+            {
+                AddRequiredColumn(requirements, "heat_race_settings", "race_format");
+                AddRequiredColumn(requirements, "heat_race_settings", "lap_target");
+            }
             return requirements;
         }
 

@@ -51,13 +51,28 @@ establish Wine compatibility.
 
 ## Test Areas
 
+The current development runner contains fourteen suites. The October 19 Lap
+Finish addition covers baseline/counting rules, invalid crossings, target
+cutoff, controller wrap, pauses, recovery, reruns, exact ties, settings and
+minimum-size setup layout, archive reconstruction and HTML/JSON/CSV exports.
+The real-app TCP suite also verifies that reaching the target commands virtual
+power off, freezes both racers and automatically exports results. It also
+exercises the Lap Finish demo menu, countdown and simulated-input setup, then
+switches back to the unchanged timed demo preset. These tests do not operate
+physical relays or validate Wine on the UNO Q.
+
+October 19 Lap Finish verification: all fourteen isolated Windows suites passed,
+followed by a successful complete in-process test run. Release configuration
+built with zero warnings and zero errors. The minimum-size Lap Finish setup
+screenshot was also inspected for clipping and control overlap.
+
 Separate child processes run runner-reporting checks; Help and packaged guides;
 archive browsing/reconstruction/export-copy/retention checks;
 UNO Q update bundle/authentication/HTTP completion checks (no hardware flashing);
 controller timing-session identity, stale-message rejection, and reset/reconnect checks;
 real-app TCP simulator fault/recovery integration (no physical controller);
 independent groups; active-event recovery; heat durations/intermission settings;
-heat reruns; restart-safe exports; Combined Distance; and existing core
+heat reruns; restart-safe exports; Combined Distance; Lap Finish; and existing core
 protocol/scoring/statistics/logging/speech-policy/backup tests. A failure does
 not hide subsequent suites. Runner self-checks deliberately fail and time out
 nested fixtures; their parent suite passes only if failures are reported correctly.

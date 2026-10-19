@@ -52,7 +52,7 @@ internal static class GroupedHeatTests
             AppDatabase.SaveHeatRaceSettings(loaded with { Scheduling = HeatRaceScheduling.IndependentGroups });
             Check(AppDatabase.LoadHeatRaceSettings(new(180, 60, "")).Scheduling == HeatRaceScheduling.IndependentGroups, "saved grouped scheduling round-trips");
             command.CommandText = "PRAGMA user_version";
-            Check(Convert.ToInt32(command.ExecuteScalar()) == 6, "schema version six");
+            Check(Convert.ToInt32(command.ExecuteScalar()) == 7, "schema version seven");
         }
         finally { connection.Close(); connection.ConnectionString = original; }
     }

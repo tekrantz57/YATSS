@@ -9,7 +9,7 @@ internal sealed record ValidationResult(string Suite, string Status, int? ExitCo
 
 internal static class RegressionRunner
 {
-    internal static readonly string[] Suites = { "runner", "help", "archives", "unoq-update", "sessions", "tcp", "groups", "recovery", "duration", "reruns", "exports", "distance", "core" };
+    internal static readonly string[] Suites = { "runner", "help", "archives", "unoq-update", "sessions", "tcp", "groups", "recovery", "duration", "reruns", "exports", "distance", "lap-finish", "core" };
 
     internal static bool RunSuite(string name)
     {
@@ -30,6 +30,7 @@ internal static class RegressionRunner
             case "reruns": RerunTests.Run(); break;
             case "exports": ExportRecoveryTests.Run(); break;
             case "distance": DistanceTests.Run(); break;
+            case "lap-finish": LapFinishTests.Run(); break;
             case "core": return false;
             default: throw new ArgumentException("Unknown regression suite: " + name);
         }

@@ -124,6 +124,7 @@ public sealed partial class Serial
         _configuredScheduling = _heatRace.Scheduling;
         _configuredRaceName = saved.Heat.RaceName;
         _configuredHeatLengthSeconds = saved.Heat.HeatLengthSeconds;
+        _configuredLapTarget = saved.Heat.LapTarget;
         _configuredBetweenHeatsSeconds = saved.Heat.BetweenHeatsSeconds;
         _configuredActiveLaneCount = saved.Heat.ActiveLaneCount;
         _configuredTrackLengthFeet = saved.Heat.TrackLengthFeet;
@@ -237,6 +238,7 @@ public sealed class RaceRecoveryChoiceForm : Form
             $"Qualifying {Math.Min(saved.Qualifying.CurrentIndex + 1, saved.Qualifying.Racers.Length)}/{saved.Qualifying.Racers.Length}" :
             $"Heat {saved.Heat.HeatNumber}/{saved.Heat.TotalHeats}";
         string state = saved.Qualifying.State != QualifyingState.Inactive ? saved.Qualifying.State.ToString() :
+            saved.Heat.Format == RaceFormat.LapFinish ? $"{saved.Heat.State} - target {saved.Heat.LapTarget} laps, {YATSS.FormatClock(TimeSpan.FromMilliseconds(saved.Heat.ElapsedMilliseconds))} elapsed" :
             $"{saved.Heat.State} - {YATSS.FormatClock(TimeSpan.FromMilliseconds(saved.Heat.HeatLengthSeconds * 1000L - saved.Heat.ElapsedMilliseconds))} remaining";
         string guidance = pendingExports
             ? "The race is complete, but its exports were interrupted. Finish Exports retries the saved files without restarting racing. Track power stays off."

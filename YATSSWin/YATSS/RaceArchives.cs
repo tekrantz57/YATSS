@@ -45,7 +45,7 @@ public sealed partial class RaceRecoveryStore
             bool complete = Number(6) == (int)HeatRaceState.Complete && Number(7) == Number(8) && Number(8) > 0;
             entries.Add(new(reader.GetInt64(0), Value(1), Value(2), id,
                 string.IsNullOrWhiteSpace(Value(4)) ? "(Unnamed event)" : Value(4),
-                Number(5) == (int)RaceFormat.HeatRace ? "Heat Race" : Number(5) == (int)RaceFormat.CombinedDistance ? "Combined Distance" : "Unknown",
+                Number(5) switch { (int)RaceFormat.HeatRace => "Heat Race", (int)RaceFormat.CombinedDistance => "Combined Distance", (int)RaceFormat.LapFinish => "Lap Finish", _ => "Unknown" },
                 id == null ? "Unreadable" : complete ? Number(9) == 1 ? "Completed / exported" : "Completed / not exported" : "Unfinished",
                 Number(7), Number(8), Number(10) == 1));
         }

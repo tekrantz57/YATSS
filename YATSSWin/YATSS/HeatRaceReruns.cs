@@ -37,7 +37,8 @@ public sealed partial class HeatRaceController
             _laneResults.RemoveAll(item => item.HeatNumber == HeatNumber);
             _laps.RemoveAll(item => item.HeatNumber == HeatNumber);
             _manualAdjustments.RemoveAll(item => item.HeatNumber == HeatNumber);
-            if (State == HeatRaceState.Complete) _raceTimestampBase -= _heatLengthMilliseconds;
+            if (State == HeatRaceState.Complete) _raceTimestampBase -= Format == RaceFormat.LapFinish ? _activeMillisecondsBeforeRun : _heatLengthMilliseconds;
+            LapFinish = null;
             if (Format == RaceFormat.CombinedDistance)
             {
                 foreach (RacerEntry racer in _laneRacers.Where(item => !string.IsNullOrWhiteSpace(item.Name)))

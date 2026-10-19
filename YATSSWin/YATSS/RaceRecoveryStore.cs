@@ -8,7 +8,7 @@ namespace YATSS;
 // day's lap history on every crossing. This database is not the settings DB.
 public sealed partial class RaceRecoveryStore : IDisposable
 {
-    public const int SchemaVersion = 2;
+    public const int SchemaVersion = 3;
     private readonly FileStream _lease;
     private readonly SqliteConnection _connection;
     private readonly List<HeatRaceLapRecord> _heatLaps = new();
@@ -34,7 +34,7 @@ public sealed partial class RaceRecoveryStore : IDisposable
                 PRAGMA journal_mode=WAL;
                 PRAGMA synchronous=FULL;
                 CREATE TABLE IF NOT EXISTS recovery_version (version INTEGER NOT NULL);
-                INSERT INTO recovery_version SELECT 2 WHERE NOT EXISTS (SELECT 1 FROM recovery_version);
+                INSERT INTO recovery_version SELECT 3 WHERE NOT EXISTS (SELECT 1 FROM recovery_version);
                 """;
             command.ExecuteNonQuery();
             command.CommandText = "SELECT version FROM recovery_version";
@@ -74,6 +74,7 @@ public sealed partial class RaceRecoveryStore : IDisposable
             heat.AsObject().Remove("HeatLengthMinutes");
             node["SchemaVersion"] = SchemaVersion;
         }
+        if (node["SchemaVersion"]?.GetValue<int>() == 2) node["SchemaVersion"] = SchemaVersion;
         return node.Deserialize<RaceRecoveryFrame>() ?? throw new InvalidDataException("Empty race journal record.");
     }
 
@@ -136,7 +137,7 @@ public sealed partial class RaceRecoveryStore : IDisposable
         using SqliteTransaction transaction = _connection.BeginTransaction();
         using SqliteCommand command = _connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = "UPDATE recovery_version SET version = 2; INSERT INTO journal(payload) VALUES ($payload)";
+        command.CommandText = "UPDATE recovery_version SET version = 3; INSERT INTO journal(payload) VALUES ($payload)";
         command.Parameters.AddWithValue("$payload", JsonSerializer.Serialize(frame));
         command.ExecuteNonQuery();
         transaction.Commit();

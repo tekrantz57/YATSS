@@ -243,6 +243,41 @@ internal static class TcpSimulatorTests
         await Wait(status => status.Ready && status.QualifyingState == QualifyingState.Ready, "reset interrupts qualifier for rerun");
         Check(serial.CaptureTestStatus().Qualifier == "Fixture B" && serial.CaptureTestStatus().CompletedQualifiers == 1,
             "interrupted qualifier reruns without losing prior results");
+        serial.SetPracticeMode();
+        serial.ConfigureHeatRace("TCP Lap Finish", 1, 60, new[] { "Fixture A", "Fixture B" }, 2,
+            LaneConfiguration.CreateDefaults(), 155, format: RaceFormat.LapFinish, lapTarget: 2);
+        await StartHeat();
+        simulator.EmitEdge(0); simulator.EmitEdge(1); await Task.Delay(100, cancellation);
+        simulator.AdvanceClock(2000); simulator.EmitEdge(0); simulator.EmitEdge(1);
+        await Wait(status => status.Laps[0] == 1 && status.Laps[1] == 1, "Lap Finish continues beyond ignored duration");
+        serial.HandleSpaceBar();
+        await Wait(status => status.HeatState == HeatRaceState.Paused, "Lap Finish track call");
+        Check(!serial.AdjustStoppedHeatLap(0, 1), "manual adjustment cannot manufacture a winning lap");
+        await StartHeat();
+        simulator.AdvanceClock(2000); simulator.EmitEdge(0);
+        await Wait(status => status.HeatState == HeatRaceState.Complete && simulator.Status.PowerMask == 0,
+            "winning crossing ends race and turns virtual track power off");
+        simulator.EmitEdge(1); simulator.AdvanceClock(2000); simulator.EmitEdge(0);
+        await Task.Delay(250, cancellation);
+        Check(serial.CaptureTestStatus().Laps[0] == 2 && serial.CaptureTestStatus().Laps[1] == 1,
+            "post-finish frames cannot alter either racer");
+        Check(Directory.GetFiles(HeatRaceReportWriter.GetReportDirectory(), "LapFinish_*.json").Length == 1,
+            "real TCP finish automatically exports its result");
+        foreach (Form report in form.OwnedForms) report.Close();
+        var lapDemo = (ToolStripMenuItem)form.GetType().GetField("_lapFinishDemoMenu", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(form)!;
+        lapDemo.PerformClick();
+        var heat = (HeatRaceController)typeof(Serial).GetField("_heatRace", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(serial)!;
+        Check(serial.DemoLapStreamActive && heat.Format == RaceFormat.LapFinish && heat.LapTarget == 10 &&
+            heat.TotalHeats == 1 && heat.GetSnapshot(0).LaneRacers.Count(name => !string.IsNullOrWhiteSpace(name)) == 2 &&
+            heat.GetSnapshot(0).LaneRacers.Where(name => !string.IsNullOrWhiteSpace(name)).All(name => name.StartsWith("Demo Racer ")),
+            "Lap Finish demo menu configures ten laps and one racer per active lane with simulated input");
+        serial.HandleSpaceBar();
+        await Wait(status => status.HeatState == HeatRaceState.Running && !status.Countdown, "Lap Finish demo countdown starts racing");
+        var timedDemo = (ToolStripMenuItem)form.GetType().GetField("demoRaceToolStripMenuItem", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(form)!;
+        timedDemo.PerformClick();
+        Check(heat.Format == RaceFormat.HeatRace && heat.HeatLengthSeconds == 60 && heat.BetweenHeatsSeconds == 5 &&
+            heat.TotalHeats == 4 && heat.LapTarget == 0 && serial.DemoLapStreamActive,
+            "existing timed demo remains unchanged when switching from Lap Finish demo");
         Check(form.Text.Contains("YATSS"), "actual application form stayed alive throughout TCP faults");
     }
 }

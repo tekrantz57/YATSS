@@ -9,13 +9,16 @@ namespace YATSS
         private readonly Label _queueLabel = new();
         private readonly NumericUpDown _heatLengthSeconds = new();
         private readonly NumericUpDown _betweenHeatsSeconds = new();
+        private readonly NumericUpDown _lapTarget = new() { Minimum = 1, Maximum = HeatRaceController.MaximumLapTarget, Value = 20, Width = 80 };
+        private readonly Label _lapTargetLabel = new() { Text = "Target laps", AutoSize = true, Margin = new Padding(0, 6, 8, 0) };
+        private Label _heatLengthLabel = null!, _betweenHeatsLabel = null!;
         private readonly TextBox _raceName = new();
         private readonly ComboBox _format = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 180 };
         private readonly ComboBox _scheduling = new() { DropDownStyle = ComboBoxStyle.DropDownList, Dock = DockStyle.Fill };
         private HeatRaceScheduling _ordinaryScheduling;
-        public RaceFormat Format => _format.SelectedIndex == 1 ? RaceFormat.CombinedDistance : RaceFormat.HeatRace;
+        public RaceFormat Format => (RaceFormat)Math.Max(0, _format.SelectedIndex);
         public HeatRaceScheduling Scheduling => Format == RaceFormat.CombinedDistance
-            ? HeatRaceScheduling.IndependentGroups : _ordinaryScheduling;
+            ? HeatRaceScheduling.IndependentGroups : Format == RaceFormat.LapFinish ? HeatRaceScheduling.RotationQueue : _ordinaryScheduling;
         private readonly Button _okButton = new();
         private readonly Random _random = new();
         private readonly List<string> _selectedNames = new();
@@ -30,6 +33,7 @@ namespace YATSS
 
         public int HeatLengthSeconds => (int)_heatLengthSeconds.Value;
         public int BetweenHeatsSeconds => (int)_betweenHeatsSeconds.Value;
+        public int LapTarget => (int)_lapTarget.Value;
         public string RaceName => _raceName.Text.Trim();
         public IReadOnlyList<string> SelectedRacers => _selectedNames.ToArray();
         public IReadOnlyList<string> FirstHeatLaneRacers => GetFirstHeatLaneRacers();
@@ -183,7 +187,7 @@ namespace YATSS
             _raceName.Dock = DockStyle.Fill;
             _raceName.MaxLength = 80;
             raceIdentity.Controls.Add(_raceName);
-            _format.Items.AddRange(new object[] { "Heat Race", "Combined Distance" });
+            _format.Items.AddRange(new object[] { "Heat Race", "Combined Distance", "Lap Finish" });
             _format.SelectedIndex = 0;
             raceIdentity.Controls.Add(new Label { Text = "Race format", AutoSize = true, Margin = new Padding(0, 6, 8, 0) }, 0, 1);
             _format.Dock = DockStyle.Fill;
@@ -214,6 +218,7 @@ namespace YATSS
                 Margin = new Padding(0, 6, 8, 0)
             };
             heatSettings.Controls.Add(heatLengthLabel);
+            _heatLengthLabel = heatLengthLabel;
 
             _heatLengthSeconds.Minimum = 1;
             _heatLengthSeconds.Maximum = HeatRaceController.MaximumHeatLengthSeconds;
@@ -229,12 +234,15 @@ namespace YATSS
                 Margin = new Padding(0, 6, 8, 0)
             };
             heatSettings.Controls.Add(betweenHeatsLabel);
+            _betweenHeatsLabel = betweenHeatsLabel;
 
             _betweenHeatsSeconds.Minimum = 0;
             _betweenHeatsSeconds.Maximum = 300;
             _betweenHeatsSeconds.Value = DefaultBetweenHeatsSeconds;
             _betweenHeatsSeconds.Width = 64;
             heatSettings.Controls.Add(_betweenHeatsSeconds);
+            heatSettings.Controls.Add(_lapTargetLabel);
+            heatSettings.Controls.Add(_lapTarget);
 
             ConfigureLaneGrid();
             heatLayout.Controls.Add(_laneGrid, 0, 2);
@@ -320,6 +328,8 @@ namespace YATSS
         private void LoadSettings(HeatRaceSetupSettings settings)
         {
             _ordinaryScheduling = settings.Scheduling;
+            _lapTarget.Value = Math.Clamp(settings.LapTarget, 1, HeatRaceController.MaximumLapTarget);
+            _format.SelectedIndex = (int)settings.Format;
             UpdateSchedulingControl();
             _heatLengthSeconds.Value = Math.Clamp(
                 settings.HeatLengthSeconds,
@@ -337,7 +347,7 @@ namespace YATSS
             AppDatabase.SaveHeatRaceSettings(new HeatRaceSetupSettings(
                 HeatLengthSeconds,
                 BetweenHeatsSeconds,
-                RaceName) { Scheduling = _ordinaryScheduling });
+                RaceName) { Scheduling = _ordinaryScheduling, Format = Format, LapTarget = LapTarget });
         }
 
         private void SetAllRacersChecked(bool isChecked)
@@ -438,7 +448,7 @@ namespace YATSS
                 string racer = lane < laneRacers.Count ? laneRacers[lane] : "";
                 string nextLane = string.IsNullOrWhiteSpace(racer)
                     ? string.Empty
-                    : GetNextRotationLaneName(lane);
+                    : Format == RaceFormat.LapFinish ? string.Empty : GetNextRotationLaneName(lane);
                 int rowIndex = _laneGrid.Rows.Add(_laneNames[lane], racer, nextLane);
                 DataGridViewCell laneCell = _laneGrid.Rows[rowIndex].Cells[0];
                 laneCell.Style.BackColor = _laneColors[lane];
@@ -448,6 +458,8 @@ namespace YATSS
             }
 
             _selectedRacers.Items.Clear();
+            _laneGrid.Columns["next"]!.Visible = Format != RaceFormat.LapFinish;
+            if (Format == RaceFormat.LapFinish) _selectedGroup.Text = "Starting Lanes";
             for (int i = 0; i < _selectedNames.Count; i++)
             {
                 string prefix = i < _initialLaneIndexes.Count
@@ -459,18 +471,27 @@ namespace YATSS
             int waiting = Math.Max(0, _selectedNames.Count - _activeLaneCount);
             string entryLane = _laneNames[_rotationLaneIndexes[0]];
             string rotateOutLane = _laneNames[_rotationLaneIndexes[_rotationLaneIndexes.Count - 1]];
-            _queueLabel.Text = grouped
+            _queueLabel.Text = Format == RaceFormat.LapFinish
+                ? $"{_selectedNames.Count} selected; maximum {_activeLaneCount}. Single race; no rotation."
+                : grouped
                 ? $"{_selectedNames.Count} selected; {(_selectedNames.Count + _activeLaneCount - 1) / _activeLaneCount} qualifying-ranked group(s)."
                 : waiting > 0
                 ? $"{_selectedNames.Count} selected; {waiting} waiting. New racers enter on {entryLane} after {rotateOutLane} rotates out."
                 : $"{_selectedNames.Count} selected; no racers waiting. Racers cycle from {rotateOutLane} back to {entryLane}.";
-            _okButton.Enabled = _selectedNames.Count >= 2;
+            _okButton.Enabled = _selectedNames.Count >= 2 && (Format != RaceFormat.LapFinish || _selectedNames.Count <= _activeLaneCount);
         }
 
         private void UpdateSchedulingControl()
         {
             _scheduling.Enabled = Format == RaceFormat.HeatRace;
             _scheduling.SelectedIndex = (int)Scheduling;
+            bool laps = Format == RaceFormat.LapFinish;
+            _lapTarget.Visible = _lapTargetLabel.Visible = laps;
+            if (_heatLengthLabel != null)
+            {
+                _heatLengthSeconds.Visible = _heatLengthLabel.Visible = !laps;
+                _betweenHeatsSeconds.Visible = _betweenHeatsLabel.Visible = !laps;
+            }
         }
 
         private string[] GetFirstHeatLaneRacers()

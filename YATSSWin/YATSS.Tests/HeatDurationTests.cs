@@ -16,7 +16,7 @@ internal static class HeatDurationTests
         {
             settings.Open();
             using SqliteCommand command = settings.CreateCommand();
-            command.CommandText = "CREATE TABLE heat_race_settings(id INTEGER PRIMARY KEY, heat_length_seconds INTEGER, between_heats_seconds INTEGER, scheduling INTEGER DEFAULT 0); CREATE TABLE heat_race_identity(id INTEGER PRIMARY KEY, race_name TEXT);";
+            command.CommandText = "CREATE TABLE heat_race_settings(id INTEGER PRIMARY KEY, heat_length_seconds INTEGER, between_heats_seconds INTEGER, scheduling INTEGER DEFAULT 0, race_format INTEGER DEFAULT 0, lap_target INTEGER DEFAULT 20); CREATE TABLE heat_race_identity(id INTEGER PRIMARY KEY, race_name TEXT);";
             command.ExecuteNonQuery();
             HeatRaceSetupSettings defaults = new(180, HeatRaceSetup.DefaultBetweenHeatsSeconds, "");
             Check(AppDatabase.LoadHeatRaceSettings(settings, defaults).BetweenHeatsSeconds == 60,
@@ -114,7 +114,7 @@ internal static class HeatDurationTests
                 "JSON duration uses seconds");
             Check(File.ReadAllText(exports.Html).Contains("90 second(s)"), "HTML duration uses seconds");
             Check(File.ReadAllText(exports.ResultsCsv!).Contains("HeatLengthSeconds") &&
-                File.ReadAllLines(exports.ResultsCsv!).Skip(1).All(line => line.EndsWith(",90")), "CSV duration uses seconds");
+                File.ReadAllLines(exports.ResultsCsv!).Skip(1).All(line => line.Split(',')[12] == "90"), "CSV duration uses seconds");
         }
         finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
     }

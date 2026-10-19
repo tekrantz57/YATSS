@@ -14,7 +14,10 @@ namespace YATSS
         public void AnnouncePodium(HeatRaceReport report)
         {
             string[] placeNames = { "First", "Second", "Third" };
-            string announcement = string.Join(
+            string announcement = report.Format == RaceFormat.LapFinish
+                ? string.Join(". ", report.LapFinishStandings.Where(row => row.Place <= 3)
+                    .Select(row => $"{placeNames[row.Place - 1]} place, {row.RacerName}"))
+                : string.Join(
                 ". ",
                 report.Racers
                     .Take(placeNames.Length)

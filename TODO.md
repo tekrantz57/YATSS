@@ -2,7 +2,7 @@
 
 ## Current priorities
 
-Updated October 16, 2026. There are no production installations yet. Implemented
+Updated October 19, 2026. There are no production installations yet. Implemented
 items below retain their validation gaps; historical demo runs are not a
 substitute for physical sensor/relay testing or validation of newer code.
 
@@ -318,6 +318,23 @@ retained results/logs, failure/timeout reporting and isolated test data. See
   behavior, relay polarity, and high-speed edge capture with the onboard status
   matrix enabled before using the UNO Q controller on a physical track. Lane 1
   D2 sensor input has passed an end-to-end physical test.
+
+## Lap Finish Racing
+
+- Requested October 19, 2026: add "Lap Finish" as a race format. An Australian
+  correspondent reports this is the format commonly used at their tracks;
+  confirm their rules rather than assuming a universal Australian format.
+- First software version implemented October 19: one fixed-lane race, two to
+  active-lane-count racers, first accepted target crossing ends racing for all.
+  Includes elapsed/target display, track calls, paused corrections below target,
+  recovery, rerun audit, archives and HTML/JSON/CSV reports. First crossing is a
+  timing baseline, not a lap. No controller firmware changes. See
+  [Lap Finish guide](docs/LAP_FINISH.md). Not yet in release downloads.
+- Added a dedicated 10-lap demo preset under Mode, with one demo racer per
+  active lane and automatic simulated input; the timed demo remains separate.
+- Future scope, subject to actual demand and rule confirmation: multiple groups,
+  lane rotation, qualifying and individual finishing periods. Do not infer these
+  rules from the Australian correspondent's format; confirm before expansion.
 
 ## Future Formula 1-style sector timing
 

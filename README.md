@@ -73,6 +73,11 @@ the prerelease. Verify the GitHub source and checksum before running it.
 
 ## Capabilities
 
+Current development source also includes [Lap Finish racing](docs/LAP_FINISH.md):
+a single fixed-lane race where the first racer to the selected lap target wins
+and stops all lanes. This addition is not yet in the `v0.25.0-beta.3` downloads.
+Choose **Mode > Lap Finish Demo...** for a hardware-free 10-lap example.
+
 Version 0.25 includes the first version of
 [Combined Distance Racing](docs/COMBINED_DISTANCE.md), with distance qualifying,
 independent racer groups, director-approved finishing fractions, and a separate

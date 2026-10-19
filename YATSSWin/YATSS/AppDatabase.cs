@@ -8,6 +8,8 @@ namespace YATSS
         string RaceName)
     {
         public HeatRaceScheduling Scheduling { get; init; }
+        public RaceFormat Format { get; init; }
+        public int LapTarget { get; init; } = 20;
     }
     internal sealed record QualifyingSetupSettings(int LaneIndex, int DurationSeconds);
     internal sealed record RaceReportSettings(bool ExportJson, bool ExportCsv);
@@ -22,7 +24,7 @@ namespace YATSS
 
     internal static class AppDatabase
     {
-        private const int CurrentSchemaVersion = 6;
+        private const int CurrentSchemaVersion = 7;
         public const int DefaultSensorDebounceMilliseconds = 1800;
         public const int DefaultRawSensorLockoutMilliseconds = 0;
         private static readonly object SyncRoot = new();
@@ -448,7 +450,7 @@ namespace YATSS
         {
             using SqliteCommand command = connection.CreateCommand();
             command.CommandText = @"
-                SELECT heat_length_seconds, between_heats_seconds, scheduling
+                SELECT heat_length_seconds, between_heats_seconds, scheduling, race_format, lap_target
                 FROM heat_race_settings
                 WHERE id = 1";
 
@@ -462,23 +464,32 @@ namespace YATSS
             int betweenHeatsSeconds = reader.IsDBNull(1) ? defaults.BetweenHeatsSeconds : reader.GetInt32(1);
             HeatRaceScheduling scheduling = reader.IsDBNull(2) ? defaults.Scheduling : (HeatRaceScheduling)reader.GetInt32(2);
             if (!Enum.IsDefined(scheduling)) throw new InvalidDataException("Invalid heat race scheduling setting.");
+            RaceFormat format = (RaceFormat)reader.GetInt32(3);
+            int lapTarget = reader.GetInt32(4);
+            if (!Enum.IsDefined(format) || lapTarget is < 1 or > HeatRaceController.MaximumLapTarget)
+                throw new InvalidDataException("Invalid race format or lap target setting.");
             reader.Close();
             using SqliteCommand raceNameCommand = connection.CreateCommand();
             raceNameCommand.CommandText = @"SELECT race_name FROM heat_race_identity WHERE id = 1";
             string raceName = raceNameCommand.ExecuteScalar()?.ToString()?.Trim() ?? defaults.RaceName;
-            return new HeatRaceSetupSettings(heatLengthSeconds, betweenHeatsSeconds, raceName) { Scheduling = scheduling };
+            return new HeatRaceSetupSettings(heatLengthSeconds, betweenHeatsSeconds, raceName) { Scheduling = scheduling, Format = format, LapTarget = lapTarget };
         }
 
         public static void SaveHeatRaceSettings(HeatRaceSetupSettings settings)
         {
+            if (!Enum.IsDefined(settings.Format) || settings.LapTarget is < 1 or > HeatRaceController.MaximumLapTarget)
+                throw new ArgumentException("Invalid race format or lap target.");
             using SqliteCommand command = Connection.CreateCommand();
             command.CommandText = @"
-                INSERT INTO heat_race_settings (id, heat_length_seconds, between_heats_seconds, scheduling)
-                VALUES (1, $heatLengthSeconds, $betweenHeatsSeconds, $scheduling)
+                INSERT INTO heat_race_settings (id, heat_length_seconds, between_heats_seconds, scheduling, race_format, lap_target)
+                VALUES (1, $heatLengthSeconds, $betweenHeatsSeconds, $scheduling, $format, $target)
                 ON CONFLICT(id) DO UPDATE SET
                     heat_length_seconds = excluded.heat_length_seconds,
                     between_heats_seconds = excluded.between_heats_seconds,
-                    scheduling = excluded.scheduling";
+                    scheduling = excluded.scheduling,
+                    race_format = excluded.race_format, lap_target = excluded.lap_target";
+            command.Parameters.AddWithValue("$format", (int)settings.Format);
+            command.Parameters.AddWithValue("$target", settings.LapTarget);
             command.Parameters.AddWithValue("$scheduling", (int)settings.Scheduling);
             command.Parameters.AddWithValue("$heatLengthSeconds", settings.HeatLengthSeconds);
             command.Parameters.AddWithValue("$betweenHeatsSeconds", settings.BetweenHeatsSeconds);
@@ -555,6 +566,8 @@ namespace YATSS
                 )");
             DatabaseMaintenance.UpgradeHeatDuration(Connection);
             EnsureColumn("heat_race_settings", "scheduling", "ALTER TABLE heat_race_settings ADD COLUMN scheduling INTEGER NOT NULL DEFAULT 0");
+            EnsureColumn("heat_race_settings", "race_format", "ALTER TABLE heat_race_settings ADD COLUMN race_format INTEGER NOT NULL DEFAULT 0");
+            EnsureColumn("heat_race_settings", "lap_target", "ALTER TABLE heat_race_settings ADD COLUMN lap_target INTEGER NOT NULL DEFAULT 20");
             EnsureAppVoiceAnnouncementsColumn();
             EnsureAppSpeechBackendColumn();
             EnsureAppLapBestSoundsColumn();

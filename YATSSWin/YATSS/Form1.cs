@@ -33,6 +33,7 @@ namespace YATSS
         private readonly ToolStripMenuItem _openBackupFolderMenuItem = new("Open Backup Folder");
         private readonly ToolStripMenuItem _updateControllerFirmwareMenuItem = new("Update Controller Firmware...");
         private readonly ToolStripMenuItem _rerunHeatMenu = new("Rerun Current Heat...") { Enabled = false };
+        private readonly ToolStripMenuItem _lapFinishDemoMenu = new("Lap Finish Demo...");
         private readonly Image _selectedModeIndicator = CreateModeIndicator(selected: true);
         private readonly Image _unselectedModeIndicator = CreateModeIndicator(selected: false);
         private const string EmptyRacerName = "          ";
@@ -535,9 +536,11 @@ namespace YATSS
                 new ToolStripSeparator(),
                 qualifyingToolStripMenuItem,
                 demoRaceToolStripMenuItem,
+                _lapFinishDemoMenu,
                 new ToolStripSeparator(),
                 demoLapStreamToolStripMenuItem
             });
+            _lapFinishDemoMenu.Click += (_, _) => StartDemoRace(lapFinish: true);
             _liveStandingsMenu.Click += (_, _) =>
             {
                 _standingsDismissed = false;
@@ -940,11 +943,11 @@ namespace YATSS
                     ActiveLaneCount,
                     LaneConfigurations,
                     TrackLengthFeet,
-                    heatRaceSetup.Format, heatRaceSetup.Scheduling);
+                    heatRaceSetup.Format, heatRaceSetup.Scheduling, heatRaceSetup.LapTarget);
                 SetRaceTitle(heatRaceSetup.RaceName);
                 SetLaneRacerNames(heatRaceSetup.Scheduling == HeatRaceScheduling.IndependentGroups
                     ? Enumerable.Repeat(string.Empty, LapProtocolParser.LaneCount).ToArray() : heatRaceSetup.FirstHeatLaneRacers);
-                SetQualifyingAvailable(true);
+                SetQualifyingAvailable(heatRaceSetup.Format != RaceFormat.LapFinish);
                 if (heatRaceSetup.Scheduling == HeatRaceScheduling.IndependentGroups)
                     qualifyingToolStripMenuItem_Click(sender, e);
             }
@@ -963,6 +966,9 @@ namespace YATSS
         }
 
         private void demoRaceToolStripMenuItem_Click(object sender, EventArgs e)
+            => StartDemoRace(lapFinish: false);
+
+        private void StartDemoRace(bool lapFinish)
         {
             if (!ConfirmAbandonQualifying())
             {
@@ -970,10 +976,11 @@ namespace YATSS
             }
 
             CloseControllerDiagnostics();
-            const string demoRaceName = "Demo Race";
+            string demoRaceName = lapFinish ? "Lap Finish Demo" : "Demo Race";
             const int demoHeatLengthSeconds = 60;
             const int demoBetweenHeatsSeconds = 5;
-            string[] demoRacers = CreateDemoRacerNames();
+            string[] demoRacers = lapFinish
+                ? CreateDemoRacerNames().Take(ActiveLaneCount).ToArray() : CreateDemoRacerNames();
 
             s.CancelQualifying();
             SetHeatRaceMode();
@@ -984,12 +991,13 @@ namespace YATSS
                 demoRacers,
                 ActiveLaneCount,
                 LaneConfigurations,
-                TrackLengthFeet);
+                TrackLengthFeet, format: lapFinish ? RaceFormat.LapFinish : RaceFormat.HeatRace, lapTarget: 10);
             SetRaceTitle(demoRaceName);
             SetLaneRacerNames(GetFirstHeatLaneRacers(demoRacers));
             SetQualifyingAvailable(false);
             s.StartDemoLapStream();
-            SetStatusMessage("Demo race ready. Press Space to start.");
+            SetStatusMessage(lapFinish ? "Lap Finish demo ready: first to 10 laps. Press Space to start." :
+                "Demo race ready. Press Space to start.");
         }
 
         private void demoLapStreamToolStripMenuItem_Click(object sender, EventArgs e)
@@ -1536,7 +1544,7 @@ namespace YATSS
             int totalHeats,
             string state,
             TimeSpan remaining,
-            string onDeckRacer)
+            string onDeckRacer, int lapTarget = 0, int lapsRemaining = 0, string? winner = null)
         {
             RunOnUiThread(() =>
             {
@@ -1557,7 +1565,7 @@ namespace YATSS
                     "Intermission paused" => "INTERMISSION PAUSED - PRESS SPACE FOR NEXT HEAT",
                     _ => trimmedState
                 };
-                _heatStatusLabel.Text = heatNumber > 0 && totalHeats > 0
+                _heatStatusLabel.Text = lapTarget > 0 ? $"Lap Finish - {displayState}" : heatNumber > 0 && totalHeats > 0
                     ? string.IsNullOrWhiteSpace(displayState)
                         ? $"Heat {heatNumber}/{totalHeats}"
                         : $"Heat {heatNumber}/{totalHeats} - {displayState}"
@@ -1567,8 +1575,10 @@ namespace YATSS
                 string timerPrefix = trimmedState.StartsWith("Intermission", StringComparison.OrdinalIgnoreCase)
                     ? "Next"
                     : "Timer";
-                _heatTimerLabel.Text = $"{timerPrefix} {FormatClock(remaining)}";
-                _onDeckLabel.Text = string.IsNullOrWhiteSpace(onDeckRacer) ? "On deck: " : $"On deck: {onDeckRacer}";
+                _heatTimerLabel.Text = $"{(lapTarget > 0 ? "Elapsed" : timerPrefix)} {FormatClock(remaining)}";
+                _onDeckLabel.Text = lapTarget > 0
+                    ? winner != null ? $"Winner: {winner}" : $"Target {lapTarget} | {lapsRemaining} to go"
+                    : string.IsNullOrWhiteSpace(onDeckRacer) ? "On deck: " : $"On deck: {onDeckRacer}";
             });
         }
 

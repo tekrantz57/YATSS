@@ -220,12 +220,26 @@ rotate, Practice benchmarks remain until Practice or the lane is reset, and
 qualifying benchmarks reset for each racer. Closely spaced signals are
 coalesced rather than queued; a heat-best signal takes priority.
 
+## Lap Finish Mode
+
+In Heat Race setup, select **Lap Finish** and enter **Target laps**.
+Enable `Mode > Simulated Lap Input` first to try it without hardware.
+Or choose `Mode > Lap Finish Demo...` for a preset 10-lap race with one demo
+racer per active lane and simulated input enabled automatically.
+Two to eight racers (no more than active lanes) race on fixed lanes; the first
+accepted target-lap crossing stops everyone. The first sensor crossing starts
+each lane's timing without counting a lap. Space track calls, paused corrections
+below the target, recovery, reruns and reports are supported. There is no time
+limit, qualifying or rotation in this first version. See
+[Lap Finish racing](../docs/LAP_FINISH.md) for finish ordering and full operation.
+Available in development source after `v0.25.0-beta.3`.
+
 ## Heat Race Mode
 
 Heat race setup supports:
 
 - Race name
-- Heat length from 1 minute through 24 hours
+- Heat length from 1 second through 24 hours
 - Time between heats
 - Active lane count from 2 through 8
 - More racers than lanes

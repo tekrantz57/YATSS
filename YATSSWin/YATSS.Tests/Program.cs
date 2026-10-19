@@ -40,7 +40,7 @@ if (!args.Contains("--regression-suite"))
     TimingSessionTests.Run();
     TcpSimulatorTests.Run();
     SupportTests.Run(); GroupedHeatTests.Run(); RecoveryTests.Run(); HeatDurationTests.Run();
-    RerunTests.Run(); ExportRecoveryTests.Run();
+    RerunTests.Run(); ExportRecoveryTests.Run(); LapFinishTests.Run();
 }
 bool originalSpeechEnabled = SpeechAnnouncer.Enabled;
 if (!args.Contains("--regression-suite")) DistanceTests.Run();

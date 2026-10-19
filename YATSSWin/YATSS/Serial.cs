@@ -52,6 +52,7 @@ namespace YATSS
         private bool _qualifyingLaneSelectionPending;
         private string _configuredRaceName = string.Empty;
         private int _configuredHeatLengthSeconds;
+        private int _configuredLapTarget;
         private int _configuredBetweenHeatsSeconds;
         private int _configuredActiveLaneCount = LapProtocolParser.LaneCount;
         private double _configuredTrackLengthFeet = LapRaceOptions.Default.TrackLengthFeet;
@@ -276,19 +277,26 @@ namespace YATSS
             IReadOnlyList<LaneConfiguration> laneConfigurations,
             double trackLengthFeet,
             RaceFormat format = RaceFormat.HeatRace,
-            HeatRaceScheduling scheduling = HeatRaceScheduling.RotationQueue)
+            HeatRaceScheduling scheduling = HeatRaceScheduling.RotationQueue,
+            int lapTarget = 20)
         {
             lock (_controlGate)
             {
                 ConfigureHeatRaceCore(raceName, heatLengthSeconds, betweenHeatsSeconds,
-                    racers, activeLaneCount, laneConfigurations, trackLengthFeet, format, scheduling);
+                    racers, activeLaneCount, laneConfigurations, trackLengthFeet, format, scheduling, lapTarget);
             }
         }
 
         private void ConfigureHeatRaceCore(string raceName, int heatLengthSeconds, int betweenHeatsSeconds,
             IReadOnlyList<string> racers, int activeLaneCount,
-            IReadOnlyList<LaneConfiguration> laneConfigurations, double trackLengthFeet, RaceFormat format, HeatRaceScheduling scheduling)
+            IReadOnlyList<LaneConfiguration> laneConfigurations, double trackLengthFeet, RaceFormat format, HeatRaceScheduling scheduling, int lapTarget)
         {
+            if (!Enum.IsDefined(format) || !Enum.IsDefined(scheduling)) throw new ArgumentException("Unknown race format or scheduling.");
+            if (format == RaceFormat.LapFinish && (racers.Count(name => !string.IsNullOrWhiteSpace(name)) < 2 ||
+                racers.Count(name => !string.IsNullOrWhiteSpace(name)) > Math.Clamp(activeLaneCount, 2, 8) || lapTarget is < 1 or > HeatRaceController.MaximumLapTarget ||
+                racers.Where(name => !string.IsNullOrWhiteSpace(name)).Select(name => name.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).Count() != racers.Count(name => !string.IsNullOrWhiteSpace(name)) ||
+                scheduling != HeatRaceScheduling.RotationQueue))
+                throw new ArgumentException("Lap Finish requires two to lane-count racers and a valid target, without groups.");
             if (!ArchiveActiveEvent("Replaced by a new event")) return;
             _eventId = Guid.NewGuid();
             _reportWritten = false;
@@ -307,6 +315,7 @@ namespace YATSS
             _form.ResetBoardDisplay(clearRacers: false);
             _configuredRaceName = raceName;
             _configuredHeatLengthSeconds = heatLengthSeconds;
+            _configuredLapTarget = format == RaceFormat.LapFinish ? lapTarget : 0;
             _configuredBetweenHeatsSeconds = betweenHeatsSeconds;
             _configuredRacers = racers.ToArray();
             _configuredActiveLaneCount = activeLaneCount;
@@ -323,14 +332,16 @@ namespace YATSS
                 raceName,
                 trackLengthFeet,
                 _qualifyingResults,
-                format, scheduling: _configuredScheduling);
+                format, scheduling: _configuredScheduling, lapTarget: lapTarget);
             HeatRaceSnapshot snapshot = _heatRace.GetSnapshot(GetCurrentControllerTimestamp());
             _form.ResetHeatTimingDisplay(snapshot.LaneLapCounts);
             PublishHeatRaceStatus("Ready");
             SetTrackPowerEnabled(false, null, GroupedRaceActive ?
                 "Independent groups require qualifying and lane choices. Select Mode > Qualifying." :
+                format == RaceFormat.LapFinish ? $"Lap Finish ready: first to {lapTarget} laps. Press Space to start." :
                 $"Heat 1 ready: {heatLengthSeconds} second heat. Press Space to start.");
-            _log.Info($"heat race configured for {heatLengthSeconds} second(s), {betweenHeatsSeconds} second(s) between heats");
+            _log.Info(format == RaceFormat.LapFinish ? $"Lap Finish configured for {lapTarget} laps, single fixed-lane race" :
+                $"heat race configured for {heatLengthSeconds} second(s), {betweenHeatsSeconds} second(s) between heats");
         }
 
         public void SetPracticeMode()
@@ -493,6 +504,11 @@ namespace YATSS
         private void ConfigureQualifyingCore(int laneIndex, int durationSeconds)
         {
             if (!EventChangesAllowed) return;
+            if (_configuredFormat == RaceFormat.LapFinish)
+            {
+                _form.SetStatusMessage("This Lap Finish format uses starting-lane assignments without qualifying.");
+                return;
+            }
             StopControllerDiagnostics();
             if (_heatRace.State != HeatRaceState.Ready || _configuredRacers.Count == 0)
             {
@@ -547,7 +563,7 @@ namespace YATSS
                 _configuredRaceName,
                 _configuredTrackLengthFeet,
                 _qualifyingResults,
-                _configuredFormat, scheduling: _configuredScheduling);
+                _configuredFormat, scheduling: _configuredScheduling, lapTarget: _configuredLapTarget);
             HeatRaceSnapshot snapshot = _heatRace.GetSnapshot(GetCurrentControllerTimestamp());
             _form.ResetBoardDisplay(clearRacers: false);
             _form.SetLaneRacerNames(snapshot.LaneRacers);
@@ -582,6 +598,11 @@ namespace YATSS
             }
 
             int previousCount = _race.GetLane(laneIndex).getCount();
+            if (_configuredFormat == RaceFormat.LapFinish && (long)previousCount + delta >= _heatRace.LapTarget)
+            {
+                _form.SetStatusMessage("Lap corrections must stay below the target. A counted sensor crossing must decide the finish.");
+                return false;
+            }
             int count = _race.AdjustLapCount(laneIndex, delta);
             _reportWritten = false;
             _heatRace.RecordManualLapAdjustment(laneIndex, count - previousCount, count);
@@ -1023,8 +1044,8 @@ namespace YATSS
                 PublishHeatRaceStatus("Running");
                 string remaining = YATSS.FormatClock(_heatRace.GetRemaining(controllerTimestamp));
                 _form.SetStatusMessage(resumePausedHeat
-                    ? $"Heat resumed. Time remaining {remaining}"
-                    : $"Heat {_heatRace.HeatNumber} started. Time remaining {remaining}");
+                    ? _configuredFormat == RaceFormat.LapFinish ? "Lap Finish resumed" : $"Heat resumed. Time remaining {remaining}"
+                    : _configuredFormat == RaceFormat.LapFinish ? $"Lap Finish started: first to {_heatRace.LapTarget} laps" : $"Heat {_heatRace.HeatNumber} started. Time remaining {remaining}");
                 _log.Info(resumePausedHeat
                     ? "heat resumed"
                     : manualStart ? $"heat {_heatRace.HeatNumber} started manually" : $"heat {_heatRace.HeatNumber} started automatically");
@@ -1865,8 +1886,23 @@ namespace YATSS
                     heatDecision.FirstLapMilliseconds);
             }
 
-            if (!SaveRecovery("Sensor crossing")) return;
+            bool lapFinished = (update.Kind is LapUpdateKind.Counted or LapUpdateKind.MissedFrame) &&
+                _heatRace.TryCompleteLapFinish(edge.LaneIndex, _race.GetLane(edge.LaneIndex).getCount(), edge.TimestampMillis);
+            if (lapFinished)
+            {
+                SetTrackPowerEnabled(false, null, "Lap target reached; saving finish");
+                RecordCurrentHeatResults();
+            }
+            if (!SaveRecovery(lapFinished ? "Lap Finish winning crossing" : "Sensor crossing")) return;
             PublishLapUpdate(edge, update, previousHeatBest);
+            if (lapFinished)
+            {
+                string winner = _heatRace.GetSnapshot(0).LaneRacers[edge.LaneIndex];
+                PublishHeatRaceStatus("Race complete", save: false);
+                SpeechAnnouncer.SpeakAsync($"Race over. {winner} wins", _form.SpeechVoiceName);
+                ScheduleNextHeatIfNeeded();
+            }
+            else if (_configuredFormat == RaceFormat.LapFinish) PublishHeatRaceStatus(GetCurrentHeatStatusName(), save: false);
             PublishDistanceStandings();
         }
 
@@ -2189,7 +2225,8 @@ namespace YATSS
             if (!_heatRace.HasMoreHeats)
             {
                 PublishHeatRaceStatus("Race complete");
-                _form.SetStatusMessage("Heat race complete");
+                _form.SetStatusMessage(_configuredFormat == RaceFormat.LapFinish
+                    ? "Lap Finish complete; track power off" : "Heat race complete");
                 if (CombinedDistanceActive)
                 {
                     int version = _raceConfigurationVersion;
@@ -2362,9 +2399,9 @@ namespace YATSS
             return true;
         }
 
-        private void PublishHeatRaceStatus(string state)
+        private void PublishHeatRaceStatus(string state, bool save = true)
         {
-            if (!SaveRecovery("Heat state: " + state)) return;
+            if (save && !SaveRecovery("Heat state: " + state)) return;
             if (!DemoLapStreamActive && _controllerSession.NeedsResume)
             {
                 state = _controllerSession.IsReady ? "Controller ready" : "Controller lost";
@@ -2373,13 +2410,17 @@ namespace YATSS
             HeatRaceSnapshot snapshot = _heatRace.GetSnapshot(controllerTimestamp);
             TimeSpan remaining = state == "Intermission" && _nextHeatStartUtc.HasValue
                 ? _nextHeatStartUtc.Value - DateTime.UtcNow
-                : snapshot.Remaining;
+                : _configuredFormat == RaceFormat.LapFinish ? _heatRace.GetElapsed(controllerTimestamp) : snapshot.Remaining;
+            bool lapFinish = _configuredFormat == RaceFormat.LapFinish;
+            int leaderLaps = lapFinish ? Enumerable.Range(0, _form.ActiveLaneCount).Max(lane => _race.GetLane(lane).getCount()) : 0;
             _form.UpdateHeatRaceStatus(
                 snapshot.HeatNumber,
                 _heatRace.TotalHeats,
                 state,
                 remaining,
-                GroupedRaceActive ? $"Group {_heatRace.GroupNumber}/{_heatRace.GroupCount}" : snapshot.OnDeckRacer);
+                GroupedRaceActive ? $"Group {_heatRace.GroupNumber}/{_heatRace.GroupCount}" : snapshot.OnDeckRacer,
+                lapFinish ? _heatRace.LapTarget : 0, Math.Max(0, _heatRace.LapTarget - leaderLaps),
+                _heatRace.LapFinish is { } finish ? snapshot.LaneRacers[finish.WinnerLaneIndex] : null);
             PublishDistanceStandings();
         }
 

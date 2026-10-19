@@ -18,6 +18,12 @@ For simulated practice, choose Mode > Practice and enable Mode > Simulated Lap
 Input. Disable simulated input before checking real sensors. Demo laps do not
 exercise sensor capture, controller communication or track-power switching.
 
+In current development builds after `v0.25.0-beta.3`, **Mode > Lap Finish
+Demo...** supplies one demo racer per active lane and a 10-lap target. Press
+Space for the countdown; the first racer to ten counted laps stops everyone
+and produces the report. Track calls work as in the timed demo. The initial
+sensor crossing establishes timing, not a lap. See [Lap Finish](LAP_FINISH.md).
+
 ## Configure a real event
 
 - File > Configure sets active lanes, minimum lap time, sensor settings, speech

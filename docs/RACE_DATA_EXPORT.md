@@ -141,7 +141,7 @@ otherwise, and the file is UTF-8 without a byte-order mark.
 
 | Property | Meaning |
 | --- | --- |
-| `schemaVersion` | Integer contract version. Current development exports use `3`; earlier exports used `1` or `2`. |
+| `schemaVersion` | Integer contract version. Current development exports use `4`; earlier exports used `1` through `3`. |
 | `applicationVersion` | YATSS assembly version that produced the archive. |
 | `exportedAt` | ISO 8601 timestamp with UTC offset for archive creation. |
 | `race` | Complete race-report object described below. |
@@ -156,7 +156,7 @@ change is introduced.
 | --- | --- |
 | `createdLocal` | Local date and time used for the artifact basename. |
 | `raceName` | Configured race name; may be empty. |
-| `heatLengthSeconds` | Configured active duration of each heat in whole seconds (1 through 86,400). Replaces `heatLengthMinutes` in schema 3. |
+| `heatLengthSeconds` | Configured active duration of each timed heat in whole seconds (1 through 86,400); zero for Lap Finish. Replaces `heatLengthMinutes` in schema 3. |
 | `betweenHeatsSeconds` | Configured intermission duration. |
 | `trackLengthFeet` | Configured physical track length. |
 | `totalHeats` | Number of scheduled heats. |
@@ -168,7 +168,10 @@ change is introduced.
 | `laps` | Every accepted heat-race lap record. |
 | `manualAdjustments` | Ordered manual correction audit entries. |
 | `notes` | Human-readable scoring notes. |
-| `format` | Named format: `HeatRace` or `CombinedDistance` (schema 2). |
+| `format` | Named format: `HeatRace`, `CombinedDistance`, or `LapFinish`. |
+| `lapTarget` | Lap Finish target; zero for other formats. |
+| `lapFinish` | Lap Finish winner's zero-based `winnerLaneIndex` and active `elapsedMilliseconds`; null until finished or for other formats. |
+| `lapFinishStandings` | Lap Finish rows: `place`, `laneIndex`, `racerName`, `completedLaps`, nullable `lastCrossingElapsedMilliseconds`, and `winner`. Exact nonwinner ties share a place. Empty for other formats. |
 | `distanceStandings` | Official Combined Distance standings, with event-local racer IDs and integer hundredths (empty for ordinary races). |
 | `finalDistanceApprovals` | Race finishing confirmations keyed by event-local racer ID. |
 | `finalTieOrderRecordedAt` | Timestamp of final Combined Distance ordering confirmation, or null. |
@@ -180,6 +183,15 @@ total hundredths. See the format guide for the complete distance CSV contract.
 
 JSON `laneIndex` values are zero based. CSV files expose one-based
 `LaneNumber` values for human-facing use.
+
+Schema 4 appends `RaceFormat`, `LapTarget`, `RaceElapsedMilliseconds`,
+`LastCrossingElapsedMilliseconds`, and `Winner` to results CSV rows. Lap Finish
+rows leave `HeatLengthSeconds` empty; JSON sets both duration and intermission
+to zero. Target/outcome CSV values are empty for other formats. The elapsed
+value freezes at the winning crossing and excludes track calls. Last crossing
+means last accepted counted crossing, not the initial baseline. The winner is
+first by stream order even for identical timestamps; later frames are ignored.
+See [Lap Finish](LAP_FINISH.md) for the complete first-version rules.
 
 ### Qualifying Result
 

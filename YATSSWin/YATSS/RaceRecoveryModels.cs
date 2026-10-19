@@ -13,6 +13,8 @@ public sealed record HeatRecovery(
 {
     public HeatRaceRerun[]? Reruns { get; init; } = Array.Empty<HeatRaceRerun>();
     public HeatRaceScheduling Scheduling { get; init; }
+    public int LapTarget { get; init; }
+    public LapFinishOutcome? LapFinish { get; init; }
 }
 public sealed record QualifyingRecovery(QualifyingState State, string[] Racers,
     QualifyingResult[] Results, int CurrentIndex, int LaneIndex, int DurationSeconds);
@@ -35,7 +37,8 @@ public sealed partial class HeatRaceController
             uint runElapsed = _hasRunStartedAt ? unchecked(timestamp - _runStartedAt) : 0;
             // A confirmed frame can precede the estimated clock used to start.
             if (runElapsed > int.MaxValue) runElapsed = 0;
-            long elapsed = State == HeatRaceState.Complete ? _heatLengthMilliseconds :
+            long elapsed = Format == RaceFormat.LapFinish ? _activeMillisecondsBeforeRun + runElapsed :
+                State == HeatRaceState.Complete ? _heatLengthMilliseconds :
                 Math.Clamp(_activeMillisecondsBeforeRun + runElapsed, 0, _heatLengthMilliseconds);
             return new(State, HeatNumber, TotalHeats, elapsed, _raceTimestampBase, _isFirstHeat,
                 HeatLengthSeconds, _betweenHeatsSeconds, _initialLaneIndexes.Length, _raceName,
@@ -48,7 +51,8 @@ public sealed partial class HeatRaceController
                 savedHistoryVersion == _recoveryHistoryVersion ? null : _laps.ToArray(),
                 _manualAdjustments.ToArray(), new(_finalApprovals), new(_directorTieOrder),
                 _finalTieOrderRecordedAt, _recoveryHistoryVersion)
-                { Reruns = savedHistoryVersion == _recoveryHistoryVersion ? null : _reruns.ToArray(), Scheduling = Scheduling };
+                { Reruns = savedHistoryVersion == _recoveryHistoryVersion ? null : _reruns.ToArray(), Scheduling = Scheduling,
+                    LapTarget = LapTarget, LapFinish = LapFinish };
         }
     }
 
@@ -57,15 +61,21 @@ public sealed partial class HeatRaceController
         if (saved.ActiveLaneCount is < 2 or > 8 || saved.Lanes.Length != 8 || saved.Seen.Length != 8 ||
             saved.LaneConfigurations.Length != 8 || saved.HeatNumber < 1 || saved.HeatNumber > saved.TotalHeats ||
             saved.HeatLengthSeconds is < 1 or > MaximumHeatLengthSeconds ||
-            saved.ElapsedMilliseconds < 0 || saved.ElapsedMilliseconds > saved.HeatLengthSeconds * 1000L ||
+            saved.ElapsedMilliseconds < 0 || (saved.Format != RaceFormat.LapFinish && saved.ElapsedMilliseconds > saved.HeatLengthSeconds * 1000L) ||
             saved.State == HeatRaceState.Practice || saved.Laps == null)
             throw new InvalidDataException("Invalid saved heat state.");
+        if (saved.Format == RaceFormat.LapFinish && (saved.TotalHeats != 1 || saved.HeatNumber != 1 || saved.Waiting.Length != 0 ||
+            (saved.State == HeatRaceState.Complete) != (saved.LapFinish != null) ||
+            (saved.LapFinish is { } finish && (finish.WinnerLaneIndex < 0 || finish.WinnerLaneIndex >= saved.ActiveLaneCount ||
+                string.IsNullOrWhiteSpace(saved.Lanes[finish.WinnerLaneIndex].Name) || finish.ElapsedMilliseconds != saved.ElapsedMilliseconds))))
+            throw new InvalidDataException("Invalid saved Lap Finish outcome.");
         lock (_gate)
         {
             Configure(saved.HeatLengthSeconds, saved.BetweenHeatsSeconds,
                 saved.Lanes.Select(racer => racer.Name).Concat(saved.Waiting.Select(racer => racer.Name)).ToArray(),
                 saved.ActiveLaneCount, saved.LaneConfigurations, saved.RaceName, saved.TrackLengthFeet,
-                saved.Qualifiers, saved.Format, saved.Groups.Length == 0 ? null : saved.Groups, saved.Scheduling);
+                saved.Qualifiers, saved.Format, saved.Groups.Length == 0 ? null : saved.Groups, saved.Scheduling, saved.LapTarget);
+            LapFinish = saved.LapFinish;
             HeatNumber = saved.HeatNumber;
             TotalHeats = saved.TotalHeats;
             _activeMillisecondsBeforeRun = saved.ElapsedMilliseconds;

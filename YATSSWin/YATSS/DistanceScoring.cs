@@ -2,7 +2,7 @@ using System.Globalization;
 
 namespace YATSS
 {
-    public enum RaceFormat { HeatRace, CombinedDistance }
+    public enum RaceFormat { HeatRace, CombinedDistance, LapFinish }
 
     public sealed record DistanceApproval(
         int CompletedLaps, int? EstimatedPartialHundredths, int ApprovedPartialHundredths,

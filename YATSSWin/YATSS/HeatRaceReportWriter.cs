@@ -13,7 +13,7 @@ namespace YATSS
             string reportDirectory = GetReportDirectory();
             Directory.CreateDirectory(reportDirectory);
 
-            string fileName = $"HeatRace_{report.CreatedLocal:yyyyMMdd_HHmmss}.html";
+            string fileName = RaceArchiveWriter.FileBaseName(report.Format, report.CreatedLocal) + ".html";
             string path = Path.Combine(reportDirectory, fileName);
             Write(report, path);
             return path;
@@ -39,7 +39,7 @@ namespace YATSS
             int?[] fastestByLane = GetFastestByLane(report);
             StringBuilder html = new();
             html.AppendLine("<!doctype html>");
-            string category = report.Format == RaceFormat.CombinedDistance ? "Combined Distance Results" : "Heat Race Results";
+            string category = report.Format switch { RaceFormat.CombinedDistance => "Combined Distance Results", RaceFormat.LapFinish => "Lap Finish Results", _ => "Heat Race Results" };
             string reportTitle = string.IsNullOrWhiteSpace(report.RaceName) ? category : $"{report.RaceName} - {category}";
             html.AppendLine($"<html><head><meta charset=\"utf-8\"><title>{WebUtility.HtmlEncode(reportTitle)}</title>");
             html.AppendLine("<style>");
@@ -55,14 +55,23 @@ namespace YATSS
             {
                 AppendMetadataRow(html, "Race name", report.RaceName);
             }
-            AppendMetadataRow(html, "Heat length", $"{report.HeatLengthSeconds} second(s)");
-            AppendMetadataRow(html, "Between heats", $"{report.BetweenHeatsSeconds} second(s)");
+            if (report.Format == RaceFormat.LapFinish)
+            {
+                AppendMetadataRow(html, "Lap target", report.LapTarget.ToString(CultureInfo.InvariantCulture));
+                if (report.LapFinish is { } finish)
+                    AppendMetadataRow(html, "Race elapsed", (finish.ElapsedMilliseconds / 1000d).ToString("0.000", CultureInfo.InvariantCulture) + " seconds");
+            }
+            else
+            {
+                AppendMetadataRow(html, "Heat length", $"{report.HeatLengthSeconds} second(s)");
+                AppendMetadataRow(html, "Between heats", $"{report.BetweenHeatsSeconds} second(s)");
+            }
             AppendMetadataRow(
                 html,
                 "Track length",
                 $"{report.TrackLengthFeet.ToString("0.00", CultureInfo.CurrentCulture)} ft");
             AppendMetadataRow(html, "Racers", report.Racers.Count.ToString(CultureInfo.InvariantCulture));
-            AppendMetadataRow(html, "Scheduling", report.Scheduling == HeatRaceScheduling.IndependentGroups ? "Independent Groups" : "Rotation Queue");
+            AppendMetadataRow(html, "Scheduling", report.Format == RaceFormat.LapFinish ? "Single Race" : report.Scheduling == HeatRaceScheduling.IndependentGroups ? "Independent Groups" : "Rotation Queue");
             html.AppendLine("</tbody></table>");
             if (!string.IsNullOrWhiteSpace(report.Notes))
             {
@@ -121,6 +130,14 @@ namespace YATSS
 
         private static void AppendFinishOrder(StringBuilder html, HeatRaceReport report)
         {
+            if (report.Format == RaceFormat.LapFinish)
+            {
+                html.AppendLine("<h2>Finish Order</h2><table><thead><tr><th>Place</th><th>Racer</th><th>Lane</th><th>Completed Laps</th><th>Last Counted Crossing (seconds)</th><th>Winner</th></tr></thead><tbody>");
+                foreach (var row in report.LapFinishStandings)
+                    html.AppendLine($"<tr><td>{row.Place}</td><td>{WebUtility.HtmlEncode(row.RacerName)}</td><td>{WebUtility.HtmlEncode(report.LaneNames[row.LaneIndex])}</td><td>{row.CompletedLaps}</td><td>{(row.LastCrossingElapsedMilliseconds / 1000d)?.ToString("0.000", CultureInfo.InvariantCulture)}</td><td>{(row.Winner ? "Yes" : "")}</td></tr>");
+                html.AppendLine("</tbody></table>");
+                return;
+            }
             html.AppendLine(report.Format == RaceFormat.CombinedDistance ? "<h2>Race Lap Breakdown</h2>" : "<h2>Finish Order</h2>");
             html.AppendLine($"<table><thead><tr><th>Place</th><th>Racer</th><th>{(report.Format == RaceFormat.CombinedDistance ? "Race Completed Laps" : "Total Laps")}</th>");
             for (int heat = 1; heat <= report.TotalHeats; heat++)
