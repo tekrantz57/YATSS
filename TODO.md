@@ -55,6 +55,16 @@ retained results/logs, failure/timeout reporting and isolated test data. See
   intervals were approximately two, three or four times a normal lap; reported
   edge sequences were consecutive. Investigate wiring/conditioning and recent
   capture changes; the log alone does not establish the cause.
+- October 27 code review: the Nano still timestamps and captures normal falling
+  edges in its ISR; the selection change detaches/reattaches interrupts at the
+  configuration boundary and filters by mask. The logged 1800 ms controller
+  debounce is below the approximately 3350 ms normal lap interval. This does not
+  prove what happened at the GPIO or rule out firmware. Next physical test: with
+  track power disabled, inspect connections, then run a controlled known number
+  of passes under each mask with the same wiring and settings. Compare the log;
+  controller diagnostics can separately show input transitions and debounce
+  acceptance. A scope or independent pulse source can distinguish missed GPIO
+  transitions from firmware rejection. Keep relay tests separate.
 - Venue follow-up: compare lane 8's sustained dead-strip test with only lane 8
   armed, keeping other wiring/settings constant. October 25 logs showed an
   initial clean 200-lap block, later missed-crossing intervals near 17:18:36,

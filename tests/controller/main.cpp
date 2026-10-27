@@ -303,7 +303,7 @@ static void run() {
   check(Hardware::diagnostics && Hardware::captureMask == 255, "diagnostics explicitly use all input interrupts");
   select("DIAG:STOP");
   check(!Hardware::diagnostics && Hardware::captureMask == 0x80, "closing diagnostics restores selected normal interrupts");
-  for (const std::string& invalid : { "CONFIG:CAPTURE:GG:00000004", "CONFIG:CAPTURE:100:00000004",
+  for (const std::string invalid : { "CONFIG:CAPTURE:GG:00000004", "CONFIG:CAPTURE:100:00000004",
        "CONFIG:CAPTURE:01:00000000", "CONFIG:CAPTURE:01:xyz", "CONFIG:CAPTURE:01" }) {
     select(invalid);
     check(selection.captureMask() == 0x80, "invalid capture command cannot change mask");
@@ -313,6 +313,22 @@ static void run() {
   select("RESET");
   check(selection.captureMask() == 255 && Hardware::captureMask == 255 && Hardware::power == 0,
         "reset restores default sensor mask but never energizes relays");
+
+  // Exercise the venue's approximate lap cadence with both capture masks.
+  for (const std::string mask : { "80", "FF" }) {
+    Hardware::clear();
+    Core cadence;
+    cadence.begin();
+    cadence.command(sessionCommand("CONFIG:CAPTURE:" + mask + ":00000001").c_str());
+    for (uint32_t lap = 0; lap < 100; ++lap) {
+      uint32_t stamp = 1000 + lap * 3350;
+      Hardware::clock = stamp;
+      Hardware::lock(); cadence.capture(7, true, stamp); Hardware::unlock();
+      cadence.service();
+    }
+    check(countPrefix("EDGE:7:") == 100, "lane 8 cadence must be captured under either mask");
+    check(seen("EDGE:7:100:332650"), "lane 8 cadence must retain consecutive sequence numbers");
+  }
 
   Hardware::clear();
   Hardware::entropyFails = true;
