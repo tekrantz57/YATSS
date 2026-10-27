@@ -2,7 +2,7 @@
 set -euo pipefail
 root="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 mode="${2:-sync}"
-for folder in YATSSMC/src/YatssController YATSSUnoQ/sketch/src/YatssController; do
+for folder in YATSSMC/src/YatssController YATSSUnoQ/sketch/src/YatssController YATSSPico/src/YatssController; do
   for file in YatssController.h FirmwareVersion.h; do
     if [[ "$mode" == check ]]; then
       cmp "$root/Controller/$file" "$root/$folder/$file" || {

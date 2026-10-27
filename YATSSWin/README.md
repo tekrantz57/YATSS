@@ -197,6 +197,18 @@ controller firmware together; see [recovery](../docs/CONTROLLER_RECOVERY.md).
 
 ## Practice Mode
 
+After a controller identifies itself, development builds offer a newer matching
+bundled firmware version when Practice is safe for updating and track power is
+off. No is default; Yes opens the normal updater and its safety confirmation.
+The comparison works offline and does not repeat dismissed offers on reconnect
+within the same app session. See [firmware updates](../docs/CONTROLLER_FIRMWARE_UPDATE.md).
+
+Development source supports **Mode > Practice Sensor Lanes...** with matching
+`0.25.0-capture.1` firmware. It arms selected controller inputs without changing
+relay power. Selection defaults to all configured lanes on app start and lasts
+for the app session. Rearming preserves totals/bests but starts fresh timing.
+See [Practice sensor arming](../docs/PRACTICE_SENSOR_ARMING.md).
+
 Practice is the default mode. Edges from active lanes establish a baseline on
 the first pass, then subsequent valid edges count laps. The app filters laps
 using:

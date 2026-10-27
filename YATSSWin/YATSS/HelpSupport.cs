@@ -14,6 +14,7 @@ internal static class HelpSupport
         new("Race Formats and Operation", "WINDOWS_APP.md", "YATSSWin/README.md"),
         new("Combined Distance Racing", "COMBINED_DISTANCE.md", "docs/COMBINED_DISTANCE.md"),
         new("Lap Finish Racing", "LAP_FINISH.md", "docs/LAP_FINISH.md"),
+        new("Practice Sensor Arming", "PRACTICE_SENSOR_ARMING.md", "docs/PRACTICE_SENSOR_ARMING.md"),
         new("Independent Heat Groups", "INDEPENDENT_HEAT_GROUPS.md", "docs/INDEPENDENT_HEAT_GROUPS.md"),
         new("Controller Boards and Pin Maps", "CONTROLLER_GUIDE.md", "YATSSMC/README.md"),
         new("Track-Power Wiring", "RELAY_WIRING.md", "docs/RELAY_WIRING.md"),

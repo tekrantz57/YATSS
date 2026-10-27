@@ -73,6 +73,14 @@ the prerelease. Verify the GitHub source and checksum before running it.
 
 ## Capabilities
 
+Development builds also offer a safe startup prompt when the identified
+controller has older firmware than its matching validated bundle. Updates remain
+explicitly confirmed; see [firmware updates](docs/CONTROLLER_FIRMWARE_UPDATE.md).
+
+Development source adds [controller-side Practice sensor arming](docs/PRACTICE_SENSOR_ARMING.md):
+select a test lane subset under Mode; unselected sensor interrupts are detached.
+Matching updated firmware is required. This is not in the current release downloads.
+
 Current development source also includes [Lap Finish racing](docs/LAP_FINISH.md):
 a single fixed-lane race where the first racer to the selected lap target wins
 and stops all lanes. This addition is not yet in the `v0.25.0-beta.3` downloads.
@@ -111,6 +119,11 @@ database; settings backups do not include it. Unknown outage crossings still
 require director review. Practice sessions are not journaled.
 
 ## Architecture
+
+Experimental controller addition in development source: [Pico 2 W USB
+adapter](YATSSPico/README.md), reusing the existing shared controller core.
+IDE/CLI/UF2 builds are supported; in-app Pico flashing and physical acceptance
+are not yet complete. This is not included in the current release downloads.
 
 - `YATSSWin` is the .NET 10 Windows Forms race-control application.
 - `YATSSMC` is the shared ESP32-C5, ESP32-C6, and Arduino Nano ESP32 controller

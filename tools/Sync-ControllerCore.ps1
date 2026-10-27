@@ -4,7 +4,7 @@ param([switch]$Check)
 $ErrorActionPreference = "Stop"
 $root = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $files = @("YatssController.h", "FirmwareVersion.h")
-foreach ($folder in @("YATSSMC\src\YatssController", "YATSSUnoQ\sketch\src\YatssController")) {
+foreach ($folder in @("YATSSMC\src\YatssController", "YATSSUnoQ\sketch\src\YatssController", "YATSSPico\src\YatssController")) {
     foreach ($file in $files) {
         $source = Join-Path $root "Controller\$file"
         $target = Join-Path $root "$folder\$file"

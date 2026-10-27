@@ -324,6 +324,18 @@ namespace YATSS
             }
         }
 
+        internal void ResetCaptureBaselines()
+        {
+            lock (_gate)
+            {
+                foreach (LaneRuntime lane in _lanes)
+                {
+                    lane.LastAcceptedTimestamp = lane.LastRawTimestamp = lane.LastSequence = null;
+                    lane.CountAfterInterruption = false;
+                }
+            }
+        }
+
         public void InterruptTiming()
         {
             lock (_gate)

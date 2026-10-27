@@ -11,7 +11,7 @@ public sealed partial class Serial
         if (AppContext.GetData("YATSS.TestDataDirectory") is not string)
             throw new InvalidOperationException("Test status requires isolated regression data");
         lock (_controlGate)
-            return new(_timingSession.Id, _controllerSession.IsReady, _controllerSession.NeedsResume,
+            return new(_timingSession.Id, _controllerSession.IsReady && CaptureReady, _controllerSession.NeedsResume,
                 _controllerSession.LastConfirmedTimestamp, _heatRace.State, _heatRace.GetRemaining(GetCurrentControllerTimestamp()),
                 _qualifying.State, _qualifying.CurrentRacer, _qualifying.GetRankedResults().Count,
                 Enumerable.Range(0, 8).Select(lane => _race.GetLane(lane).getCount()).ToArray(),

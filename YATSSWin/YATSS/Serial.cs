@@ -138,6 +138,7 @@ namespace YATSS
 
         private void RefreshActiveStatusCore()
         {
+            EnsureCaptureConfiguration();
             if (!DemoLapStreamActive && _controllerSession.HeartbeatExpired)
             {
                 HandleControllerFault("Controller heartbeats stopped");
@@ -223,6 +224,7 @@ namespace YATSS
             _form.ClearHeatRaceStatus();
             _form.SetQualifyingAvailable(false);
             _log.Info("race state reset");
+            EnsureCaptureConfiguration(force: true);
             _form.SetStatusMessage("Practice reset");
         }
 
@@ -333,6 +335,7 @@ namespace YATSS
                 trackLengthFeet,
                 _qualifyingResults,
                 format, scheduling: _configuredScheduling, lapTarget: lapTarget);
+            EnsureCaptureConfiguration(force: true);
             HeatRaceSnapshot snapshot = _heatRace.GetSnapshot(GetCurrentControllerTimestamp());
             _form.ResetHeatTimingDisplay(snapshot.LaneLapCounts);
             PublishHeatRaceStatus("Ready");
@@ -367,6 +370,7 @@ namespace YATSS
             _form.ClearHeatRaceStatus();
             _form.SetQualifyingAvailable(false);
             _form.SetStatusMessage("Practice mode");
+            EnsureCaptureConfiguration(force: true);
         }
 
         public bool ToggleDemoLapStream()
@@ -436,6 +440,12 @@ namespace YATSS
                 return;
             }
 
+            EnsureCaptureConfiguration();
+            if (!DemoLapStreamActive && !CaptureReady)
+            {
+                _form.SetStatusMessage("Sensor arming unconfirmed. Wait for acknowledgement; update controller firmware if needed.");
+                return;
+            }
             if (!DemoLapStreamActive && !_controllerSession.AuthorizeResume())
             {
                 PublishControllerRecoveryStatus();
@@ -824,7 +834,7 @@ namespace YATSS
                 if (identity != null &&
                     string.Equals(identity.BoardProfile, boardProfile, StringComparison.OrdinalIgnoreCase) &&
                     string.Equals(identity.FirmwareVersion, firmwareVersion, StringComparison.OrdinalIgnoreCase) &&
-                    (!requireReady || _controllerSession.IsReady))
+                    (!requireReady || (_controllerSession.IsReady && CaptureReady)))
                 {
                     return true;
                 }
@@ -875,6 +885,7 @@ namespace YATSS
                 WriteLine("DIAG:STOP");
             }
             _log.Info("controller diagnostics stopped");
+            EnsureCaptureConfiguration(force: true);
         }
 
         public void RequestDiagnosticStatus()
@@ -1065,7 +1076,7 @@ namespace YATSS
 
         private bool CanRunController() => !_archiveBrowsing && _rerunRequest == Guid.Empty && EventChangesAllowed &&
             (!GroupedRaceActive || _heatRace.GroupsConfigured || _qualifying.State is QualifyingState.Ready or QualifyingState.Running or QualifyingState.Paused) &&
-            (DemoLapStreamActive || _controllerSession.PowerAllowed);
+            (DemoLapStreamActive || (_controllerSession.PowerAllowed && CaptureReady));
 
         private bool IsCountdownCurrent(int countdownVersion)
         {
@@ -1118,7 +1129,7 @@ namespace YATSS
         private bool TryWriteLineCore(string value)
         {
             string commandBody = value.Split('*')[0];
-            if (!_controllerSession.PowerAllowed &&
+            if ((!_controllerSession.PowerAllowed || !CaptureReady) &&
                 (commandBody == "TRACK_POWER:ON" ||
                  (commandBody.StartsWith("TRACK_POWER:MASK:", StringComparison.Ordinal) &&
                   commandBody != "TRACK_POWER:MASK:00")))
@@ -1189,6 +1200,7 @@ namespace YATSS
                             _port = port;
                         }
                         _controllerSession.BeginConnection();
+                        InvalidateCaptureConfiguration();
                         _trackPowerEnabled = false;
                         _form.SetStatusMessage($"Serial open on {portName}; verifying controller with power off");
                         WriteLine("TRACK_POWER:MASK:00");
@@ -1401,6 +1413,7 @@ namespace YATSS
                         WriteLine("TRACK_POWER:MASK:00");
                     }
                 }
+                ObserveCaptureReply(message);
                 if (message.Detail is "HELLO:TRACK_POWER:MASK:00" or "HELLO:TRACK_POWER:OFF")
                 {
                     _controllerSession.ObservePowerOff();
@@ -1466,7 +1479,7 @@ namespace YATSS
             switch (message.Kind)
             {
                 case LapProtocolMessageKind.Edge:
-                    if (!isDemoLine && !_controllerSession.PowerAllowed)
+                    if (!isDemoLine && (!_controllerSession.PowerAllowed || !CaptureReady))
                     {
                         _log.Info("ignored EDGE while controller recovery is pending");
                     }
@@ -1494,6 +1507,7 @@ namespace YATSS
 
                     if (message.Detail.StartsWith("HELLO:YATSSMC:", StringComparison.OrdinalIgnoreCase))
                     {
+                        EnsureCaptureConfiguration();
                         WriteLine(GetSensorDebounceCommand());
                         WriteLine(GetTrackPowerCommand());
                         if (_diagnosticsActive)
@@ -1526,6 +1540,7 @@ namespace YATSS
                 case LapProtocolMessageKind.Heartbeat:
                     if (!isDemoLine)
                     {
+                        EnsureCaptureConfiguration();
                         WriteLine("KEEPALIVE");
                     }
 
@@ -1731,6 +1746,7 @@ namespace YATSS
             lock (_controlGate)
             {
                 bool firstFault = !_controllerFaultActive;
+                InvalidateCaptureConfiguration();
                 _controllerFaultActive = true;
                 _trackPowerEnabled = false;
                 _controllerRecoveryReason = reason;
@@ -1775,7 +1791,8 @@ namespace YATSS
             {
                 return;
             }
-            string state = _controllerSession.IsReady ? "Controller ready" : "Controller lost";
+            bool ready = _controllerSession.IsReady && CaptureReady;
+            string state = ready ? "Controller ready" : "Controller lost";
             if (_qualifying.State != QualifyingState.Inactive)
             {
                 PublishQualifyingStatus(state);
@@ -1788,7 +1805,9 @@ namespace YATSS
             {
                 _form.UpdateControllerStatus(state);
             }
-            _form.SetStatusMessage(_controllerSession.IsReady
+            _form.SetStatusMessage(_controllerSession.IsReady && !CaptureReady
+                ? "Sensor arming unconfirmed; update controller firmware if this persists. Track power remains off."
+                : ready
                 ? "Controller ready - power off. Review lap counts, then press Space to continue."
                 : $"{_controllerRecoveryReason} - verifying power off, controller identity, and heartbeat.");
         }
@@ -1826,7 +1845,7 @@ namespace YATSS
 
         private string GetTrackPowerCommand()
         {
-            if (!_trackPowerEnabled || !_controllerSession.PowerAllowed)
+            if (!_trackPowerEnabled || !_controllerSession.PowerAllowed || !CaptureReady)
             {
                 return "TRACK_POWER:MASK:00";
             }
@@ -2404,7 +2423,7 @@ namespace YATSS
             if (save && !SaveRecovery("Heat state: " + state)) return;
             if (!DemoLapStreamActive && _controllerSession.NeedsResume)
             {
-                state = _controllerSession.IsReady ? "Controller ready" : "Controller lost";
+                state = _controllerSession.IsReady && CaptureReady ? "Controller ready" : "Controller lost";
             }
             uint controllerTimestamp = GetCurrentControllerTimestamp();
             HeatRaceSnapshot snapshot = _heatRace.GetSnapshot(controllerTimestamp);
@@ -2486,7 +2505,7 @@ namespace YATSS
             if (!SaveRecovery("Qualifying state: " + state)) return;
             if (!DemoLapStreamActive && _controllerSession.NeedsResume)
             {
-                state = _controllerSession.IsReady ? "Controller ready" : "Controller lost";
+                state = _controllerSession.IsReady && CaptureReady ? "Controller ready" : "Controller lost";
             }
             _form.UpdateQualifyingStatus(
                 _qualifying.CurrentNumber,
@@ -2560,7 +2579,11 @@ namespace YATSS
             "Ctrl+1-8 add lap; Ctrl+Shift+1-8 subtract.";
 
         private string FormatControllerRespondingStatus() =>
-            $"Controller responding on {_form.port}; {FormatLastHeard()}";
+            DemoLapStreamActive ? "Simulated lap input active"
+                : !CaptureReady ? "Sensor arming unconfirmed; update controller firmware if this persists."
+                : _heatRace.State == HeatRaceState.Practice && !QualifyingActive
+                ? $"Controller responding on {_form.port}; Practice sensors: {PracticeCaptureSummary}; {FormatLastHeard()}"
+                : $"Controller responding on {_form.port}; {FormatLastHeard()}";
 
         private string FormatLastHeard()
         {

@@ -37,11 +37,17 @@ and [Zephyr's random API](https://docs.zephyrproject.org/latest/doxygen/html/gro
 The installed UNO Q core's configuration also enables the STM32 entropy driver
 and hardware-backed CSPRNG; compilation verifies the API is available to sketches.
 
+`YATSSPico/YATSSPico.ino` is the experimental Pico 2 W adapter: GP0-GP7 sensors,
+GP8-GP15 power-driver outputs, USB serial, SDK critical sections, SDK random
+session IDs and RP2350 reboot. It reuses the same core with a 32-slot queue;
+capture is FALLING normally and CHANGE during diagnostics, timestamped in ISR.
+Only core 0 runs application code. See [Pico setup](../YATSSPico/README.md).
+
 Every controller response carries its session, including acknowledgements and
 diagnostics. Session rotation does not change pins or timestamp capture. See
 [serial protocol](SERIAL_PROTOCOL.md) and [recovery](CONTROLLER_RECOVERY.md).
 
-Both adapters timestamp in their sensor ISR. The core captures and debounces
+All adapters timestamp in their sensor ISR. The core captures and debounces
 edges and assigns sequences inside that protected ISR call. No allocation,
 frame formatting, serial/Bridge calls, or display updates occur there. The
 foreground loop drains accepted edges and formats/sends frames. ESP32 uses a
@@ -54,6 +60,12 @@ the time the ISR reads GPIO. UNO Q keeps CHANGE capture and ignores clear edges
 outside diagnostics. Pin maps and relay polarity have not changed.
 
 ## Unified behavior and intentional differences
+
+- Firmware `0.25.0-capture.1` adds acknowledged normal sensor-capture masks.
+  Each adapter detaches interrupts on unselected lanes, independently of relay
+  outputs. Diagnostics temporarily uses all lanes and restores the normal mask
+  on exit. Capture changes discard queued edges and clear debounce baselines
+  without restarting sequences. See [Practice sensor arming](PRACTICE_SENSOR_ARMING.md).
 
 - Diagnostics counts all transitions in the ISR but coalesces transport updates
   to the latest changed state per lane. This was the ESP32 behavior and now
@@ -81,7 +93,7 @@ outside diagnostics. Pin maps and relay polarity have not changed.
 ## IDE, CLI, App Lab, and packaging
 
 Arduino builders stage sketches before compiling, and App Lab imports an app
-directory. To keep both entry points self-contained, each sketch contains a
+directory. To keep every sketch entry point self-contained, each sketch contains a
 generated `src/YatssController` copy. These checked-in files are build inputs,
 not additional maintained implementations. Do not edit them directly.
 

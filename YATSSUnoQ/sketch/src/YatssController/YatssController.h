@@ -35,6 +35,7 @@ public:
   void begin() {
     setPower(0);
     newSession();
+    Platform::configureCapture(false, sessionReady_ ? captureMask_ : 0);
     hello();
   }
 
@@ -54,6 +55,7 @@ public:
       changedMask_ |= bit;
       return;
     }
+    if (!(captureMask_ & bit)) return;
     if (!active || (baseline_[lane] && uint32_t(now - lastEdge_[lane]) < debounce_)) return;
     uint8_t next = uint8_t((head_ + 1) & (QueueSize - 1));
     if (next == tail_) {
@@ -82,7 +84,7 @@ public:
     bool powerOff = strcmp(body, "TRACK_POWER:OFF") == 0 || strcmp(body, "TRACK_POWER:MASK:00") == 0;
     bool canEnergize = strcmp(body, "TRACK_POWER:ON") == 0 ||
         (startsWith(body, "TRACK_POWER:MASK:") && !powerOff) || startsWith(body, "DIAG:RELAY:PULSE:");
-    if (sessionReady_ && !powerOff && ((tagged && !matching) || (canEnergize && !matching))) {
+    if (sessionReady_ && !powerOff && ((tagged && !matching) || ((canEnergize || startsWith(body, "CONFIG:CAPTURE:")) && !matching))) {
       send("ERR:STALE_SESSION");
       return;
     }
@@ -104,6 +106,8 @@ public:
       {
         Guard guard;
         diagnostic_ = false;
+        captureMask_ = 0xFF;
+        captureRevision_ = 0;
         head_ = tail_ = 0;
         dropped_ = totalDropped_ = 0;
         changedMask_ = 0;
@@ -112,7 +116,7 @@ public:
           baseline_[lane] = false;
         }
       }
-      Platform::configureCapture(false);
+      Platform::configureCapture(false, captureMask_);
       send("HELLO:RESETTING");
       newSession();
       Platform::reset(); // ESP32 reboots; UNO Q retains MCU uptime.
@@ -137,6 +141,27 @@ public:
         { Guard guard; debounce_ = value; }
         send("HELLO:CONFIG:DEBOUNCE:%lu", (unsigned long)value);
       }
+    } else if (startsWith(body, "CONFIG:CAPTURE:")) {
+      char* revision = strchr(body + 15, ':');
+      uint32_t mask, request;
+      if (!revision) { send("ERR:BAD_CAPTURE_MASK"); return; }
+      *revision++ = '\0';
+      if (strlen(body + 15) != 2 || strlen(revision) != 8 ||
+          !number(body + 15, 16, 255, mask) || !number(revision, 16, UINT32_MAX, request) || request == 0) {
+        send("ERR:BAD_CAPTURE_MASK"); return;
+      }
+      if (mask != captureMask_ || request != captureRevision_) {
+        Platform::configureCapture(false, 0);
+        {
+          Guard guard;
+          captureMask_ = uint8_t(mask);
+          captureRevision_ = request;
+          tail_ = head_;
+          for (uint8_t lane = 0; lane < LaneCount; ++lane) baseline_[lane] = false;
+        }
+        Platform::configureCapture(diagnostic_, diagnostic_ ? 0xFF : captureMask_);
+      }
+      send("HELLO:CONFIG:CAPTURE:%02X:%08lX", (unsigned)captureMask_, (unsigned long)captureRevision_);
     } else if (strcmp(body, "DIAG:START") == 0) {
       startDiagnostics(now);
     } else if (strcmp(body, "DIAG:STOP") == 0) {
@@ -207,6 +232,7 @@ public:
   bool YATSS_ISR_ATTR diagnosticsActive() const { return diagnostic_; }
   bool problem() const { return communicationProblem_ || queueProblem_; }
   uint8_t powerMask() const { return powerMask_; }
+  uint8_t captureMask() const { return captureMask_; }
 
   static uint8_t checksum(const char* body) {
     uint8_t result = 0;
@@ -224,6 +250,8 @@ private:
   volatile uint32_t dropped_ = 0, totalDropped_ = 0;
   volatile uint32_t debounce_ = 1800;
   volatile bool diagnostic_ = false;
+  volatile uint8_t captureMask_ = 0xFF;
+  uint32_t captureRevision_ = 0;
   volatile bool sessionReady_ = false;
   char session_[17] = "0000000000000000";
   volatile uint32_t transitions_[LaneCount] = {}, accepted_[LaneCount] = {};
@@ -325,7 +353,7 @@ private:
       clearDiagnostics();
       sensorMask_ = Platform::sensorMask();
     }
-    Platform::configureCapture(true);
+    Platform::configureCapture(true, 0xFF);
     lastDiagnosticCommand_ = now;
     send("DIAG:SESSION:STARTED:%lu", (unsigned long)now);
     diagnosticStatus(now);
@@ -343,7 +371,7 @@ private:
       changedMask_ = 0;
       for (uint8_t lane = 0; lane < LaneCount; ++lane) baseline_[lane] = false;
     }
-    Platform::configureCapture(false);
+    Platform::configureCapture(false, captureMask_);
     send("DIAG:SESSION:STOPPED:%s:%lu", reason, (unsigned long)now);
   }
   void diagnosticStatus(uint32_t now) {

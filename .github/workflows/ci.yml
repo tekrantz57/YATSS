@@ -75,6 +75,10 @@ jobs:
             core: arduino:zephyr@0.90.0
             fqbn: arduino:zephyr:unoq
             sketch: YATSSUnoQ/sketch
+          - name: Pico 2 W
+            core: rp2040:rp2040@6.3.1
+            fqbn: rp2040:rp2040:rpipico2w
+            sketch: YATSSPico
     steps:
       - uses: actions/checkout@v6
       - uses: arduino/setup-arduino-cli@v2
@@ -82,8 +86,8 @@ jobs:
         run: bash tools/sync-controller-core-linux.sh "$PWD" check
       - name: Install pinned board core
         run: |
-          arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
-          arduino-cli core install '${{ matrix.board.core }}' --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json,https://github.com/earlephilhower/arduino-pico/releases/download/global/package_rp2040_index.json
+          arduino-cli core install '${{ matrix.board.core }}' --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json,https://github.com/earlephilhower/arduino-pico/releases/download/global/package_rp2040_index.json
       - name: Install UNO Q bridge library
         if: matrix.board.name == 'UNO Q'
         run: arduino-cli lib install Arduino_RouterBridge@0.4.3

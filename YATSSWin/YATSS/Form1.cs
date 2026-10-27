@@ -34,6 +34,7 @@ namespace YATSS
         private readonly ToolStripMenuItem _updateControllerFirmwareMenuItem = new("Update Controller Firmware...");
         private readonly ToolStripMenuItem _rerunHeatMenu = new("Rerun Current Heat...") { Enabled = false };
         private readonly ToolStripMenuItem _lapFinishDemoMenu = new("Lap Finish Demo...");
+        private readonly ToolStripMenuItem _practiceLanesMenu = new("Practice Sensor Lanes...");
         private readonly Image _selectedModeIndicator = CreateModeIndicator(selected: true);
         private readonly Image _unselectedModeIndicator = CreateModeIndicator(selected: false);
         private const string EmptyRacerName = "          ";
@@ -138,6 +139,7 @@ namespace YATSS
             };
             Shown += (_, _) => BeginInvoke(CreateAutomaticDatabaseBackup);
             Shown += (_, _) => BeginInvoke(s.OfferRaceRecovery);
+            InitializeFirmwareNotices();
         }
 
         private void ConfigureDataMenu()
@@ -532,6 +534,7 @@ namespace YATSS
             modeToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[]
             {
                 practiceToolStripMenuItem,
+                _practiceLanesMenu,
                 heatRaceToolStripMenuItem,
                 new ToolStripSeparator(),
                 qualifyingToolStripMenuItem,
@@ -541,6 +544,13 @@ namespace YATSS
                 demoLapStreamToolStripMenuItem
             });
             _lapFinishDemoMenu.Click += (_, _) => StartDemoRace(lapFinish: true);
+            _practiceLanesMenu.Click += (_, _) =>
+            {
+                if (!s.CanSelectPracticeLanes) return;
+                using var selection = new PracticeLaneSetup(LaneConfigurations, ActiveLaneCount, s.PracticeCaptureMask);
+                if (selection.ShowDialog(this) == DialogResult.OK) s.SetPracticeCaptureMask(selection.SelectedMask);
+            };
+            modeToolStripMenuItem.DropDownOpening += (_, _) => _practiceLanesMenu.Enabled = s != null && s.CanSelectPracticeLanes;
             _liveStandingsMenu.Click += (_, _) =>
             {
                 _standingsDismissed = false;

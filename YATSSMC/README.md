@@ -4,6 +4,10 @@ This ESP32 sketch is the microcontroller side of the lap timer. It does not
 count laps. It timestamps debounced sensor edges and sends them to the Windows
 app over serial.
 
+For the experimental RP2350 USB controller, use the separate small
+[Pico 2 W adapter](../YATSSPico/README.md). It uses this same shared controller
+core, but requires a different Arduino core and UF2 image, not an ESP32 binary.
+
 ## Board
 
 The sketch supports all controller boards without requiring source edits. The

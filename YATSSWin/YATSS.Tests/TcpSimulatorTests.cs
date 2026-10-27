@@ -169,6 +169,7 @@ internal static class TcpSimulatorTests
         }
         async Task StartHeat()
         {
+            await Wait(status => status.Ready, "capture configuration confirmed before start/resume");
             serial.HandleSpaceBar();
             await Wait(status => status.HeatState == HeatRaceState.Running && !status.Countdown && simulator.Status.PowerMask != 0,
                 "director start/resume");
@@ -176,8 +177,41 @@ internal static class TcpSimulatorTests
         await Wait(status => status.Ready, "initial identity/heartbeat/off handshake");
         Check(!serial.DemoLapStreamActive && simulator.Status.PowerMask == 0, "real TCP path, not internal demo input");
         Check(!serial.CanUpdateControllerFirmware(out _), "simulator cannot enter firmware flashing");
+        Check(!serial.CanOfferFirmwareUpdate, "simulator must not produce startup firmware offers");
+        simulator.SetCaptureAcknowledgements(false);
+        serial.SetPracticeCaptureMask(1);
+        string oldCaptureRequest = (string)typeof(Serial).GetField("_captureRequest", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(serial)!;
+        serial.SetPracticeCaptureMask(2); serial.SetPracticeCaptureMask(1);
+        simulator.ReplayCaptureAcknowledgement(1, oldCaptureRequest);
+        await Task.Delay(200, cancellation);
+        serial.HandleSpaceBar();
+        Check(!serial.CaptureTestStatus().Ready && serial.CaptureTestStatus().NeedsResume && simulator.Status.PowerMask == 0,
+            "missing acknowledgement and stale same-mask reply cannot authorize capture or power");
+        simulator.SetCaptureAcknowledgements(true);
+        await Wait(status => status.Ready, "retry confirms current capture request");
+        Check(serial.SetPracticeCaptureMask(2), "practice can select only lane two");
+        await Wait(status => status.Ready && simulator.CaptureMask == 2, "controller acknowledges selected Practice lane");
+        serial.HandleSpaceBar();
+        await Wait(status => !status.NeedsResume, "Practice authorized without changing sensor mask");
+        simulator.EmitEdge(0); simulator.EmitEdge(1); await Task.Delay(100, cancellation);
+        simulator.AdvanceClock(2000); simulator.EmitEdge(0); simulator.EmitEdge(1);
+        await Wait(status => status.Laps[1] == 1, "selected lane counts through real transport");
+        Check(serial.CaptureTestStatus().Laps[0] == 0, "disabled lane produces no controller EDGE");
+        byte powerBeforeSelection = simulator.Status.PowerMask;
+        Check(serial.SetPracticeCaptureMask(0), "all Practice sensors may be disarmed");
+        await Wait(status => status.Ready && simulator.CaptureMask == 0, "all sensors disarmed on controller");
+        Check(simulator.Status.PowerMask == powerBeforeSelection, "sensor selection does not alter relay mask");
+        simulator.EmitEdge(1); await Task.Delay(100, cancellation);
+        Check(serial.CaptureTestStatus().Laps[1] == 1, "disarmed sensor count frozen");
+        Check(serial.SetPracticeCaptureMask(2), "selected lane can be rearmed");
+        await Wait(status => status.Ready && simulator.CaptureMask == 2, "rearm acknowledged");
+        simulator.AdvanceClock(2000); simulator.EmitEdge(1); await Task.Delay(100, cancellation);
+        Check(serial.CaptureTestStatus().Laps[1] == 1, "rearming establishes baseline instead of phantom lap");
+        simulator.AdvanceClock(2000); simulator.EmitEdge(1);
+        await Wait(status => status.Laps[1] == 2, "subsequent rearmed crossing counts normally");
         serial.ConfigureHeatRace("TCP fault fixture", 60, 60, new[] { "Fixture A", "Fixture B" }, 2, LaneConfiguration.CreateDefaults(), 155);
         await StartHeat();
+        Check(simulator.CaptureMask == 3 && !serial.SetPracticeCaptureMask(1), "racing restores all configured sensors and locks Practice choices");
         simulator.EmitEdge(0); await Task.Delay(100, cancellation);
         simulator.AdvanceClock(2000); simulator.EmitEdge(0);
         await Wait(status => status.Laps[0] >= 1 && status.BestLaps[0] < int.MaxValue, "crossings reach actual app scoring");
@@ -231,6 +265,7 @@ internal static class TcpSimulatorTests
         serial.SetPracticeMode();
         serial.ConfigureHeatRace("TCP qualifying fixture", 60, 60, new[] { "Fixture A", "Fixture B" }, 2, LaneConfiguration.CreateDefaults(), 155);
         serial.ConfigureQualifying(0, 3);
+        await Wait(status => status.Ready, "qualifying capture configuration confirmed");
         serial.HandleSpaceBar();
         await Wait(status => status.QualifyingState == QualifyingState.Running, "qualifying starts");
         simulator.EmitEdge(0); await Task.Delay(100, cancellation);

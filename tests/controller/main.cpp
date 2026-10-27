@@ -30,7 +30,8 @@ struct Hardware {
   static void lock() { ++locks; }
   static void unlock() { check(locks == 1, "critical sections must not nest"); --locks; }
   static void reset() { ++resets; }
-  static void configureCapture(bool value) { diagnostics = value; }
+  static uint8_t captureMask;
+  static void configureCapture(bool value, uint8_t mask) { diagnostics = value; captureMask = mask; }
   static uint8_t sensorMask() { return sensors; }
   static void setPower(uint8_t mask) {
     power = mask;
@@ -62,6 +63,7 @@ uint8_t Hardware::power = 0, Hardware::sensors = 0;
 unsigned Hardware::locks = 0, Hardware::resets = 0;
 uint32_t Hardware::nonce = 0;
 bool Hardware::entropyFails = false;
+uint8_t Hardware::captureMask = 0xFF;
 std::vector<std::string> Hardware::sessions;
 bool Hardware::diagnostics = false;
 std::vector<std::string> Hardware::frames;
@@ -272,6 +274,46 @@ static void run() {
   check(countPrefix("HEARTBEAT:") == 1, "heartbeat interval must restart after publication");
   std::string liveSession = Hardware::sessions.back();
   check(Hardware::sessions.front() == liveSession, "heartbeat, diagnostics, and edges retain one session");
+  Hardware::clear();
+  Core selection;
+  selection.begin();
+  auto select = [&](const std::string& body) { selection.command(sessionCommand(body).c_str()); };
+  auto selectEdge = [&](uint8_t lane, uint32_t stamp) {
+    Hardware::lock(); selection.capture(lane, true, stamp); Hardware::unlock();
+  };
+  select("TRACK_POWER:MASK:81");
+  selectEdge(0, 100);
+  select("CONFIG:CAPTURE:80:00000001");
+  selection.service();
+  check(seen("HELLO:CONFIG:CAPTURE:80:00000001") && Hardware::captureMask == 0x80 && Hardware::power == 0x81,
+        "capture acknowledgement follows hardware mask change without altering power");
+  check(countPrefix("EDGE:") == 0, "mask acknowledgement flushes prior queued edges");
+  selectEdge(0, 2000); selectEdge(7, 2000); selection.service();
+  check(countPrefix("EDGE:") == 1 && seen("EDGE:7:1:2000"), "unselected lanes cannot enter the queue");
+  select("CONFIG:CAPTURE:80:00000001");
+  selectEdge(7, 2100); selection.service();
+  check(countPrefix("EDGE:") == 1, "retrying same request must not reset debounce");
+  select("CONFIG:CAPTURE:00:00000002");
+  selectEdge(7, 4000); selection.service();
+  check(Hardware::captureMask == 0 && countPrefix("EDGE:") == 1, "zero mask detaches every normal interrupt");
+  select("CONFIG:CAPTURE:80:00000003");
+  selectEdge(7, 2200); selection.service();
+  check(seen("EDGE:7:2:2200"), "new request clears debounce but preserves sequence continuity");
+  select("DIAG:START");
+  check(Hardware::diagnostics && Hardware::captureMask == 255, "diagnostics explicitly use all input interrupts");
+  select("DIAG:STOP");
+  check(!Hardware::diagnostics && Hardware::captureMask == 0x80, "closing diagnostics restores selected normal interrupts");
+  for (const std::string& invalid : { "CONFIG:CAPTURE:GG:00000004", "CONFIG:CAPTURE:100:00000004",
+       "CONFIG:CAPTURE:01:00000000", "CONFIG:CAPTURE:01:xyz", "CONFIG:CAPTURE:01" }) {
+    select(invalid);
+    check(selection.captureMask() == 0x80, "invalid capture command cannot change mask");
+  }
+  selection.command(encode("CONFIG:CAPTURE:FF:00000004").c_str());
+  check(selection.captureMask() == 0x80, "capture commands require current-session binding");
+  select("RESET");
+  check(selection.captureMask() == 255 && Hardware::captureMask == 255 && Hardware::power == 0,
+        "reset restores default sensor mask but never energizes relays");
+
   Hardware::clear();
   Hardware::entropyFails = true;
   Core failed;

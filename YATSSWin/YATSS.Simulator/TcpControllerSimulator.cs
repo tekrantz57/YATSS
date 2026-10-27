@@ -29,6 +29,12 @@ public sealed class TcpControllerSimulator : IAsyncDisposable
     private uint _clockOffset;
     private bool _online = true, _silenced, _heartbeats = true, _diagnostics, _watchdog;
     private byte _mask;
+    private byte _captureMask = 255;
+    private bool _captureAcknowledgements = true;
+    public byte CaptureMask { get { lock (_gate) return _captureMask; } }
+    public void SetCaptureAcknowledgements(bool enabled) { lock (_gate) _captureAcknowledgements = enabled; }
+    public void ReplayCaptureAcknowledgement(byte mask, string request)
+    { lock (_gate) Send($"HELLO:CONFIG:CAPTURE:{mask:X2}:{request}"); }
     private uint _debounce = 1800;
     private long _connections, _commands, _frames;
     private int _lapInterval;
@@ -143,7 +149,7 @@ public sealed class TcpControllerSimulator : IAsyncDisposable
         if (separator >= 0 && LapProtocolParser.IsSessionId(body[(separator + 1)..]))
         { session = body[(separator + 1)..]; body = body[..separator]; }
         bool off = body is "TRACK_POWER:OFF" or "TRACK_POWER:MASK:00";
-        bool energize = body == "TRACK_POWER:ON" || (body.StartsWith("TRACK_POWER:MASK:") && !off) || body.StartsWith("DIAG:RELAY:PULSE:");
+        bool energize = body == "TRACK_POWER:ON" || (body.StartsWith("TRACK_POWER:MASK:") && !off) || body.StartsWith("DIAG:RELAY:PULSE:") || body.StartsWith("CONFIG:CAPTURE:");
         if (!off && ((session != null && session != _session) || (energize && session != _session)))
         { Send("ERR:STALE_SESSION"); return; }
         _commands++; _lastCommand = _clock.ElapsedMilliseconds; _watchdog = true;
@@ -163,6 +169,18 @@ public sealed class TcpControllerSimulator : IAsyncDisposable
                 if (_diagnostics) DiagnosticStatus(); else Send("ERR:DIAG_NOT_ACTIVE"); return;
         }
         string[] parts = body.Split(':');
+        if (parts is ["CONFIG", "CAPTURE", var captureMask, var request])
+        {
+            if (captureMask.Length == 2 && request.Length == 8 &&
+                byte.TryParse(captureMask, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out byte selected) &&
+                uint.TryParse(request, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out uint revision) && revision != 0)
+            {
+                _captureMask = selected;
+                if (_captureAcknowledgements) Send($"HELLO:CONFIG:CAPTURE:{selected:X2}:{revision:X8}");
+            }
+            else Send("ERR:BAD_CAPTURE_MASK");
+            return;
+        }
         if (parts is ["TRACK_POWER", "MASK", var mask])
         {
             if (mask.Length == 2 && byte.TryParse(mask, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out byte parsed))
@@ -214,6 +232,7 @@ public sealed class TcpControllerSimulator : IAsyncDisposable
         if (lane is < 0 or > 7) throw new ArgumentOutOfRangeException(nameof(lane));
         lock (_gate)
         {
+            if (!_diagnostics && (_captureMask & (1 << lane)) == 0) return;
             if (_diagnostics) Send($"DIAG:SENSOR:{lane}:ACTIVE:1:1:{Now}");
             else Send($"EDGE:{lane}:{++_sequences[lane]}:{Now}", corrupt: corrupt);
         }
@@ -237,7 +256,7 @@ public sealed class TcpControllerSimulator : IAsyncDisposable
             if (notify) Send("HELLO:RESETTING");
             do { _session = NewSession(); } while (_session == _previous.Value.Id);
             if (!preserveClock) { _clockOffset = 0; _clockOrigin = _clock.ElapsedMilliseconds; }
-            Array.Clear(_sequences); _mask = 0; _diagnostics = false; _watchdog = false;
+            Array.Clear(_sequences); _mask = 0; _captureMask = 255; _diagnostics = false; _watchdog = false;
             Log("New simulated session " + _session);
             if (announce) Hello();
         }

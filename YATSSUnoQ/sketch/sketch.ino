@@ -25,7 +25,7 @@ struct UnoQPlatform {
   static void unlock() { irq_unlock(interruptKey); }
   static void sendFrame(const char* frame) { Bridge.notify("yatss_frame", String(frame)); }
   static void reset() { } // RouterBridge stays alive; the common core resets session state.
-  static void configureCapture(bool diagnostics) { (void)diagnostics; }
+  static void configureCapture(bool diagnostics, uint8_t mask);
   static void setPower(uint8_t mask) {
     for (byte lane = 0; lane < LaneCount; ++lane) {
       digitalWrite(trackPowerCutPins[lane], yatss::trackPowerOutputHigh(mask, lane) ? HIGH : LOW);
@@ -104,6 +104,15 @@ void (*isrHandlers[LaneCount])() = {
   isrLane4, isrLane5, isrLane6, isrLane7
 };
 
+void UnoQPlatform::configureCapture(bool diagnostics, uint8_t mask) {
+  (void)diagnostics;
+  for (byte lane = 0; lane < LaneCount; ++lane) {
+    detachInterrupt(digitalPinToInterrupt(sensorPins[lane]));
+    if (mask & (1u << lane))
+      attachInterrupt(digitalPinToInterrupt(sensorPins[lane]), isrHandlers[lane], CHANGE);
+  }
+}
+
 void handleYatssCommand(String command) {
   command.trim();
   controller.command(command.c_str());
@@ -121,9 +130,6 @@ void setup() {
   refreshMatrixStatus();
   Bridge.begin();
   Bridge.provide_safe("yatss_command", handleYatssCommand);
-  for (byte lane = 0; lane < LaneCount; ++lane) {
-    attachInterrupt(digitalPinToInterrupt(sensorPins[lane]), isrHandlers[lane], CHANGE);
-  }
   controller.begin();
 }
 

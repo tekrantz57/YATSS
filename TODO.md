@@ -40,6 +40,27 @@ retained results/logs, failure/timeout reporting and isolated test data. See
 
 ## TCP Controller Software Tests
 
+- October 25 development addition: controller-side Practice sensor arming via
+  Mode > Practice Sensor Lanes, session/request-bound acknowledgements, detached
+  unselected interrupts on every adapter, queue/baseline isolation and automatic
+  restoration for races/diagnostics. Requires firmware `0.25.0-capture.1`.
+  See [Practice sensor arming](docs/PRACTICE_SENSOR_ARMING.md).
+- Software checks passed October 25: 7,012 native controller assertions, all
+  fourteen Windows suites, six board-configuration compiles and minimum-size
+  chooser inspection. Nano/C5/C6 update packages and Pico/UNO Q build artifacts
+  were rebuilt. Physical validation remains incomplete.
+- October 26 venue test: Nano firmware `0.25.0-capture.1` acknowledged lane 8
+  alone and reported only lane 8 edges after selection. Heartbeats continued,
+  but crossings were missed with both all lanes and lane 8 alone armed. Some
+  intervals were approximately two, three or four times a normal lap; reported
+  edge sequences were consecutive. Investigate wiring/conditioning and recent
+  capture changes; the log alone does not establish the cause.
+- Venue follow-up: compare lane 8's sustained dead-strip test with only lane 8
+  armed, keeping other wiring/settings constant. October 25 logs showed an
+  initial clean 200-lap block, later missed-crossing intervals near 17:18:36,
+  and increased simultaneous triggers on unconnected lanes. This is evidence
+  to investigate, not proof of the cause or a completed electrical fix.
+
 - Implemented October 15: portable loopback TCP test controller, distinct
   simulator identity, virtual power only, console fault controls, and isolated
   real-app interactive launcher. See [TCP simulator](docs/TCP_CONTROLLER_SIMULATOR.md).
@@ -86,6 +107,13 @@ retained results/logs, failure/timeout reporting and isolated test data. See
   packaging does not turn earlier test results into physical certification.
 
 ## Installer Help and Discoverability
+
+- October 25 development: startup/controller-identification firmware-availability
+  prompt compares validated offline bundles by exact board/capacity and semantic
+  version. It offers the existing updater only in safe Practice with power off;
+  No is default, and dismissed board/version offers do not repeat on reconnect.
+  Supports ESP32/Nano and local UNO Q; no guessed Pico or remote UNO Q update.
+  No automatic flashing or GitHub checks. See [firmware updates](docs/CONTROLLER_FIRMWARE_UPDATE.md).
 
 - Implemented October 13, 2026: Help menu, offline packaged guides, quick start,
   commissioning worksheet, bug-report link, copyable non-private version summary,
@@ -258,6 +286,80 @@ retained results/logs, failure/timeout reporting and isolated test data. See
   ESP32 firmware packages and the UNO Q import archive were rebuilt October 9
   for normally open operation. Rebuild again after future firmware changes;
   checked-in images do not follow source changes automatically.
+
+## Proposed Physical Controller Pulse Fixture
+
+- Reviewed October 21, 2026: Drag's `dragPulseTest/dragPulseTest.ino`,
+  `PulseTrain.h` and README in the sibling Drag project. This is a standalone
+  Mega 2560 / Due Programming-port generator, NOT controller race firmware.
+  It drives four selected channels with configurable pulse width, clear gap,
+  count and fixed-seed spacing jitter. It supports idle level checks and STOP,
+  suppresses console output during generation, and reports completed counts,
+  software width/gap ranges and maximum scheduler lateness. Channels switch
+  sequentially, near-simultaneously, not atomically or independently staggered.
+- Proposal only: reuse/adapt that tested generator design for a separate YATSS
+  bench fixture, retaining the shared production controller core unchanged.
+  Inspect/reuse its host tests as appropriate and document source provenance;
+  avoid an unrelated rewrite or a second copy of production capture logic.
+  This complements native controller tests and the TCP simulator by exercising
+  actual GPIO, ISR capture, queues and the real serial/UNO Q bridge path.
+- First prerequisite is a YATSS-specific electrical/polarity adapter. Drag's
+  NPN circuit/sketch releases the receiver HIGH for active/blocked; YATSS uses
+  active LOW / FALLING. Invert the generator's drive mapping, establish idle
+  HIGH, and verify levels before arming. Use receiver-referenced 3.3 V pull-ups
+  and a suitable open-collector interface, common ground and separate supplies;
+  never directly drive a YATSS input from Mega 5 V GPIO. Disconnect real sensor
+  outputs and keep track power/motors physically disconnected. Verify each
+  board's input conditioning, transistor pinout and power/reset behavior first.
+- Version one: start with one channel, then four. Use the existing Controller
+  Diagnostics raw-transition and debounced accepted-edge counters, followed by
+  normal EDGE-frame/log capture; diagnostics intentionally suppress EDGE frames.
+  Record debounce settings explicitly (current default 1,800 milliseconds).
+  With debounce disabled and capture active throughout a completed clean run,
+  expect N active edges and 2N diagnostic transitions; for nonzero debounce,
+  calculate intentional rejection from active-edge spacing. Do not compare
+  generator pulse count directly with app laps: the first crossing is a timing
+  baseline, and app minimum-lap/raw-lockout rules also filter crossings.
+- Test matrix: valid slow pulses; shorter widths; repeatable jitter; chatter
+  inside/outside debounce; near-simultaneous lanes; sustained runs; normal-mode
+  queue/transport stress and reported drops; reconnect/reset boundaries. Never
+  demand a lossless result beyond configured debounce or transport capacity.
+  Treat aborted/partial pulses and reset transitions separately from completed
+  generator counts. Keep the receiver readiness/capture window explicit.
+- Record generator/receiver board, firmware/build identity, pin map, settings,
+  requested and observed counts, EDGE timing/sequence data, diagnostic load,
+  queue drops, generator lateness and run duration. Use YATSS's millisecond
+  timestamp resolution when setting tolerances. Generator micros() readings
+  are not calibrated wire measurements; a logic analyzer/scope is needed for
+  independent timing/width accuracy, including clock drift and interface delay.
+- Follow-up: expand to all eight channels (or documented four-channel batches),
+  add independently staggered lane schedules, and repeat across ESP32 variants,
+  UNO Q and the proposed Pico 2 W adapter once implemented. Relay GPIO monitoring
+  for boot/reset, watchdog cutoff and reconnection belongs to a separately
+  designed, electrically protected fixture extension, not this first pulse test.
+  Actual dead strips, conditioning, relay contacts and track wiring still need
+  their own verification. No sketch was changed, uploaded or hardware certified
+  by recording this proposal.
+
+## Raspberry Pi Pico 2 W validation
+
+- Added October 24: experimental RP2350 Pico 2 W adapter using the unchanged
+  canonical shared controller core/version, 32-slot queue, USB CDC and ISR
+  timestamps. GP0-GP7 are sensor inputs; GP8-GP15 are power-driver outputs.
+  Added synchronized IDE sources, pinned Arduino-Pico 6.3.1 compile-only build
+  script and CI build entry. See [Pico guide](YATSSPico/README.md).
+- First board flashed October 24 through its RP2350 BOOTSEL drive. Windows
+  assigned COM27; the off-only connection check passed with 14 checksummed
+  frames/12 heartbeats, correct profile and 4 MB capacity, a nonzero session
+  and OFF acknowledgement. Common native tests passed all 6,722 checks.
+- User verified October 24: a physical lane 1 sensor on GP0 (header pin 1)
+  produced serial traffic and correctly counted laps in YATSS. Lanes 2-8,
+  relay hardware and power-ON operation remain unvalidated on Pico.
+- Complete physical sensor, diagnostics, debounce/burst/long-run and
+  boot/reset/reconnect/watchdog/output-level tests before venue use. Neither
+  shared-core test success nor a working COM port proves electrical safety.
+- Consider Pico UF2 packaging and in-app updates separately after initial USB
+  and input/output validation. Existing ESP32/UNO Q update packages are unchanged.
 
 ## ESP32-C6 controller validation
 

@@ -50,7 +50,7 @@ struct Esp32Platform {
     }
     return mask;
   }
-  static void configureCapture(bool diagnostics);
+  static void configureCapture(bool diagnostics, uint8_t mask);
 };
 
 yatss::Controller<Esp32Platform, 32> controller;
@@ -74,10 +74,11 @@ void (*isrHandlers[LaneCount])() = {
   isrLane4, isrLane5, isrLane6, isrLane7
 };
 
-void Esp32Platform::configureCapture(bool diagnostics) {
+void Esp32Platform::configureCapture(bool diagnostics, uint8_t mask) {
   for (byte lane = 0; lane < LaneCount; ++lane) {
     detachInterrupt(digitalPinToInterrupt(sensorPins[lane]));
-    attachInterrupt(digitalPinToInterrupt(sensorPins[lane]), isrHandlers[lane], diagnostics ? CHANGE : FALLING);
+    if (mask & (1u << lane))
+      attachInterrupt(digitalPinToInterrupt(sensorPins[lane]), isrHandlers[lane], diagnostics ? CHANGE : FALLING);
   }
 }
 
@@ -90,7 +91,6 @@ void setup() {
   Serial.setTimeout(10);
   delay(1000);
   for (byte lane = 0; lane < LaneCount; ++lane) pinMode(sensorPins[lane], INPUT_PULLUP);
-  Esp32Platform::configureCapture(false);
   controller.begin();
 }
 

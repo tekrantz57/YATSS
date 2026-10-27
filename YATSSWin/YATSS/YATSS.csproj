@@ -112,10 +112,10 @@
   </Target>
 
   <Target Name="CheckSharedControllerSources" BeforeTargets="BeforeBuild;Publish">
-    <GetFileHash Files="..\..\Controller\YatssController.h;..\..\YATSSMC\src\YatssController\YatssController.h;..\..\YATSSUnoQ\sketch\src\YatssController\YatssController.h">
+    <GetFileHash Files="..\..\Controller\YatssController.h;..\..\YATSSMC\src\YatssController\YatssController.h;..\..\YATSSUnoQ\sketch\src\YatssController\YatssController.h;..\..\YATSSPico\src\YatssController\YatssController.h">
       <Output TaskParameter="Items" ItemName="_ControllerCoreHashes" />
     </GetFileHash>
-    <GetFileHash Files="..\..\Controller\FirmwareVersion.h;..\..\YATSSMC\FirmwareVersion.h;..\..\YATSSMC\src\YatssController\FirmwareVersion.h;..\..\YATSSUnoQ\sketch\src\YatssController\FirmwareVersion.h">
+    <GetFileHash Files="..\..\Controller\FirmwareVersion.h;..\..\YATSSMC\FirmwareVersion.h;..\..\YATSSMC\src\YatssController\FirmwareVersion.h;..\..\YATSSUnoQ\sketch\src\YatssController\FirmwareVersion.h;..\..\YATSSPico\src\YatssController\FirmwareVersion.h">
       <Output TaskParameter="Items" ItemName="_ControllerVersionHashes" />
     </GetFileHash>
     <Error Condition="'@(_ControllerCoreHashes->Metadata('FileHash')->Distinct()->Count())' != '1'"

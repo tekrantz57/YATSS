@@ -1,5 +1,11 @@
 # YATSS Serial Protocol
 
+Development firmware `0.25.0-capture.1` adds session-bound
+`CONFIG:CAPTURE:<two-hex-mask>:<eight-hex-request-id>` and its matching
+`HELLO:CONFIG:CAPTURE` acknowledgement. It controls sensor interrupts, never
+relay outputs. See [Practice sensor arming](PRACTICE_SENSOR_ARMING.md) for
+request ordering, baseline/queue behavior and diagnostic overrides.
+
 The microcontroller and Windows app communicate over a 115200 baud serial port
 using printable ASCII lines. Every line is a protocol body followed by a
 required XOR checksum:

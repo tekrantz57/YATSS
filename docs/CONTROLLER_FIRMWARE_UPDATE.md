@@ -1,5 +1,40 @@
 # Controller Firmware Updates
 
+## Startup Availability Prompt (Development)
+
+Current development builds check after the connected controller identifies
+itself and identity/heartbeat/power-OFF verification succeeds. If a newer
+validated bundled image exactly matches its board and flash capacity, YATSS
+offers **New Firmware Available**, showing installed and available versions.
+This is an offline comparison, not a GitHub/network update check.
+
+The prompt is deferred until Practice is safe for updating, with track power
+off, no simulated input and no active recovery/other owned dialog. It does not
+interrupt racing, qualifying or diagnostics. It can also detect a controller
+connected later in the app session. No is the default; dismissal lasts for
+that port/board/capacity/installed/available combination until YATSS restarts,
+including repeated heartbeats and reconnects.
+
+Yes opens the existing updater; its separate safety confirmation and any tool
+download authorization are still required. No automatic flashing, downloading,
+reconnection-driven flashing or power restoration is performed. Identity, port
+and safe state are checked again after the prompt. File > Update Controller
+Firmware remains available after dismissal or a failed/cancelled attempt.
+
+Versions are compared numerically with semantic prerelease ordering, ignoring
+build metadata. Equal/newer installed versions, unknown version strings,
+unknown/ambiguous board capacities and missing/invalid bundles do not produce
+guessed update offers. Invalid bundled data is logged once, not retried with
+repeated error dialogs. Firmware and app version numbers are separate.
+
+The automatic offer supports Nano ESP32, C5 and C6 N4/N8 packages. Local UNO Q
+under Wine at TCP localhost/127.0.0.1:45991 uses the validated bundled source
+version and the existing authenticated helper workflow. Remote UNO Q and Pico
+manual-UF2 updates are not automatically offered. Pico has no bundled in-app
+uploader yet. Simulated/test controllers never produce offers.
+
+## Update Workflow
+
 YATSS can provision a blank Waveshare ESP32-C5-WIFI6-KIT-N16R8 or
 ESP32-C6-DevKitC-1 N4/N8 and update those boards or an Arduino Nano ESP32 from
 `File > Update Controller Firmware...`.

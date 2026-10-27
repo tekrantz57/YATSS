@@ -8,6 +8,7 @@ internal static class SupportTests
 
     public static void Run()
     {
+        FirmwareAvailabilityTests.Run();
         using (Mutex marker = new(false, global::YATSS.Program.InstallerMutexName))
         using (Mutex visible = Mutex.OpenExisting(global::YATSS.Program.InstallerMutexName))
             Check(!visible.SafeWaitHandle.IsInvalid, "running-app marker is visible to setup without taking ownership");
@@ -21,6 +22,19 @@ internal static class SupportTests
             Check(File.Exists(HelpSupport.DocumentPath(AppContext.BaseDirectory, document)), "packaged guide: " + document.FileName);
         OnSta(() =>
         {
+            using (var sensors = new PracticeLaneSetup(LaneConfiguration.CreateDefaults(), 8, 128))
+            {
+                sensors.Size = sensors.MinimumSize;
+                sensors.Show(); Application.DoEvents();
+                Check(sensors.SelectedMask == 128, "Practice lane eight maps to capture mask 80");
+                Capture(sensors, Path.Combine(TestWorkspace.Root, "practice-sensor-lanes.png"));
+                var list = Field<CheckedListBox>(sensors, "_lanes");
+                list.SetItemChecked(7, false);
+                Check(sensors.SelectedMask == 0, "Practice allows all sensors disarmed");
+                for (int lane = 0; lane < 8; lane++) list.SetItemChecked(lane, true);
+                Check(sensors.SelectedMask == 255, "Practice can arm all eight sensors");
+                sensors.Close();
+            }
             List<string> actions = new();
             using var menu = HelpSupport.CreateMenu(document => actions.Add(document.FileName),
                 () => actions.Add("bug"), () => actions.Add("copy"), () => actions.Add("about"));

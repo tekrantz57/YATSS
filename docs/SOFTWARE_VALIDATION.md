@@ -5,6 +5,14 @@ actual-app director acceptance worksheet, a physical test,
 or timing/safety certification. No real controller is connected or flashed.
 WinForms tests require a working graphical session under Wine.
 
+## Testing Strategy
+
+For ordinary changes, run focused tests covering the affected behavior. Expand
+coverage when changes affect shared scoring, recovery, protocols, firmware or
+other high-risk behavior. Run the full relevant regression suite before a
+GitHub release; a commit or push alone does not require a full suite. Record
+what was actually tested and keep physical validation separate.
+
 ## Build and Run
 
 From the source checkout with the .NET 10 SDK:
@@ -50,6 +58,29 @@ Both platforms should test the same source build; Windows success does not
 establish Wine compatibility.
 
 ## Test Areas
+
+October 25 firmware-notice checks cover numeric/semantic version ordering,
+prereleases/build metadata, old/equal/newer/unknown installed versions, exact
+board and capacity selection, ambiguous/missing bundles, reconnect notice keys,
+and simulator suppression. Isolated regression runs suppress actual startup
+dialogs and never flash real controllers.
+All fourteen Windows suites passed with the firmware-notice addition; the
+Release build completed with zero warnings and zero errors. The real startup
+prompt/update flow still needs a manual check with an older physical controller.
+
+October 25 capture-arming coverage adds native interrupt-mask/queue-boundary
+checks and real-app TCP scenarios for selected Practice lanes, all-disarmed
+capture, missing/stale acknowledgements, fresh rearm baselines and race-mask
+restoration. Native checks now total 7,012. These do not electrically verify
+detachment on a physical controller.
+
+October 25 verification: all fourteen Windows suites passed, including the
+expanded real-app arming tests. Release build had zero warnings/errors and the
+Practice chooser was inspected at its minimum size. Nano, C5, C6 N4/N8, Pico
+2 W and UNO Q compiled; four ESP32/Nano update packages, Pico UF2 and the UNO Q
+source import ZIP were rebuilt. UNO Q was compile-checked with locally installed
+Arduino Q core 1.0.0; its pinned CI core remains a separate check. No board was
+flashed during this implementation and physical arming remains unverified.
 
 The current development runner contains fourteen suites. The October 19 Lap
 Finish addition covers baseline/counting rules, invalid crossings, target
