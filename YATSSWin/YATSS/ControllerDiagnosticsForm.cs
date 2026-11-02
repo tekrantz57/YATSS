@@ -12,6 +12,11 @@ namespace YATSS
         private readonly Label _connectionLabel = new();
         private readonly Label _healthLabel = new();
         private readonly System.Windows.Forms.Timer _statusTimer = new() { Interval = 1000 };
+        private readonly System.Windows.Forms.Timer _displayTimer = new() { Interval = 100 };
+        private readonly object _pendingLock = new();
+        private readonly (long Order, ControllerDiagnostic? Value)[] _pending = new (long, ControllerDiagnostic?)[19];
+        private long _pendingOrder;
+        private bool _closing;
         private readonly Action _requestStatus;
         private DateTime _lastResponseUtc;
         private bool _sessionStarted;
@@ -104,32 +109,55 @@ namespace YATSS
             };
             Shown += (_, _) =>
             {
+                _displayTimer.Start();
                 _statusTimer.Start();
                 _requestStatus();
+            };
+            _displayTimer.Tick += (_, _) => FlushDiagnostics();
+            FormClosing += (_, _) =>
+            {
+                lock (_pendingLock) { _closing = true; }
+                _displayTimer.Stop();
+                _statusTimer.Stop();
             };
             FormClosed += (_, _) =>
             {
                 _statusTimer.Stop();
                 _statusTimer.Dispose();
+                _displayTimer.Dispose();
             };
         }
 
         public void ApplyDiagnostic(ControllerDiagnostic diagnostic)
         {
-            if (IsDisposed)
+            int slot = diagnostic switch
             {
-                return;
-            }
-
-            if (InvokeRequired)
+                ControllerDiagnosticSensor s when s.LaneIndex >= 0 && s.LaneIndex < 8 => s.LaneIndex,
+                ControllerDiagnosticRelay r when r.LaneIndex >= 0 && r.LaneIndex < 8 => 8 + r.LaneIndex,
+                ControllerDiagnosticStatus => 16,
+                ControllerDiagnosticSession => 17,
+                _ => 18
+            };
+            lock (_pendingLock)
             {
-                if (IsHandleCreated)
-                {
-                    BeginInvoke(() => ApplyDiagnostic(diagnostic));
-                }
-                return;
+                if (!_closing) _pending[slot] = (++_pendingOrder, diagnostic);
             }
+        }
 
+        private void FlushDiagnostics()
+        {
+            (long Order, ControllerDiagnostic? Value)[] batch;
+            lock (_pendingLock)
+            {
+                batch = (ValueTuple<long, ControllerDiagnostic?>[])_pending.Clone();
+                Array.Clear(_pending);
+            }
+            foreach (var item in batch.OrderBy(item => item.Order))
+                if (item.Value != null) RenderDiagnostic(item.Value);
+        }
+
+        private void RenderDiagnostic(ControllerDiagnostic diagnostic)
+        {
             _lastResponseUtc = DateTime.UtcNow;
             _connectionLabel.ForeColor = SystemColors.ControlText;
 

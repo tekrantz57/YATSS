@@ -209,6 +209,18 @@ internal static class TcpSimulatorTests
         Check(serial.CaptureTestStatus().Laps[1] == 1, "rearming establishes baseline instead of phantom lap");
         simulator.AdvanceClock(2000); simulator.EmitEdge(1);
         await Wait(status => status.Laps[1] == 2, "subsequent rearmed crossing counts normally");
+        await Wait(status => !status.Countdown, "Practice countdown complete before diagnostics");
+        bool diagnosticStarted = serial.StartControllerDiagnostics(out string diagnosticReason);
+        Check(diagnosticStarted, "diagnostics start in Practice: " + diagnosticReason);
+        await Wait(_ => simulator.Status.Diagnostics, "diagnostics session started");
+        simulator.SimulateDiagnosticTimeout();
+        await Wait(_ => simulator.Status.Diagnostics, "active diagnostics recover after timeout");
+        serial.StopControllerDiagnostics();
+        await Wait(_ => !simulator.Status.Diagnostics, "closing diagnostics stops controller session");
+        simulator.SimulateDiagnosticTimeout();
+        await Task.Delay(250, cancellation);
+        Check(!simulator.Status.Diagnostics, "late timeout cannot restart closed diagnostics");
+        await Wait(status => status.Ready && simulator.CaptureMask == 2, "capture rearmed after diagnostics");
         serial.ConfigureHeatRace("TCP fault fixture", 60, 60, new[] { "Fixture A", "Fixture B" }, 2, LaneConfiguration.CreateDefaults(), 155);
         await StartHeat();
         Check(simulator.CaptureMask == 3 && !serial.SetPracticeCaptureMask(1), "racing restores all configured sensors and locks Practice choices");

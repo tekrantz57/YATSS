@@ -238,6 +238,14 @@ public sealed class TcpControllerSimulator : IAsyncDisposable
         }
     }
     public void AdvanceClock(uint milliseconds) { lock (_gate) _clockOffset = unchecked(_clockOffset + milliseconds); }
+    public void SimulateDiagnosticTimeout()
+    {
+        lock (_gate)
+        {
+            _diagnostics = false;
+            Send($"DIAG:SESSION:STOPPED:TIMEOUT:{Now}");
+        }
+    }
     public void SetClock(uint timestamp) { lock (_gate) { _clockOffset = timestamp; _clockOrigin = _clock.ElapsedMilliseconds; } }
     public void SetAutomaticLaps(int milliseconds)
     {

@@ -38,6 +38,50 @@ retained results/logs, failure/timeout reporting and isolated test data. See
 - Director UI acceptance, sustained runs and
   physical tests remain separate work; this result is not hardware certification.
 
+## October 31 Track Follow-up
+
+- Nano ESP32 `0.25.0-capture.1`, separate bridge/H11L1 circuits for red and
+  orange, no relays. Earlier orange runs missed crossings with roughly 3.1 s
+  laps; lower debounce settings exposed closely spaced duplicate pulses.
+  At 50 ms, duplicates were less evident in the early sample but misses remained.
+- Red with the original wire counted 10 observed laps and a longer run without
+  obvious missed-lap gaps. After orange's wiring was replaced, its last 200
+  intervals in one run showed no apparent missed passes. These are encouraging
+  observations, not proof that wire type alone caused the earlier misses.
+- With both lanes armed and a car on orange, red reported false edges. The
+  documented red 7.5 kOhm output-to-3.3 V pull-up did not eliminate them; an
+  earlier comparison accidentally used a pull-down and is not a pull-up test.
+  Red continued to report phantom edges after both red dead-strip wires were
+  disconnected from its bridge input. The disconnected inputs were open, so the
+  result does not identify a specific cause. Orange also showed some duplicate
+  edges around 50 ms. A later change to 60 ms was acknowledged.
+- Diagnostics window was hard to read and neither Close nor X worked according
+  to the operator. The log shows repeated diagnostic session timeouts and
+  restarts; investigate responsiveness, layout, and status polling separately.
+- Home follow-up: preserve/photograph the wiring; reproduce diagnostics failure
+  without track power. A standalone ESP32-C3 Super Mini pulse generator is now
+  available in `YATSSPulseTest`; first exercise Nano inputs using a verified 3.3 V active-low driver,
+  then the complete conditioning path using a properly isolated and current-
+  limited test interface; monitor the other channel for false events. Design
+  and verify the electrical interface before connecting anything. Bench tests
+  cannot reproduce all track/motor conditions or certify real-track behavior.
+- November 2 software investigation: diagnostic frames previously queued one
+  UI callback each. Bounded per-lane coalescing and serialized stop/restart now
+  have stress and TCP-simulator tests. Verify actual window layout/close behavior
+  on the user's display and physical controller; no bench pulse run has yet
+  verified the fixture or established the cause of track phantom pulses.
+- November 2 direct C3-to-Nano trial: 11 requested pulses produced 12 Nano
+  edges, the first exactly one second before the regular 2.1-second cadence.
+  Suspect the RUN-time GPIO-to-RMT handoff; retain RMT ownership across runs
+  and initialize at boot with the receiver disconnected. With the revised C3
+  sketch, 11-, 11- and 50-pulse runs produced the expected counts without an
+  extra startup edge. A diagnostic 20-pulse run produced the expected 40
+  transitions and 20 accepted; a 1000-pulse run added 2000 transitions and 334
+  accepted at 60 ms debounce. The window remained responsive and closed.
+  Direct GPIO4 through 2.2 kOhm to Nano D2, common ground, H11L1 output
+  disconnected. Pulse widths were not independently measured; conditioning,
+  track noise and isolated input stimulus remain to be tested.
+
 ## TCP Controller Software Tests
 
 - October 25 development addition: controller-side Practice sensor arming via

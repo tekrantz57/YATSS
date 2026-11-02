@@ -22,6 +22,30 @@ internal static class SupportTests
             Check(File.Exists(HelpSupport.DocumentPath(AppContext.BaseDirectory, document)), "packaged guide: " + document.FileName);
         OnSta(() =>
         {
+            using (var diagnostic = new ControllerDiagnosticsForm("test", LaneConfiguration.CreateDefaults(), () => { }, () => { }, _ => { }, () => { }))
+            {
+                diagnostic.Show(); Application.DoEvents();
+                Capture(diagnostic, Path.Combine(TestWorkspace.Root, "controller-diagnostics.png"));
+                var producer = Task.Run(() =>
+                {
+                    for (uint count = 1; count <= 100000; count++)
+                        diagnostic.ApplyDiagnostic(new ControllerDiagnosticSensor(0, true, count, count, count));
+                });
+                producer.GetAwaiter().GetResult();
+                var slots = Field<(long, ControllerDiagnostic?)[]>(diagnostic, "_pending");
+                Check(slots.Length == 19 && slots.Count(item => item.Item2 != null) == 1, "diagnostics coalesce a flood into bounded pending state");
+                typeof(ControllerDiagnosticsForm).GetMethod("FlushDiagnostics", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(diagnostic, null);
+                Check(Field<Label[]>(diagnostic, "_transitionLabels")[0].Text == "100000", "diagnostics preserve latest total");
+                using CancellationTokenSource stopFlood = new();
+                Task flood = Task.Run(() =>
+                {
+                    while (!stopFlood.IsCancellationRequested)
+                        diagnostic.ApplyDiagnostic(new ControllerDiagnosticSensor(0, false, 100001, 100001, 100001));
+                });
+                diagnostic.Close(); Application.DoEvents();
+                stopFlood.Cancel(); flood.GetAwaiter().GetResult();
+                Check(diagnostic.IsDisposed, "diagnostics closes after a flood");
+            }
             using (var sensors = new PracticeLaneSetup(LaneConfiguration.CreateDefaults(), 8, 128))
             {
                 sensors.Size = sensors.MinimumSize;

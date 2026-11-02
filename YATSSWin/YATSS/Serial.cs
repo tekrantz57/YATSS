@@ -44,7 +44,7 @@ namespace YATSS
         private uint _latestControllerTimestamp;
         private bool _hasControllerTimestamp;
         private bool _trackPowerEnabled;
-        private bool _diagnosticsActive;
+        private volatile bool _diagnosticsActive;
         private volatile bool _firmwareUpdateActive;
         private ControllerIdentity? _controllerIdentity;
         private bool _startCountdownInProgress;
@@ -865,8 +865,11 @@ namespace YATSS
                 return false;
             }
 
-            _diagnosticsActive = true;
-            WriteLine("DIAG:START");
+            lock (_controlGate)
+            {
+                _diagnosticsActive = true;
+                WriteLine("DIAG:START");
+            }
             _log.Info("controller diagnostics started");
             _form.SetStatusMessage("Controller diagnostics active");
             return true;
@@ -874,15 +877,11 @@ namespace YATSS
 
         public void StopControllerDiagnostics()
         {
-            if (!_diagnosticsActive)
+            lock (_controlGate)
             {
-                return;
-            }
-
-            _diagnosticsActive = false;
-            if (IsPortOpen())
-            {
-                WriteLine("DIAG:STOP");
+                if (!_diagnosticsActive) return;
+                _diagnosticsActive = false;
+                if (IsPortOpen()) WriteLine("DIAG:STOP");
             }
             _log.Info("controller diagnostics stopped");
             EnsureCaptureConfiguration(force: true);
@@ -890,9 +889,17 @@ namespace YATSS
 
         public void RequestDiagnosticStatus()
         {
-            if (_diagnosticsActive)
+            lock (_controlGate)
             {
-                WriteLine("DIAG:STATUS");
+                if (_diagnosticsActive) WriteLine("DIAG:STATUS");
+            }
+        }
+
+        private void RestartControllerDiagnosticsIfActive()
+        {
+            lock (_controlGate)
+            {
+                if (_diagnosticsActive) WriteLine("DIAG:START");
             }
         }
 
@@ -1207,10 +1214,7 @@ namespace YATSS
                         WriteLine(GetSensorDebounceCommand());
                         WriteLine("PING");
                     }
-                    if (_diagnosticsActive)
-                    {
-                        WriteLine("DIAG:START");
-                    }
+                    RestartControllerDiagnosticsIfActive();
                     DateTime lastLineReceived = DateTime.UtcNow;
                     DateTime lastPingSent = DateTime.MinValue;
                     bool waitingForPingReply = false;
@@ -1510,10 +1514,7 @@ namespace YATSS
                         EnsureCaptureConfiguration();
                         WriteLine(GetSensorDebounceCommand());
                         WriteLine(GetTrackPowerCommand());
-                        if (_diagnosticsActive)
-                        {
-                            WriteLine("DIAG:START");
-                        }
+                        RestartControllerDiagnosticsIfActive();
                     }
 
                     _form.SetStatusMessage(
@@ -1533,7 +1534,7 @@ namespace YATSS
                                 Reason: "TIMEOUT"
                             })
                         {
-                            WriteLine("DIAG:START");
+                            RestartControllerDiagnosticsIfActive();
                         }
                     }
                     break;
