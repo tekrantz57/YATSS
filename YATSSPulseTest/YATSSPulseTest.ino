@@ -91,7 +91,7 @@ void command() {
     Serial.print("RUN requested="); Serial.println(config.count);
   } else if (n == 2 && !strcmp(args[0], "MODE") && (!strcmp(args[1], "DIRECT") || !strcmp(args[1], "NPN"))) {
     if (heldLow) { Serial.println("Set LEVEL 1 before changing mode"); return; }
-    rmt.shutdown();
+    if (!rmt.shutdown()) { Serial.println("RMT fault: disconnect signal and restart fixture"); return; }
     npnMode = !strcmp(args[1], "NPN"); output.set(0, false);
     DragPulse::PulsePlan idlePlan;
     idlePlan.build(100, !npnMode);

@@ -3,6 +3,7 @@
 #include <driver/gpio.h>
 #include <driver/rmt_tx.h>
 #include "RmtPulseTrain.h"
+#include "ManualLevel.h"
 
 // One whole pulse fits in the first half of a C3 RMT memory block, including
 // the maximum one-second width. No streaming refill is needed during a pulse.
@@ -14,6 +15,7 @@ class C3RmtOutput {
   void set(uint8_t channel, bool blocked) { output_.set(channel, blocked); }
 
   bool prepare(const DragPulse::PulsePlan& plan, uint8_t channel) {
+    if (!manualLevel_.healthy()) return false;
     if (prepared_ && (pins_[channel] != pin_ || plan.idleHigh != idleHigh_)) return false;
     pin_ = pins_[channel];
     idleHigh_ = plan.idleHigh;
@@ -49,6 +51,7 @@ class C3RmtOutput {
   }
 
   bool fire() {
+    if (!manualLevel_.healthy()) return false;
     // Clear before submitting: a short transmission can complete before
     // rmt_transmit returns. The ISR only sets this flag and never logs.
     portENTER_CRITICAL(&completionMux_);
@@ -68,17 +71,18 @@ class C3RmtOutput {
 
   bool setLevel(bool high) {
     if (!prepared_ || !enabled_) return false;
-    rmt_symbol_word_t symbol = {};
-    symbol.level0 = high; symbol.duration0 = 1;
-    symbol.level1 = high; symbol.duration1 = 1;
-    rmt_transmit_config_t cfg = {};
-    cfg.flags.eot_level = high;
-    if (rmt_transmit(channel_, encoder_, &symbol, sizeof(symbol), &cfg) != ESP_OK) return false;
-    return rmt_tx_wait_all_done(channel_, 1000) == ESP_OK;
+    return manualLevel_.set(high,
+      [&](rmt_symbol_word_t* symbol) {
+        rmt_transmit_config_t cfg = {};
+        cfg.flags.eot_level = high;
+        return rmt_transmit(channel_, encoder_, symbol, sizeof(*symbol), &cfg) == ESP_OK;
+      },
+      [&] { return rmt_tx_wait_all_done(channel_, 1000) == ESP_OK; },
+      [&] { if (rmt_disable(channel_) == ESP_OK) enabled_ = false; });
   }
 
   void release() {
-    if (!prepared_) return;
+    if (!prepared_ || !manualLevel_.healthy()) return;
     // Retain the RMT pin routing between runs. Only an interrupted transaction
     // needs cancellation; its partial pulse cannot be counted reliably.
     if (enabled_ && !done()) {
@@ -88,8 +92,9 @@ class C3RmtOutput {
     }
   }
 
-  void shutdown() {
-    if (!prepared_) return;
+  bool shutdown() {
+    if (!manualLevel_.healthy()) return false;
+    if (!prepared_) return true;
     gpio_hold_en(static_cast<gpio_num_t>(pin_));
     if (enabled_) rmt_disable(channel_);
     if (channel_) rmt_del_channel(channel_);
@@ -100,6 +105,7 @@ class C3RmtOutput {
     pinMode(pin_, OUTPUT);
     digitalWrite(pin_, idleHigh_ ? HIGH : LOW);
     gpio_hold_dis(static_cast<gpio_num_t>(pin_));
+    return true;
   }
 
  private:
@@ -120,4 +126,5 @@ class C3RmtOutput {
   portMUX_TYPE completionMux_ = portMUX_INITIALIZER_UNLOCKED;
   bool completed_ = true;
   rmt_symbol_word_t symbols_[17] = {};
+  ManualLevel<rmt_symbol_word_t> manualLevel_;
 };

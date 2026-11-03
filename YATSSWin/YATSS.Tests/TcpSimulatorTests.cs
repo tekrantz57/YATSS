@@ -213,6 +213,31 @@ internal static class TcpSimulatorTests
         bool diagnosticStarted = serial.StartControllerDiagnostics(out string diagnosticReason);
         Check(diagnosticStarted, "diagnostics start in Practice: " + diagnosticReason);
         await Wait(_ => simulator.Status.Diagnostics, "diagnostics session started");
+        var clearEvents = new System.Collections.Concurrent.ConcurrentQueue<ControllerDiagnostic>();
+        void RecordDiagnostic(ControllerDiagnostic item) => clearEvents.Enqueue(item);
+        serial.DiagnosticReceived += RecordDiagnostic;
+        simulator.InjectStaleBeforeClearBarrier = true;
+        serial.ClearDiagnosticCounts();
+        await Wait(_ => clearEvents.Any(item => item is ControllerDiagnosticSensor { TransitionCount: 1 }),
+            "post-clear sensor report received");
+        var clearItems = clearEvents.ToArray();
+        Check(!clearItems.Any(item => item is ControllerDiagnosticSensor { TransitionCount: 9999 }),
+            "pre-barrier in-transit sensor reports are suppressed");
+        Check(Array.FindIndex(clearItems, item => item is ControllerDiagnosticClear { Succeeded: true }) >= 0 &&
+              Array.FindIndex(clearItems, item => item is ControllerDiagnosticClear { Succeeded: true }) <
+              Array.FindIndex(clearItems, item => item is ControllerDiagnosticSensor { TransitionCount: 1 }),
+            "clear barrier precedes the first post-clear sensor report");
+        simulator.InjectStaleBeforeClearBarrier = false;
+        while (clearEvents.TryDequeue(out _)) { }
+        simulator.RejectDiagnosticClear = true;
+        serial.ClearDiagnosticCounts();
+        await Wait(_ => clearEvents.Any(item => item is ControllerDiagnosticClear { Succeeded: false }),
+            "rejected controller clear reports failure");
+        await Task.Delay(150, cancellation);
+        Check(!clearEvents.Any(item => item is ControllerDiagnosticClear { Succeeded: true }),
+            "a later marker cannot turn a rejected clear into success");
+        simulator.RejectDiagnosticClear = false;
+        serial.DiagnosticReceived -= RecordDiagnostic;
         simulator.SimulateDiagnosticTimeout();
         await Wait(_ => simulator.Status.Diagnostics, "active diagnostics recover after timeout");
         serial.StopControllerDiagnostics();

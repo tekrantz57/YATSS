@@ -17,6 +17,9 @@ namespace YATSS
         private readonly (long Order, ControllerDiagnostic? Value)[] _pending = new (long, ControllerDiagnostic?)[19];
         private long _pendingOrder;
         private bool _closing;
+        private bool _clearing;
+        private DateTime _clearStartedUtc;
+        private readonly Button _clearButton;
         private readonly Action _requestStatus;
         private DateTime _lastResponseUtc;
         private bool _sessionStarted;
@@ -76,16 +79,16 @@ namespace YATSS
                 Padding = new Padding(0, 8, 0, 0)
             };
             Button refreshButton = CreateCommandButton("Refresh", (_, _) => requestStatus());
-            Button clearButton = CreateCommandButton("Clear Counts", (_, _) =>
+            _clearButton = CreateCommandButton("Clear Counts", (sender, _) =>
             {
-                foreach (Label label in _transitionLabels)
+                lock (_pendingLock)
                 {
-                    label.Text = "0";
+                    _clearing = true;
+                    _clearStartedUtc = DateTime.UtcNow;
+                    for (int i = 0; i < 8; i++) _pending[i] = default;
                 }
-                foreach (Label label in _acceptedEdgeLabels)
-                {
-                    label.Text = "0";
-                }
+                ((Button)sender!).Enabled = false;
+                _healthLabel.Text = "Clearing counts; waiting for controller";
                 clearCounts();
             });
             Button cutAllButton = CreateCommandButton("Cut All Power", (_, _) => cutAllPower());
@@ -93,7 +96,7 @@ namespace YATSS
             cutAllButton.ForeColor = Color.White;
             Button closeButton = CreateCommandButton("Close", (_, _) => Close());
             commands.Controls.Add(refreshButton);
-            commands.Controls.Add(clearButton);
+            commands.Controls.Add(_clearButton);
             commands.Controls.Add(cutAllButton);
             commands.Controls.Add(closeButton);
             root.Controls.Add(commands, 0, 2);
@@ -101,6 +104,14 @@ namespace YATSS
             _statusTimer.Tick += (_, _) =>
             {
                 _requestStatus();
+                lock (_pendingLock)
+                {
+                    if (_clearing && DateTime.UtcNow - _clearStartedUtc > TimeSpan.FromSeconds(5))
+                    {
+                        _clearing = false;
+                        _pending[18] = (++_pendingOrder, new ControllerDiagnosticClear(false));
+                    }
+                }
                 if (_lastResponseUtc != default && DateTime.UtcNow - _lastResponseUtc > TimeSpan.FromSeconds(3))
                 {
                     _connectionLabel.Text = $"Controller response is stale on {portName}";
@@ -140,7 +151,14 @@ namespace YATSS
             };
             lock (_pendingLock)
             {
-                if (!_closing) _pending[slot] = (++_pendingOrder, diagnostic);
+                if (_closing) return;
+                if (diagnostic is ControllerDiagnosticSensor && _clearing) return;
+                if (diagnostic is ControllerDiagnosticClear)
+                {
+                    if (!_clearing) return;
+                    _clearing = false;
+                }
+                _pending[slot] = (++_pendingOrder, diagnostic);
             }
         }
 
@@ -163,6 +181,12 @@ namespace YATSS
 
             switch (diagnostic)
             {
+                case ControllerDiagnosticClear clear:
+                    _clearButton.Enabled = true;
+                    foreach (Label label in _transitionLabels) label.Text = clear.Succeeded ? "0" : "?";
+                    foreach (Label label in _acceptedEdgeLabels) label.Text = clear.Succeeded ? "0" : "?";
+                    _healthLabel.Text = clear.Succeeded ? "Counts cleared" : "Clear unconfirmed; retry or reconnect";
+                    break;
                 case ControllerDiagnosticStatus status:
                     _connectionLabel.Text = "Controller diagnostics connected";
                     _healthLabel.Text =

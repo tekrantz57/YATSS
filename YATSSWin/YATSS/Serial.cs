@@ -45,6 +45,10 @@ namespace YATSS
         private bool _hasControllerTimestamp;
         private bool _trackPowerEnabled;
         private volatile bool _diagnosticsActive;
+        private string? _diagnosticClearBarrier;
+        private string? _diagnosticClearEnd;
+        private bool _diagnosticClearSawStatus;
+        private DateTime _diagnosticClearStartedUtc;
         private volatile bool _firmwareUpdateActive;
         private ControllerIdentity? _controllerIdentity;
         private bool _startCountdownInProgress;
@@ -881,6 +885,8 @@ namespace YATSS
             {
                 if (!_diagnosticsActive) return;
                 _diagnosticsActive = false;
+                _diagnosticClearBarrier = null;
+                _diagnosticClearEnd = null;
                 if (IsPortOpen()) WriteLine("DIAG:STOP");
             }
             _log.Info("controller diagnostics stopped");
@@ -891,7 +897,7 @@ namespace YATSS
         {
             lock (_controlGate)
             {
-                if (_diagnosticsActive) WriteLine("DIAG:STATUS");
+                if (_diagnosticsActive && _diagnosticClearBarrier == null) WriteLine("DIAG:STATUS");
             }
         }
 
@@ -905,10 +911,34 @@ namespace YATSS
 
         public void ClearDiagnosticCounts()
         {
-            if (_diagnosticsActive)
+            lock (_controlGate)
             {
-                WriteLine("DIAG:CLEAR");
+                if (_diagnosticClearBarrier != null && DateTime.UtcNow - _diagnosticClearStartedUtc > TimeSpan.FromSeconds(5))
+                    _diagnosticClearBarrier = null;
+                if (!_diagnosticsActive || _diagnosticClearBarrier != null)
+                {
+                    DiagnosticReceived?.Invoke(new ControllerDiagnosticClear(false));
+                    return;
+                }
+                // Unique echoed markers bracket CLEAR and its STATUS acknowledgement.
+                // They work with existing protocol-5 firmware without changing ISR code.
+                string nonce = Guid.NewGuid().ToString("N");
+                string marker = "YATSS_CLEAR_PRE_" + nonce;
+                _diagnosticClearEnd = "YATSS_CLEAR_END_" + nonce;
+                _diagnosticClearBarrier = "ERR:UNKNOWN_COMMAND:" + marker;
+                _diagnosticClearSawStatus = false;
+                _diagnosticClearStartedUtc = DateTime.UtcNow;
+                if (!TryWriteLine(marker))
+                    CompleteDiagnosticClear(false);
             }
+        }
+
+        private void CompleteDiagnosticClear(bool succeeded)
+        {
+            if (_diagnosticClearBarrier == null) return;
+            _diagnosticClearBarrier = null;
+            _diagnosticClearEnd = null;
+            DiagnosticReceived?.Invoke(new ControllerDiagnosticClear(succeeded));
         }
 
         public void PulseDiagnosticRelay(int laneIndex, int durationMilliseconds = 1000)
@@ -1526,7 +1556,12 @@ namespace YATSS
                 case LapProtocolMessageKind.Diagnostic:
                     if (message.Diagnostic != null)
                     {
-                        DiagnosticReceived?.Invoke(message.Diagnostic);
+                        if (_diagnosticClearBarrier != null && message.Diagnostic is ControllerDiagnosticSession)
+                            CompleteDiagnosticClear(false);
+                        if (_diagnosticClearBarrier != null && _diagnosticClearEnd == null && message.Diagnostic is ControllerDiagnosticStatus)
+                            _diagnosticClearSawStatus = true;
+                        if (_diagnosticClearBarrier == null || message.Diagnostic is not ControllerDiagnosticSensor)
+                            DiagnosticReceived?.Invoke(message.Diagnostic);
                         if (_diagnosticsActive &&
                             message.Diagnostic is ControllerDiagnosticSession
                             {
@@ -1564,7 +1599,21 @@ namespace YATSS
                     }
                     break;
                 case LapProtocolMessageKind.Error:
-                    if (message.Detail.StartsWith("ERR:WINDOWS_WATCHDOG:", StringComparison.OrdinalIgnoreCase))
+                    if (_diagnosticClearBarrier != null && message.Detail == _diagnosticClearBarrier)
+                    {
+                        if (_diagnosticClearEnd is { } end)
+                        {
+                            _diagnosticClearEnd = null;
+                            _diagnosticClearBarrier = "ERR:UNKNOWN_COMMAND:" + end;
+                            if (!TryWriteLine("DIAG:CLEAR") || !TryWriteLine(end)) CompleteDiagnosticClear(false);
+                        }
+                        else CompleteDiagnosticClear(_diagnosticClearSawStatus);
+                    }
+                    else if (_diagnosticClearBarrier != null && (message.Detail == "ERR:DIAG_NOT_ACTIVE" || message.Detail == "ERR:BAD_CHECKSUM"))
+                    {
+                        CompleteDiagnosticClear(false);
+                    }
+                    else if (message.Detail.StartsWith("ERR:WINDOWS_WATCHDOG:", StringComparison.OrdinalIgnoreCase))
                     {
                         // The fault was handled before observing the message timestamp.
                     }
@@ -1746,6 +1795,7 @@ namespace YATSS
         {
             lock (_controlGate)
             {
+                CompleteDiagnosticClear(false);
                 bool firstFault = !_controllerFaultActive;
                 InvalidateCaptureConfiguration();
                 _controllerFaultActive = true;

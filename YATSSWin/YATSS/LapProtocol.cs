@@ -28,6 +28,9 @@ namespace YATSS
 
     public abstract record ControllerDiagnostic;
 
+    // Application-only ordered clear result; never parsed from a controller frame.
+    public sealed record ControllerDiagnosticClear(bool Succeeded) : ControllerDiagnostic;
+
     public sealed record ControllerDiagnosticStatus(
         byte SensorActiveMask,
         byte TrackPowerEnabledMask,

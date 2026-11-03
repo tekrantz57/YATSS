@@ -155,6 +155,13 @@ public sealed class TcpControllerSimulator : IAsyncDisposable
         _commands++; _lastCommand = _clock.ElapsedMilliseconds; _watchdog = true;
         if (body == "KEEPALIVE") return;
         Log("RX " + body);
+        if (body.StartsWith("YATSS_CLEAR_", StringComparison.Ordinal) && InjectStaleBeforeClearBarrier)
+        {
+            Send($"DIAG:SENSOR:1:ACTIVE:9999:9999:{Now}");
+            Send("ERR:UNKNOWN_COMMAND:" + body);
+            Send($"DIAG:SENSOR:1:ACTIVE:1:1:{Now}");
+            return;
+        }
         switch (body)
         {
             case "PING": Hello(); return;
@@ -165,6 +172,8 @@ public sealed class TcpControllerSimulator : IAsyncDisposable
                 _diagnostics = true; _mask = 0; Send("DIAG:SESSION:STARTED:" + Now); DiagnosticStatus(); return;
             case "DIAG:STOP":
                 _diagnostics = false; _mask = 0; Send("DIAG:SESSION:STOPPED:REQUESTED:" + Now); return;
+            case "DIAG:CLEAR" when RejectDiagnosticClear:
+                Send("ERR:DIAG_NOT_ACTIVE"); return;
             case "DIAG:STATUS": case "DIAG:CLEAR":
                 if (_diagnostics) DiagnosticStatus(); else Send("ERR:DIAG_NOT_ACTIVE"); return;
         }
@@ -238,6 +247,8 @@ public sealed class TcpControllerSimulator : IAsyncDisposable
         }
     }
     public void AdvanceClock(uint milliseconds) { lock (_gate) _clockOffset = unchecked(_clockOffset + milliseconds); }
+    public bool InjectStaleBeforeClearBarrier { get; set; }
+    public bool RejectDiagnosticClear { get; set; }
     public void SimulateDiagnosticTimeout()
     {
         lock (_gate)

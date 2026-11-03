@@ -1,6 +1,8 @@
 # YATSS C3 Bench Pulse Fixture
 
-Standalone ESP32-C3 Super Mini generator; not YATSSMC and not for race use.
+Experimental standalone ESP32-C3 Super Mini generator; not YATSSMC and not
+for race use. DIRECT mode has limited bench testing; NPN and isolated
+conditioning-input interfaces have not been physically validated.
 This adapts the MIT-licensed Drag `dragPulseTest` RMT plan and scheduler. The
 single output uses GPIO4, active LOW at the Nano in DIRECT mode. Verify the
 actual board and pin labels before connecting; some Mini layouts differ.
@@ -76,6 +78,9 @@ The summary gives requested and completed pulses, requested gap range,
 software-observed rearm range, and maximum scheduling lateness. These are not
 measurements at the wire. A STOP during a pulse may cause an uncounted partial
 pulse; measure electrical timing with an oscilloscope/logic analyzer.
+If a manual `LEVEL` transaction times out, the fixture latches a fault and
+refuses further operations: disconnect the signal and restart the C3. The
+output level after a hardware/driver failure is not guaranteed.
 
 YATSS controller debounce and app minimum lap time suppress pulses closer than
 their configured values. For stress testing, use controller diagnostics and

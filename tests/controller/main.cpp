@@ -154,7 +154,13 @@ static void run() {
   check(seen("DIAG:SENSOR:2:CLEAR:2:1:5001"), "diagnostics coalesces output while preserving transition counts");
   check(!seen("EDGE:2:2:5000"), "diagnostic transitions must not become race edges");
   command("CONFIG:DEBOUNCE:1800");
+  command("YATSS_CLEAR_PRE_0123456789abcdef0123456789abcdef");
+  check(seen("ERR:UNKNOWN_COMMAND:YATSS_CLEAR_PRE_0123456789abcdef0123456789abcdef"),
+        "diagnostic clear barrier is echoed by existing controller protocol");
   command("DIAG:CLEAR");
+  command("YATSS_CLEAR_END_0123456789abcdef0123456789abcdef");
+  check(seen("ERR:UNKNOWN_COMMAND:YATSS_CLEAR_END_0123456789abcdef0123456789abcdef"),
+        "diagnostic post-clear barrier is echoed without changing capture behavior");
   capture(2, true, 6000);
   capture(2, false, 6010);
   capture(2, true, 6100);

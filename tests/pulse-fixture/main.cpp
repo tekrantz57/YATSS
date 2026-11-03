@@ -2,6 +2,13 @@
 #include <cstdint>
 #include <cstdio>
 #include "../../YATSSPulseTest/RmtPulseTrain.h"
+#include "../../YATSSPulseTest/ManualLevel.h"
+
+struct FakeSymbol {
+  uint32_t val = 0;
+  uint16_t duration0 = 0, duration1 = 0;
+  bool level0 = false, level1 = false;
+};
 
 struct Fake {
   uint32_t clock = 0;
@@ -16,6 +23,23 @@ struct Fake {
 };
 
 int main() {
+  ManualLevel<FakeSymbol> rejected;
+  bool abortOnReject = false;
+  assert(!rejected.set(true, [](FakeSymbol*) { return false; },
+                       [] { assert(false); return true; }, [&] { abortOnReject = true; }));
+  assert(rejected.healthy() && !abortOnReject);
+  ManualLevel<FakeSymbol> manual;
+  FakeSymbol* outstanding = nullptr;
+  bool aborted = false;
+  assert(manual.set(true, [&](FakeSymbol* p) { outstanding = p; return true; },
+                    [] { return true; }, [] {}));
+  assert(outstanding && outstanding->level0 && outstanding->level1);
+  assert(!manual.set(false, [&](FakeSymbol* p) { outstanding = p; return true; },
+                     [] { return false; }, [&] { aborted = true; }));
+  assert(aborted && !manual.healthy() && !outstanding->level0 && !outstanding->level1);
+  assert(!manual.set(true, [](FakeSymbol*) { assert(false); return true; },
+                     [] { return true; }, [] {}));
+  assert(!outstanding->level0 && !outstanding->level1); // unchanged after timeout
   DragPulse::PulsePlan plan;
   assert(plan.build(1000000, true) && plan.idleHigh && plan.length <= 34);
   uint32_t width = 0;

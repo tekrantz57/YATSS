@@ -45,6 +45,10 @@ jobs:
         run: g++ -std=c++17 -Wall -Wextra -Werror -pedantic tests/controller/main.cpp -o controller-tests
       - name: Test common behavior
         run: ./controller-tests
+      - name: Build pulse fixture host tests
+        run: g++ -std=c++17 -Wall -Wextra -Werror -pedantic tests/pulse-fixture/main.cpp -o pulse-fixture-tests
+      - name: Test pulse fixture behavior
+        run: ./pulse-fixture-tests
       - name: Test UNO Q update helper without hardware
         run: python3 -m unittest discover -s tools/tests -p test_unoq_update.py -v
 
@@ -79,6 +83,10 @@ jobs:
             core: rp2040:rp2040@6.3.1
             fqbn: rp2040:rp2040:rpipico2w
             sketch: YATSSPico
+          - name: C3 pulse fixture
+            core: esp32:esp32@3.3.12
+            fqbn: esp32:esp32:esp32c3:CDCOnBoot=cdc
+            sketch: YATSSPulseTest
     steps:
       - uses: actions/checkout@v6
       - uses: arduino/setup-arduino-cli@v2

@@ -36,6 +36,13 @@ internal static class SupportTests
                 Check(slots.Length == 19 && slots.Count(item => item.Item2 != null) == 1, "diagnostics coalesce a flood into bounded pending state");
                 typeof(ControllerDiagnosticsForm).GetMethod("FlushDiagnostics", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(diagnostic, null);
                 Check(Field<Label[]>(diagnostic, "_transitionLabels")[0].Text == "100000", "diagnostics preserve latest total");
+                diagnostic.ApplyDiagnostic(new ControllerDiagnosticSensor(0, true, 9998, 9998, 100002));
+                Field<Button>(diagnostic, "_clearButton").PerformClick();
+                diagnostic.ApplyDiagnostic(new ControllerDiagnosticSensor(0, true, 9999, 9999, 100003));
+                diagnostic.ApplyDiagnostic(new ControllerDiagnosticClear(true));
+                diagnostic.ApplyDiagnostic(new ControllerDiagnosticSensor(0, true, 1, 1, 100004));
+                typeof(ControllerDiagnosticsForm).GetMethod("FlushDiagnostics", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(diagnostic, null);
+                Check(Field<Label[]>(diagnostic, "_transitionLabels")[0].Text == "1", "clear discards queued and in-transit reports before the barrier");
                 using CancellationTokenSource stopFlood = new();
                 Task flood = Task.Run(() =>
                 {

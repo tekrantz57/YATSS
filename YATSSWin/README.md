@@ -361,6 +361,13 @@ Current persisted settings include:
 Changing controller sensor debounce sends `CONFIG:DEBOUNCE:<milliseconds>` to
 the controller when connected.
 
+Diagnostics Clear Counts waits for an ordered controller round trip before
+displaying zeros, and suppresses older sensor reports while that clear is in
+progress. A lost connection, rejected clear, or timeout is reported as
+unconfirmed; retry rather than assuming the counters were reset. The app uses
+unique echoed unknown-command markers around the existing protocol-5 clear and
+status acknowledgement, without changing controller firmware or sensor timing.
+
 ## Track Power
 
 The app sends track-power commands over serial. In practice mode it enables the
