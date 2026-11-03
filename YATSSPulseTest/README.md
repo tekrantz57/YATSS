@@ -92,7 +92,8 @@ separate from the Nano/C3 grounds. A separate isolated driver is required for
 automated pulses; do not connect C3 GPIO or ground directly to the track/bridge
 side. The 470 ohm input resistor, bridge diode drops, source voltage and H11L1
 LED current determine whether it switches and stays within ratings. Confirm the
-actual component datasheets, complete circuit (including the two diodes),
+actual component datasheets and complete circuit (including the measured 469 ohm
+H11L1 input resistor and approximately 7.5 kOhm output pull-up),
 source limits and meter readings before designing or applying this stimulus.
 No particular battery or voltage is approved here. This is not a substitute
 for the real track, motor noise, or measured wire-level pulse timing.

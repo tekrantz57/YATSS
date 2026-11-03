@@ -40,6 +40,9 @@ retained results/logs, failure/timeout reporting and isolated test data. See
 
 ## October 31 Track Follow-up
 
+- November 3 correction: the two earlier wiring discrepancies involved
+  resistors, not diodes. The corrected measured values are 469 ohm in series
+  with the H11L1 input and approximately 7.5 kOhm for its output pull-up.
 - Nano ESP32 `0.25.0-capture.1`, separate bridge/H11L1 circuits for red and
   orange, no relays. Earlier orange runs missed crossings with roughly 3.1 s
   laps; lower debounce settings exposed closely spaced duplicate pulses.
@@ -81,6 +84,11 @@ retained results/logs, failure/timeout reporting and isolated test data. See
   Direct GPIO4 through 2.2 kOhm to Nano D2, common ground, H11L1 output
   disconnected. Pulse widths were not independently measured; conditioning,
   track noise and isolated input stimulus remain to be tested.
+- A later direct-input soak produced 500 consecutive lane-1 edges and 499
+  counted laps after a fresh baseline, with all eight lanes armed and no
+  other-lane edges during the run. A separately reconstructed conditioning
+  lane reportedly produced no raw edges for approximately 19 minutes with its
+  dead-strip wires disconnected. Neither observation establishes track behavior.
 
 ## TCP Controller Software Tests
 
