@@ -94,6 +94,34 @@ To upload from Arduino IDE, select `Arduino Nano ESP32` and upload the `YATSSMC`
 sketch folder. If `dfu-util` fails after a successful compile, see
 `..\docs\TROUBLESHOOTING.md`.
 
+#### Experimental Lane 0 glitch filter
+
+The production build leaves this experiment off. To build an isolated Nano
+image with the ESP32-S3 fixed pin filter on D2/GPIO5, run:
+
+```powershell
+arduino-cli compile --fqbn arduino:esp32:nano_nora --build-path .build/nano-filter --build-property "compiler.cpp.extra_flags=-DYATSS_NANO_LANE0_GLITCH_FILTER=1" YATSSMC
+```
+
+Build the unfiltered comparison with the same command, a separate build path,
+and without `--build-property`. Do not package the experimental image as a
+production update. This setting does not change the ISR, debounce, or mapping.
+The installed Arduino Nano core 2.0.18-arduino.5 uses ESP-IDF 4.4.7, which
+does not provide the later `gpio_new_pin_glitch_filter` API. The experiment
+therefore sets the ESP32-S3 IO_MUX filter-enable bit directly after pin setup,
+and checks its register readback after each capture configuration, including
+boot and diagnostic start/stop. It prints an unframed experimental status line
+at 115200 baud, for example
+`YATSS_EXPERIMENT:FILTER:ENABLED:GPIO5:POST_CAPTURE_CONFIG:DIAGNOSTIC:MASK_FF`,
+or an `ERROR` line. The mask indicates whether Lane 0 interrupts were attached;
+`MASK_00` reports a disabled intermediate configuration. Capture the output
+with a serial monitor; this line is not part of the YATSS protocol and is not a
+functional signal test. A readback
+confirms the enable bit, not that interference was eliminated. The filter's
+fixed threshold is less than two IO_MUX sample clocks, not milliseconds.
+Compare repeated equal-duration runs with the same wiring and debounce, and
+verify real crossings still register before considering any production change.
+
 ## Sensor Inputs
 
 Sensor inputs use `INPUT_PULLUP` and `FALLING` interrupts. The expected signal

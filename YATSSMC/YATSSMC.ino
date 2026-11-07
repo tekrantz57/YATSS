@@ -5,6 +5,23 @@
 #define YATSS_ISR_ATTR IRAM_ATTR
 #include "src/YatssController/YatssController.h"
 
+// Experimental Nano ESP32 only; production and A/B baseline remain unfiltered.
+#ifndef YATSS_NANO_LANE0_GLITCH_FILTER
+#define YATSS_NANO_LANE0_GLITCH_FILTER 0
+#endif
+#if YATSS_NANO_LANE0_GLITCH_FILTER
+#if !defined(ARDUINO_NANO_ESP32) || !defined(CONFIG_IDF_TARGET_ESP32S3)
+#error "Lane 0 glitch-filter experiment requires the Arduino Nano ESP32"
+#endif
+#include <soc/io_mux_reg.h>
+#include <soc/soc.h>
+// IDF 4.4 in the Arduino Nano core lacks the public filter driver and this
+// definition. ESP32-S3 IO_MUX FILTER_EN is bit 15 (IDF 5 S3 register header).
+static constexpr uint32_t Lane0FilterEnableBit = 1u << 15;
+static void enableLane0Filter();
+static void reportLane0Filter(bool diagnostics, uint8_t mask);
+#endif
+
 const byte LaneCount = 8;
 
 #if defined(CONFIG_IDF_TARGET_ESP32C6)
@@ -19,6 +36,30 @@ const byte trackPowerCutPins[LaneCount] = { 2, 3, 7, 13, 14, 23, 24, 25 };
 const char ControllerBoardProfile[] = "ARDUINO_NANO_ESP32";
 const byte sensorPins[LaneCount] = { D2, A4, D4, D5, D6, D7, D8, D9 };
 const byte trackPowerCutPins[LaneCount] = { D10, D11, D12, D13, A0, A1, A2, A3 };
+#endif
+
+#if YATSS_NANO_LANE0_GLITCH_FILTER
+static void enableLane0Filter() {
+  const int gpio = digitalPinToGPIONumber(sensorPins[0]);
+  if (gpio != 5) {
+    Serial.printf("YATSS_EXPERIMENT:FILTER:ERROR:EXPECTED_GPIO5:GOT_%d\n", gpio);
+    return;
+  }
+  const uint32_t reg = IO_MUX_GPIO0_REG + uint32_t(gpio) * 4;
+  REG_SET_BIT(reg, Lane0FilterEnableBit);
+}
+
+static void reportLane0Filter(bool diagnostics, uint8_t mask) {
+  const int gpio = digitalPinToGPIONumber(sensorPins[0]);
+  if (gpio != 5) {
+    Serial.printf("YATSS_EXPERIMENT:FILTER:ERROR:EXPECTED_GPIO5:GOT_%d\n", gpio);
+    return;
+  }
+  const uint32_t reg = IO_MUX_GPIO0_REG + uint32_t(gpio) * 4;
+  Serial.printf("YATSS_EXPERIMENT:FILTER:%s:GPIO5:POST_CAPTURE_CONFIG:%s:MASK_%02X\n",
+                (REG_READ(reg) & Lane0FilterEnableBit) ? "ENABLED" : "ERROR",
+                diagnostics ? "DIAGNOSTIC" : "NORMAL", (unsigned)mask);
+}
 #endif
 
 portMUX_TYPE queueMux = portMUX_INITIALIZER_UNLOCKED;
@@ -80,6 +121,10 @@ void Esp32Platform::configureCapture(bool diagnostics, uint8_t mask) {
     if (mask & (1u << lane))
       attachInterrupt(digitalPinToInterrupt(sensorPins[lane]), isrHandlers[lane], diagnostics ? CHANGE : FALLING);
   }
+#if YATSS_NANO_LANE0_GLITCH_FILTER
+  // Observe, rather than restore, the bit after every interrupt reconfiguration.
+  reportLane0Filter(diagnostics, mask);
+#endif
 }
 
 void setup() {
@@ -91,6 +136,9 @@ void setup() {
   Serial.setTimeout(10);
   delay(1000);
   for (byte lane = 0; lane < LaneCount; ++lane) pinMode(sensorPins[lane], INPUT_PULLUP);
+#if YATSS_NANO_LANE0_GLITCH_FILTER
+  enableLane0Filter();
+#endif
   controller.begin();
 }
 
